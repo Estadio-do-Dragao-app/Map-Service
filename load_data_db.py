@@ -4,7 +4,7 @@ from models import Node, Edge, Closure, Tile, POI, Seat, Gate
 
 
 def load_sample_data():
-    """Load sample stadium data following the slide format."""
+    """Load sample stadium data with FULL BIDIRECTIONAL connectivity."""
     
     # Initialize database
     init_db()
@@ -12,7 +12,6 @@ def load_sample_data():
     
     try:
         # ==================== NODES ====================
-        # Main navigation nodes
         nodes_data = [
             # Entrance/Gate area nodes
             {"id": "N1", "x": 10.0, "y": 10.0, "level": 0, "type": "normal"},
@@ -56,51 +55,66 @@ def load_sample_data():
         
         print(f"✓ Loaded {len(nodes_data)} nodes")
         
-        # ==================== EDGES ====================
+        # ==================== EDGES (FULLY BIDIRECTIONAL) ====================
         edges_data = [
-            # Main corridor (level 0)
+            # Main corridor (level 0) - BIDIRECTIONAL
             {"id": "E1", "from_id": "N1", "to_id": "N2", "weight": 10.0},
-            {"id": "E2", "from_id": "N2", "to_id": "N3", "weight": 10.0},
-            {"id": "E3", "from_id": "N3", "to_id": "N4", "weight": 10.0},
-            {"id": "E4", "from_id": "N4", "to_id": "N5", "weight": 10.0},
-            {"id": "E5", "from_id": "N5", "to_id": "N6", "weight": 10.0},
-            {"id": "E6", "from_id": "N6", "to_id": "N7", "weight": 10.0},
-            {"id": "E7", "from_id": "N7", "to_id": "N8", "weight": 10.0},
-            {"id": "E8", "from_id": "N8", "to_id": "N20", "weight": 10.0},
-            {"id": "E9", "from_id": "N20", "to_id": "N21", "weight": 10.0},
+            {"id": "E2", "from_id": "N2", "to_id": "N1", "weight": 10.0},
+            {"id": "E3", "from_id": "N2", "to_id": "N3", "weight": 10.0},
+            {"id": "E4", "from_id": "N3", "to_id": "N2", "weight": 10.0},
+            {"id": "E5", "from_id": "N3", "to_id": "N4", "weight": 10.0},
+            {"id": "E6", "from_id": "N4", "to_id": "N3", "weight": 10.0},
+            {"id": "E7", "from_id": "N4", "to_id": "N5", "weight": 10.0},
+            {"id": "E8", "from_id": "N5", "to_id": "N4", "weight": 10.0},
+            {"id": "E9", "from_id": "N5", "to_id": "N6", "weight": 10.0},
+            {"id": "E10", "from_id": "N6", "to_id": "N5", "weight": 10.0},
+            {"id": "E11", "from_id": "N6", "to_id": "N7", "weight": 10.0},
+            {"id": "E12", "from_id": "N7", "to_id": "N6", "weight": 10.0},
+            {"id": "E13", "from_id": "N7", "to_id": "N8", "weight": 10.0},
+            {"id": "E14", "from_id": "N8", "to_id": "N7", "weight": 10.0},
+            {"id": "E15", "from_id": "N8", "to_id": "N20", "weight": 10.0},
+            {"id": "E16", "from_id": "N20", "to_id": "N8", "weight": 10.0},
+            {"id": "E17", "from_id": "N20", "to_id": "N21", "weight": 10.0},
+            {"id": "E18", "from_id": "N21", "to_id": "N20", "weight": 10.0},
             
-            # Vertical connections
-            {"id": "E10", "from_id": "N5", "to_id": "N9", "weight": 10.0},
-            {"id": "E11", "from_id": "N9", "to_id": "N10", "weight": 10.0},
-            {"id": "E12", "from_id": "N10", "to_id": "N11", "weight": 10.0},
+            # Vertical connections - BIDIRECTIONAL
+            {"id": "E19", "from_id": "N5", "to_id": "N9", "weight": 10.0},
+            {"id": "E20", "from_id": "N9", "to_id": "N5", "weight": 10.0},
+            {"id": "E21", "from_id": "N9", "to_id": "N10", "weight": 10.0},
+            {"id": "E22", "from_id": "N10", "to_id": "N9", "weight": 10.0},
+            {"id": "E23", "from_id": "N10", "to_id": "N11", "weight": 10.0},
+            {"id": "E24", "from_id": "N11", "to_id": "N10", "weight": 10.0},
             
-            # Horizontal branches
-            {"id": "E13", "from_id": "N6", "to_id": "N12", "weight": 10.0},
-            {"id": "E14", "from_id": "N12", "to_id": "N13", "weight": 10.0},
-            {"id": "E15", "from_id": "N7", "to_id": "N13", "weight": 10.0},
-            {"id": "E16", "from_id": "N13", "to_id": "N14", "weight": 10.0},
+            # Horizontal branches - BIDIRECTIONAL
+            {"id": "E25", "from_id": "N6", "to_id": "N12", "weight": 10.0},
+            {"id": "E26", "from_id": "N12", "to_id": "N6", "weight": 10.0},
+            {"id": "E27", "from_id": "N12", "to_id": "N13", "weight": 10.0},
+            {"id": "E28", "from_id": "N13", "to_id": "N12", "weight": 10.0},
+            {"id": "E29", "from_id": "N7", "to_id": "N13", "weight": 10.0},
+            {"id": "E30", "from_id": "N13", "to_id": "N7", "weight": 10.0},
+            {"id": "E31", "from_id": "N13", "to_id": "N14", "weight": 10.0},
+            {"id": "E32", "from_id": "N14", "to_id": "N13", "weight": 10.0},
             
-            # Stairs connection (between levels)
-            {"id": "E17", "from_id": "N15", "to_id": "N16", "weight": 5.0},
-            {"id": "E18", "from_id": "N4", "to_id": "N15", "weight": 10.0},
+            # Stairs connection (between levels) - BIDIRECTIONAL
+            {"id": "E33", "from_id": "N4", "to_id": "N15", "weight": 10.0},
+            {"id": "E34", "from_id": "N15", "to_id": "N4", "weight": 10.0},
+            {"id": "E35", "from_id": "N15", "to_id": "N16", "weight": 5.0},
+            {"id": "E36", "from_id": "N16", "to_id": "N15", "weight": 5.0},
             
-            # Level 1 corridor
-            {"id": "E19", "from_id": "N16", "to_id": "N17", "weight": 10.0},
-            {"id": "E20", "from_id": "N17", "to_id": "N18", "weight": 10.0},
-            {"id": "E21", "from_id": "N18", "to_id": "N19", "weight": 10.0},
-            
-            # Bidirectional edges (return paths)
-            {"id": "E22", "from_id": "N2", "to_id": "N1", "weight": 10.0},
-            {"id": "E23", "from_id": "N3", "to_id": "N2", "weight": 10.0},
-            {"id": "E24", "from_id": "N9", "to_id": "N5", "weight": 10.0},
-            {"id": "E25", "from_id": "N16", "to_id": "N15", "weight": 5.0},
+            # Level 1 corridor - BIDIRECTIONAL
+            {"id": "E37", "from_id": "N16", "to_id": "N17", "weight": 10.0},
+            {"id": "E38", "from_id": "N17", "to_id": "N16", "weight": 10.0},
+            {"id": "E39", "from_id": "N17", "to_id": "N18", "weight": 10.0},
+            {"id": "E40", "from_id": "N18", "to_id": "N17", "weight": 10.0},
+            {"id": "E41", "from_id": "N18", "to_id": "N19", "weight": 10.0},
+            {"id": "E42", "from_id": "N19", "to_id": "N18", "weight": 10.0},
         ]
         
         for edge_data in edges_data:
             edge = Edge(**edge_data)
             db.add(edge)
         
-        print(f"✓ Loaded {len(edges_data)} edges")
+        print(f"✓ Loaded {len(edges_data)} edges (FULLY BIDIRECTIONAL)")
         
         # ==================== GATES ====================
         gates_data = [
@@ -158,7 +172,6 @@ def load_sample_data():
         # ==================== SEATS ====================
         seats_data = []
         
-        # Generate seats for different blocks
         # Block A - Level 0
         for row in range(1, 11):
             for num in range(1, 21):
@@ -201,7 +214,6 @@ def load_sample_data():
                     "level": 1
                 })
         
-    
         for seat_data in seats_data:
             seat = Seat(**seat_data)
             db.add(seat)
@@ -211,12 +223,9 @@ def load_sample_data():
         # ==================== TILES ====================
         tiles_data = []
         
-        # Generate grid tiles covering the stadium area
-        # Grid covers from (0,0) to (20,20) in 10x10 meter tiles
         for grid_x in range(0, 12):
             for grid_y in range(0, 12):
                 tile_id = f"C-{grid_x}-{grid_y}"
-                # Make some tiles non-walkable (obstacles)
                 walkable = not ((grid_x == 5 and grid_y == 5) or 
                                (grid_x == 8 and grid_y == 8))
                 tiles_data.append({
@@ -233,27 +242,8 @@ def load_sample_data():
         print(f"✓ Loaded {len(tiles_data)} tiles")
         
         # ==================== CLOSURES ====================
-        # Example closure from slides
-        closures_data = [
-            {
-                "id": "CL-1",
-                "reason": "crowding",
-                "edge_id": "E3",  # N2-N3 edge closure
-                "node_id": None
-            },
-            {
-                "id": "CL-2",
-                "reason": "maintenance",
-                "edge_id": None,
-                "node_id": "N10"
-            },
-            {
-                "id": "CL-3",
-                "reason": "emergency",
-                "edge_id": "E15",
-                "node_id": None
-            }
-        ]
+        # REMOVIDO closures iniciais para testes
+        closures_data = []
         
         for closure_data in closures_data:
             closure = Closure(**closure_data)
@@ -268,12 +258,13 @@ def load_sample_data():
         # Print summary
         print("\n📊 Summary:")
         print(f"   Nodes: {len(nodes_data)}")
-        print(f"   Edges: {len(edges_data)}")
+        print(f"   Edges: {len(edges_data)} (fully bidirectional)")
         print(f"   Gates: {len(gates_data)}")
         print(f"   POIs: {len(pois_data)}")
         print(f"   Seats: {len(seats_data)}")
         print(f"   Tiles: {len(tiles_data)}")
         print(f"   Closures: {len(closures_data)}")
+        print("\n✨ Graph is now FULLY CONNECTED!")
         
     except Exception as e:
         db.rollback()
