@@ -187,4 +187,6 @@ class TileResponse(BaseModel):
     grid_x: int
     grid_y: int
     walkable: bool
+    class Config:  
+        from_attributes = True  
     
