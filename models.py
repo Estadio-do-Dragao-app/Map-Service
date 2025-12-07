@@ -12,10 +12,20 @@ class Node(Base):
     __tablename__ = "nodes"
     
     id = Column(String, primary_key=True)
+    name = Column(String, nullable=True)  # Name for POIs/Gates
     x = Column(Float, nullable=False)
     y = Column(Float, nullable=False)
     level = Column(Integer, default=0)
-    type = Column(String, default="normal")  # "normal", "gate", "seat", "poi", "stairs"
+    type = Column(String, default="normal")  # "normal", "gate", "poi", "restroom", "entrance", etc.
+    
+    # Waiting service fields (for POIs and Gates)
+    num_servers = Column(Integer, nullable=True)
+    service_rate = Column(Float, nullable=True)
+    
+    # Legacy fields for seats
+    block = Column(String, nullable=True)
+    row = Column(Integer, nullable=True)
+    number = Column(Integer, nullable=True)
     
     # Relationships
     edges_from = relationship("Edge", foreign_keys="Edge.from_id", back_populates="from_node", cascade="all, delete-orphan")
@@ -59,67 +69,58 @@ class Tile(Base):
     walkable = Column(Boolean, default=True)
 
 
-class POI(Base):
-    __tablename__ = "pois"
-    
-    id = Column(String, primary_key=True)
-    name = Column(String, nullable=False)
-    category = Column(String, nullable=False)
-    x = Column(Float, nullable=False)
-    y = Column(Float, nullable=False)
-    level = Column(Integer, default=0)
-
-
-class Seat(Base):
-    __tablename__ = "seats"
-    
-    id = Column(String, primary_key=True)
-    block = Column(String, nullable=True)
-    row = Column(Integer, nullable=True)
-    number = Column(Integer, nullable=True)
-    x = Column(Float, nullable=False)
-    y = Column(Float, nullable=False)
-    level = Column(Integer, default=0)
-
-
-class Gate(Base):
-    __tablename__ = "gates"
-    
-    id = Column(String, primary_key=True)
-    gate_number = Column(String, nullable=True)
-    x = Column(Float, nullable=False)
-    y = Column(Float, nullable=False)
-    level = Column(Integer, default=0)
-
-
 # ================== Pydantic Schemas ==================
 
 class NodeBase(BaseModel):
     id: str
+    name: Optional[str] = None
     x: float
     y: float
     level: int = 0
     type: str = "normal"
+    num_servers: Optional[int] = None
+    service_rate: Optional[float] = None
+    block: Optional[str] = None
+    row: Optional[int] = None
+    number: Optional[int] = None
 
 class NodeCreate(BaseModel):
     id: str
+    name: Optional[str] = None
     x: float
     y: float
     level: int = 0
     type: str = "normal"
+    num_servers: Optional[int] = None
+    service_rate: Optional[float] = None
+    block: Optional[str] = None
+    row: Optional[int] = None
+    number: Optional[int] = None
 
 class NodeUpdate(BaseModel):
+    name: Optional[str] = None
     x: Optional[float] = None
     y: Optional[float] = None
     level: Optional[int] = None
     type: Optional[str] = None
+    num_servers: Optional[int] = None
+    service_rate: Optional[float] = None
+    block: Optional[str] = None
+    row: Optional[int] = None
+    number: Optional[int] = None
 
 class NodeResponse(BaseModel):
     id: str
+    name: Optional[str]
     x: float
     y: float
     level: int
     type: str
+    num_servers: Optional[int]
+    service_rate: Optional[float]
+    block: Optional[str]
+    row: Optional[int]
+    number: Optional[int]
     
     class Config:
         from_attributes = True
@@ -187,86 +188,3 @@ class TileResponse(BaseModel):
     grid_y: int
     walkable: bool
     
-    class Config:
-        from_attributes = True
-
-
-class POICreate(BaseModel):
-    id: str
-    name: str
-    category: str
-    x: float
-    y: float
-    level: int = 0
-
-class POIUpdate(BaseModel):
-    name: Optional[str] = None
-    category: Optional[str] = None
-    x: Optional[float] = None
-    y: Optional[float] = None
-    level: Optional[int] = None
-
-class POIResponse(BaseModel):
-    id: str
-    name: str
-    category: str
-    x: float
-    y: float
-    level: int
-    
-    class Config:
-        from_attributes = True
-
-
-class SeatCreate(BaseModel):
-    id: str
-    block: Optional[str] = None
-    row: Optional[int] = None
-    number: Optional[int] = None
-    x: float
-    y: float
-    level: int = 0
-
-class SeatUpdate(BaseModel):
-    block: Optional[str] = None
-    row: Optional[int] = None
-    number: Optional[int] = None
-    x: Optional[float] = None
-    y: Optional[float] = None
-    level: Optional[int] = None
-
-class SeatResponse(BaseModel):
-    id: str
-    block: Optional[str]
-    row: Optional[int]
-    number: Optional[int]
-    x: float
-    y: float
-    level: int
-    
-    class Config:
-        from_attributes = True
-
-
-class GateCreate(BaseModel):
-    id: str
-    gate_number: Optional[str] = None
-    x: float
-    y: float
-    level: int = 0
-
-class GateUpdate(BaseModel):
-    gate_number: Optional[str] = None
-    x: Optional[float] = None
-    y: Optional[float] = None
-    level: Optional[int] = None
-
-class GateResponse(BaseModel):
-    id: str
-    gate_number: Optional[str]
-    x: float
-    y: float
-    level: int
-    
-    class Config:
-        from_attributes = True
