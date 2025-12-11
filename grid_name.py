@@ -39,10 +39,10 @@ class GridManager:
             min_y=min_y,
             max_y=max_y,
             walkable=True,
-            node_id="",
-            poi_id="",
-            seat_id="",
-            gate_id="",
+            node_id=None,
+            poi_id=None,
+            seat_id=None,
+            gate_id=None,
         )
         db.add(tile)
         db.commit()

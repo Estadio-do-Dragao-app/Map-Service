@@ -296,7 +296,7 @@ def delete_closure(closure_id: str, db: Session = Depends(get_db)):
     return {"deleted": closure_id}
 
 # ================== TILES ==================
-grid_manager = GridManager(cell_size=5.0, origin_x=0.0, origin_y=0.0)\
+grid_manager = GridManager(cell_size=5.0, origin_x=0.0, origin_y=0.0)
 
 @app.get("/maps/grid/config")
 def get_grid_config():
@@ -307,11 +307,11 @@ def get_grid_config():
         "origin_y": grid_manager.origin_y
     }
 @app.get("/maps/grid/tiles")
-def get_all_tiles(Level: Optional[int] = None, db: Session = Depends(get_db)):
+def get_all_tiles(level: Optional[int] = None, db: Session = Depends(get_db)):
     """Get all tiles, optionally filtered by level."""
     query = db.query(Tile)
-    if Level is not None:
-        query = query.filter(Tile.level == Level)
+    if level is not None:
+        query = query.filter(Tile.level == level)
     tiles = query.all()
     result = []
     for tile in tiles:
