@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 from database import SessionLocal, init_db
+from grid_name import GridManager
 from models import Node, Edge, Closure, Tile, EmergencyRoute
 import math
 
@@ -625,6 +626,12 @@ def load_sample_data():
         print("   [x] Seats sao endpoints (rotas passam por row_aisle)")
         print("   [x] Rotas de emergencia predefinidas")
         print("   [x] 8 escadas + 4 rampas entre niveis")
+        
+        # ==================== REBUILD GRID ====================
+        grid_manager = GridManager(cell_size=5.0, origin_x=0.0, origin_y=0.0)
+        tile_count = grid_manager.rebuild_grid(db)
+        print(f"\n   TILES:                 {tile_count:>7}")
+        
         print("\nBase de dados pronta!")
         print("=" * 70)
         
@@ -638,6 +645,9 @@ def load_sample_data():
 
 def clear_all_data():
     """Clear all data from the database."""
+    # Ensure tables exist before trying to delete
+    init_db()
+    
     db: Session = SessionLocal()
     try:
         db.query(EmergencyRoute).delete()
