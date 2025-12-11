@@ -50,15 +50,6 @@ class Closure(Base):
     node = relationship("Node", back_populates="closures")
 
 
-class Tile(Base):
-    __tablename__ = "tiles"
-    
-    id = Column(String, primary_key=True)
-    grid_x = Column(Integer, nullable=False)
-    grid_y = Column(Integer, nullable=False)
-    walkable = Column(Boolean, default=True)
-
-
 class POI(Base):
     __tablename__ = "pois"
     
@@ -91,6 +82,24 @@ class Gate(Base):
     y = Column(Float, nullable=False)
     level = Column(Integer, default=0)
 
+class Tile(Base):
+    __tablename__ = "tiles"
+
+    id = Column(String, primary_key=True)
+    grid_x = Column(Float, nullable=False)
+    grid_y = Column(Float, nullable=False)
+    level= Column(Integer, default=0)
+
+    min_x = Column(Float, nullable=False)
+    max_x = Column(Float, nullable=False)
+    min_y = Column(Float, nullable=False)
+    max_y = Column(Float, nullable=False)    
+    walkable = Column(Boolean, default=True)
+
+    node_id = Column(String, nullable=True)
+    poi_id = Column(String, nullable=True)
+    seat_id = Column(String, nullable=True)
+    gate_id = Column(String, nullable=True)
 
 # ================== Pydantic Schemas ==================
 
@@ -174,19 +183,42 @@ class ClosureResponse(BaseModel):
 
 class TileCreate(BaseModel):
     id: str
-    grid_x: int
-    grid_y: int
+    grid_x: float
+    grid_y: float
+    level: int = 0
+    
+    min_x: float
+    max_x: float
+    min_y: float
+    max_y: float
     walkable: bool = True
+
+    node_id: Optional[str] = None
+    poi_id: Optional[str] = None
+    seat_id: Optional[str] = None
+    gate_id: Optional[str] = None
 
 class TileUpdate(BaseModel):
     walkable: Optional[bool] = None
+    node_id: Optional[str] = None
+    poi_id: Optional[str] = None
+    seat_id: Optional[str] = None
+    gate_id: Optional[str] = None
 
 class TileResponse(BaseModel):
     id: str
-    grid_x: int
-    grid_y: int
+    grid_x: float
+    grid_y: float
+    level: int
+    min_x: float
+    max_x: float
+    min_y: float
+    max_y: float
     walkable: bool
-    
+    node_id: Optional[str] = None
+    poi_id: Optional[str] = None
+    seat_id: Optional[str] = None
+    gate_id: Optional[str] = None
     class Config:
         from_attributes = True
 

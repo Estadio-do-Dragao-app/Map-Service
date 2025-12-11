@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Depends
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from database import get_db, init_db
 from models import (
     Node, Edge, Closure, Tile, POI, Seat, Gate,
@@ -12,6 +12,7 @@ from models import (
     SeatCreate, SeatUpdate, SeatResponse,
     GateCreate, GateUpdate, GateResponse
 )
+from grid_name import GridManager
 
 app = FastAPI(title="Smart Stadium Map Backend")
 
@@ -295,78 +296,103 @@ def delete_closure(closure_id: str, db: Session = Depends(get_db)):
     return {"deleted": closure_id}
 
 # ================== TILES ==================
+grid_manager = GridManager(cell_size=5.0, origin_x=0.0, origin_y=0.0)\
 
-@app.get("/api/tiles", response_model=List[TileResponse])
-def get_tiles(db: Session = Depends(get_db)):
-    """Get all tiles."""
-    return db.query(Tile).all()
+@app.get("/maps/grid/config")
+def get_grid_config():
+    """Get grid configuration."""
+    return {
+        "cell_size": grid_manager.cell_size,
+        "origin_x": grid_manager.origin_x,
+        "origin_y": grid_manager.origin_y
+    }
+@app.get("/maps/grid/tiles")
+def get_all_tiles(Level: Optional[int] = None, db: Session = Depends(get_db)):
+    """Get all tiles, optionally filtered by level."""
+    query = db.query(Tile)
+    if Level is not None:
+        query = query.filter(Tile.level == Level)
+    tiles = query.all()
+    result = []
+    for tile in tiles:
+        node_count = len([nid for nid in tile.node_id.split(',') if nid]) if tile.node_id else 0
+        poi_count = len([pid for pid in tile.poi_id.split(',') if pid]) if tile.poi_id else 0
+        seat_count = len([sid for sid in tile.seat_id.split(',') if sid]) if tile.seat_id else 0
+        gate_count = len([gid for gid in tile.gate_id.split(',') if gid]) if tile.gate_id else 0
+        result.append({
+            "id": tile.id,
+            "grid_x": tile.grid_x,
+            "grid_y": tile.grid_y,
+            "level": tile.level,
+            "bounds": {
+                "min_x": tile.min_x,
+                "max_x": tile.max_x,
+                "min_y": tile.min_y,
+                "max_y": tile.max_y
+            },
+            "walkable": tile.walkable,
+            "entity_counts": {
+                "nodes": node_count,
+                "pois": poi_count,
+                "seats": seat_count,
+                "gates": gate_count,
+                "total": node_count + poi_count + seat_count + gate_count
+            }
+        })
+    
+    return {
+        "tiles": result,
+        "total_tiles": len(result)
+    }
 
-@app.get("/api/tiles/{tile_id}", response_model=TileResponse)
-def get_tile(tile_id: str, db: Session = Depends(get_db)):
-    """Get a specific tile by ID."""
-    tile = db.query(Tile).filter(Tile.id == tile_id).first()
-    if not tile:
-        raise HTTPException(status_code=404, detail="Tile not found")
-    return tile
+@app.post("/maps/grid/rebuild")
+def rebuild_grid(db: Session = Depends(get_db)):
 
-# @app.post("/api/tiles", response_model=TileResponse, status_code=201)
-# def add_tile(data: TileCreate, db: Session = Depends(get_db)):
-#     """Create a new tile."""
-#     existing = db.query(Tile).filter(Tile.id == data.id).first()
-#     if existing:
-#         raise HTTPException(status_code=400, detail="Tile already exists")
-    
-#     tile = Tile(
-#         id=data.id,
-#         grid_x=data.grid_x,
-#         grid_y=data.grid_y,
-#         walkable=data.walkable
-#     )
-#     db.add(tile)
-#     try:
-#         db.commit()
-#         db.refresh(tile)
-#     except Exception as e:
-#         db.rollback()
-#         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-    
-#     return tile
-
-@app.put("/api/tiles/{tile_id}", response_model=TileResponse)
-def update_tile(tile_id: str, data: TileUpdate, db: Session = Depends(get_db)):
-    """Update an existing tile."""
-    tile = db.query(Tile).filter(Tile.id == tile_id).first()
-    if not tile:
-        raise HTTPException(status_code=404, detail="Tile not found")
-    
-    if data.walkable is not None:
-        tile.walkable = data.walkable
-    
     try:
-        db.commit()
-        db.refresh(tile)
+        tile_count = grid_manager.rebuild_grid(db)
+        return {
+            "status": "success",
+            "message": f"Grid rebuilt with {tile_count} tiles.",
+            "tiles_created": tile_count
+        }
     except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Grid rebuild failed: {str(e)}")
     
-    return tile
-
-# @app.delete("/api/tiles/{tile_id}")
-# def delete_tile(tile_id: str, db: Session = Depends(get_db)):
-#     """Delete a tile."""
-#     tile = db.query(Tile).filter(Tile.id == tile_id).first()
-#     if not tile:
-#         raise HTTPException(status_code=404, detail="Tile not found")
+@app.get("/maps/grid/stats")
+def get_grid_stats(db: Session = Depends(get_db)):
+    """Get grid statistics."""
+    tiles = db.query(Tile).all()
     
-#     try:
-#         db.delete(tile)
-#         db.commit()
-#     except Exception as e:
-#         db.rollback()
-#         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    total_nodes = 0
+    total_pois = 0
+    total_seats = 0
+    total_gates = 0
     
-#     return {"deleted": tile_id}
-
+    for tile in tiles:
+        if tile.node_id:
+            total_nodes += len([i for i in tile.node_id.split(',') if i])
+        if tile.poi_id:
+            total_pois += len([i for i in tile.poi_id.split(',') if i])
+        if tile.seat_id:
+            total_seats += len([i for i in tile.seat_id.split(',') if i])
+        if tile.gate_id:
+            total_gates += len([i for i in tile.gate_id.split(',') if i])
+    
+    return {
+        "total_tiles": len(tiles),
+        "entities_indexed": {
+            "nodes": total_nodes,
+            "pois": total_pois,
+            "seats": total_seats,
+            "gates": total_gates,
+            "total": total_nodes + total_pois + total_seats + total_gates
+        },
+        "configuration": {
+            "cell_size": grid_manager.cell_size,
+            "origin_x": grid_manager.origin_x,
+            "origin_y": grid_manager.origin_y
+        }
+    }
 # ================== POIs ==================
 
 @app.get("/api/pois", response_model=List[POIResponse])
@@ -636,10 +662,15 @@ def reset_data(db: Session = Depends(get_db)):
         clear_all_data()
         load_sample_data()
         print("Database reset complete")
+
+        print("Rebuilding grid...")
+        tile_count = grid_manager.rebuild_grid(db)
+        print(f"Grid rebuilt with {tile_count} tiles.")
         
         return {
             "status": "success",
-            "message": "Database reset to initial state with sample data"
+            "message": "Database reset to initial state with sample data",
+            "tiles_created": tile_count
         }
     except Exception as e:
         print(f"❌ Reset failed: {str(e)}")

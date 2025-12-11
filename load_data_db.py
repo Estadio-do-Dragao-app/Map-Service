@@ -1,12 +1,13 @@
 from sqlalchemy.orm import Session
 from database import SessionLocal, init_db
 from models import Node, Edge, Closure, Tile, POI, Seat, Gate
-
+from grid_name import GridManager
 
 def load_sample_data():
     """Load sample stadium data with FULL BIDIRECTIONAL connectivity."""
     
     # Initialize database
+    
     init_db()
     db: Session = SessionLocal()
     
@@ -221,25 +222,7 @@ def load_sample_data():
         print(f"✓ Loaded {len(seats_data)} seats")
         
         # ==================== TILES ====================
-        tiles_data = []
-        
-        for grid_x in range(0, 12):
-            for grid_y in range(0, 12):
-                tile_id = f"C-{grid_x}-{grid_y}"
-                walkable = not ((grid_x == 5 and grid_y == 5) or 
-                               (grid_x == 8 and grid_y == 8))
-                tiles_data.append({
-                    "id": tile_id,
-                    "grid_x": grid_x,
-                    "grid_y": grid_y,
-                    "walkable": walkable
-                })
-        
-        for tile_data in tiles_data:
-            tile = Tile(**tile_data)
-            db.add(tile)
-        
-        print(f"✓ Loaded {len(tiles_data)} tiles")
+    
         
         # ==================== CLOSURES ====================
         # REMOVIDO closures iniciais para testes
@@ -262,10 +245,13 @@ def load_sample_data():
         print(f"   Gates: {len(gates_data)}")
         print(f"   POIs: {len(pois_data)}")
         print(f"   Seats: {len(seats_data)}")
-        print(f"   Tiles: {len(tiles_data)}")
+
         print(f"   Closures: {len(closures_data)}")
         print("\n✨ Graph is now FULLY CONNECTED!")
-        
+
+        grid_name = GridManager(cell_size=5.0, origin_x=0.0, origin_y=0.0)
+        tile_count = grid_name.rebuild_grid(db)
+        print(f"✓ Grid created with {tile_count} tiles")
     except Exception as e:
         db.rollback()
         print(f"\n❌ Error loading data: {str(e)}")
