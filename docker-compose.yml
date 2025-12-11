@@ -9,14 +9,41 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: estadio_do_dragao
     ports:
-      - "5433:5432"
+      - "5434:5432"  # Port 5434 to avoid conflicts (5433 is WaitTime-Service)
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - map-network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 5s
       retries: 5
+
+  mapservice:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mapservice
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URI: postgresql://postgres:postgres@postgres:5432/estadio_do_dragao
+      DEBUG: "false"
+    ports:
+      - "8000:8000"
+    networks:
+      - map-network
+      - stadium_network
+    restart: unless-stopped
+
+networks:
+  map-network:
+    driver: bridge
+  stadium_network:
+    external: true
+    name: stadium-event-generator_stadium-network
 
 volumes:
   postgres_data:
