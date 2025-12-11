@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from database import SessionLocal, init_db
-from models import Node, Edge, Closure, Tile, POI, Seat, Gate
+from models import Node, Edge, Closure, Tile
 
 
 def load_sample_data():
@@ -116,60 +116,64 @@ def load_sample_data():
         
         print(f"✓ Loaded {len(edges_data)} edges (FULLY BIDIRECTIONAL)")
         
-        # ==================== GATES ====================
+        # ==================== GATES (now as nodes) ====================
         gates_data = [
-            {"id": "Gate-1", "gate_number": "1", "x": 5.0, "y": 10.0, "level": 0},
-            {"id": "Gate-2", "gate_number": "2", "x": 15.0, "y": 5.0, "level": 0},
-            {"id": "Gate-3", "gate_number": "3", "x": 100.0, "y": 15.0, "level": 0},
-            {"id": "Gate-14", "gate_number": "14", "x": 90.0, "y": 5.0, "level": 0},
+            {"id": "Gate-1", "name": "Gate 1", "type": "gate", "x": 5.0, "y": 10.0, "level": 0,
+             "num_servers": 4, "service_rate": 0.8},
+            {"id": "Gate-2", "name": "Gate 2", "type": "gate", "x": 15.0, "y": 5.0, "level": 0,
+             "num_servers": 4, "service_rate": 0.8},
+            {"id": "Gate-3", "name": "Gate 3", "type": "gate", "x": 100.0, "y": 15.0, "level": 0,
+             "num_servers": 4, "service_rate": 0.8},
+            {"id": "Gate-14", "name": "Gate 14", "type": "gate", "x": 90.0, "y": 5.0, "level": 0,
+             "num_servers": 4, "service_rate": 0.8},
         ]
         
         for gate_data in gates_data:
-            gate = Gate(**gate_data)
+            gate = Node(**gate_data)
             db.add(gate)
         
-        print(f"✓ Loaded {len(gates_data)} gates")
+        print(f"✓ Loaded {len(gates_data)} gates as nodes")
         
-        # ==================== POIs ====================
+        # ==================== POIs (now as nodes) ====================
         pois_data = [
             # Restrooms
-            {"id": "Restroom-A3", "name": "Restroom A3", "category": "restroom", 
-             "x": 45.0, "y": 15.0, "level": 0},
-            {"id": "Restroom-B1", "name": "Restroom B1", "category": "restroom", 
-             "x": 75.0, "y": 15.0, "level": 0},
-            {"id": "Restroom-C2", "name": "Restroom C2", "category": "restroom", 
-             "x": 55.0, "y": 25.0, "level": 1},
+            {"id": "Restroom-A3", "name": "Restroom A3", "type": "restroom", 
+             "x": 45.0, "y": 15.0, "level": 0, "num_servers": 8, "service_rate": 0.5},
+            {"id": "Restroom-B1", "name": "Restroom B1", "type": "restroom", 
+             "x": 75.0, "y": 15.0, "level": 0, "num_servers": 8, "service_rate": 0.5},
+            {"id": "Restroom-C2", "name": "Restroom C2", "type": "restroom", 
+             "x": 55.0, "y": 25.0, "level": 1, "num_servers": 6, "service_rate": 0.5},
             
             # Food & Beverage
-            {"id": "Store-1", "name": "Concession Stand 1", "category": "food", 
-             "x": 35.0, "y": 12.0, "level": 0},
-            {"id": "Store-2", "name": "Concession Stand 2", "category": "food", 
-             "x": 65.0, "y": 12.0, "level": 0},
-            {"id": "Bar-1", "name": "Stadium Bar 1", "category": "bar", 
-             "x": 85.0, "y": 15.0, "level": 0},
+            {"id": "Store-1", "name": "Concession Stand 1", "type": "food", 
+             "x": 35.0, "y": 12.0, "level": 0, "num_servers": 5, "service_rate": 0.3},
+            {"id": "Store-2", "name": "Concession Stand 2", "type": "food", 
+             "x": 65.0, "y": 12.0, "level": 0, "num_servers": 5, "service_rate": 0.3},
+            {"id": "Bar-1", "name": "Stadium Bar 1", "type": "bar", 
+             "x": 85.0, "y": 15.0, "level": 0, "num_servers": 3, "service_rate": 0.4},
             
             # Emergency
-            {"id": "Exit-A", "name": "Emergency Exit A", "category": "emergency_exit", 
+            {"id": "Exit-A", "name": "Emergency Exit A", "type": "emergency_exit", 
              "x": 25.0, "y": 5.0, "level": 0},
-            {"id": "Exit-B", "name": "Emergency Exit B", "category": "emergency_exit", 
+            {"id": "Exit-B", "name": "Emergency Exit B", "type": "emergency_exit", 
              "x": 95.0, "y": 5.0, "level": 0},
-            {"id": "FirstAid-1", "name": "First Aid Station", "category": "first_aid", 
-             "x": 55.0, "y": 35.0, "level": 0},
+            {"id": "FirstAid-1", "name": "First Aid Station", "type": "first_aid", 
+             "x": 55.0, "y": 35.0, "level": 0, "num_servers": 2, "service_rate": 0.2},
             
             # Services
-            {"id": "Info-Desk", "name": "Information Desk", "category": "information", 
-             "x": 30.0, "y": 8.0, "level": 0},
-            {"id": "Merchandise-1", "name": "Team Store", "category": "merchandise", 
-             "x": 70.0, "y": 8.0, "level": 0},
+            {"id": "Info-Desk", "name": "Information Desk", "type": "information", 
+             "x": 30.0, "y": 8.0, "level": 0, "num_servers": 2, "service_rate": 0.6},
+            {"id": "Merchandise-1", "name": "Team Store", "type": "merchandise", 
+             "x": 70.0, "y": 8.0, "level": 0, "num_servers": 4, "service_rate": 0.4},
         ]
         
         for poi_data in pois_data:
-            poi = POI(**poi_data)
+            poi = Node(**poi_data)
             db.add(poi)
         
-        print(f"✓ Loaded {len(pois_data)} POIs")
+        print(f"✓ Loaded {len(pois_data)} POIs as nodes")
         
-        # ==================== SEATS ====================
+        # ==================== SEATS (now as nodes) ====================
         seats_data = []
         
         # Block A - Level 0
@@ -178,6 +182,7 @@ def load_sample_data():
                 seat_id = f"Seat-A{row}-{num}"
                 seats_data.append({
                     "id": seat_id,
+                    "type": "seat",
                     "block": "A",
                     "row": row,
                     "number": num,
@@ -192,6 +197,7 @@ def load_sample_data():
                 seat_id = f"Seat-B{row}-{num}"
                 seats_data.append({
                     "id": seat_id,
+                    "type": "seat",
                     "block": "B",
                     "row": row,
                     "number": num,
@@ -206,6 +212,7 @@ def load_sample_data():
                 seat_id = f"Seat-C{row}-{num}"
                 seats_data.append({
                     "id": seat_id,
+                    "type": "seat",
                     "block": "C",
                     "row": row,
                     "number": num,
@@ -215,10 +222,10 @@ def load_sample_data():
                 })
         
         for seat_data in seats_data:
-            seat = Seat(**seat_data)
+            seat = Node(**seat_data)
             db.add(seat)
         
-        print(f"✓ Loaded {len(seats_data)} seats")
+        print(f"✓ Loaded {len(seats_data)} seats as nodes")
         
         # ==================== TILES ====================
         tiles_data = []
@@ -281,10 +288,7 @@ def clear_all_data():
         db.query(Closure).delete()
         db.query(Edge).delete()
         db.query(Tile).delete()
-        db.query(POI).delete()
-        db.query(Seat).delete()
-        db.query(Gate).delete()
-        db.query(Node).delete()
+        db.query(Node).delete()  # Now includes POIs, Seats, and Gates
         db.commit()
         print("✓ All data cleared from database")
     except Exception as e:

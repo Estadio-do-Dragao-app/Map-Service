@@ -3,14 +3,11 @@ from sqlalchemy.orm import Session
 from typing import List
 from database import get_db, init_db
 from models import (
-    Node, Edge, Closure, Tile, POI, Seat, Gate,
+    Node, Edge, Closure, Tile,
     NodeCreate, NodeUpdate, NodeResponse,
     EdgeCreate, EdgeUpdate, EdgeResponse,
     ClosureCreate, ClosureResponse,
-    TileCreate, TileUpdate, TileResponse,
-    POICreate, POIUpdate, POIResponse,
-    SeatCreate, SeatUpdate, SeatResponse,
-    GateCreate, GateUpdate, GateResponse
+    TileCreate, TileUpdate, TileResponse
 )
 
 app = FastAPI(title="Smart Stadium Map Backend")
@@ -368,62 +365,43 @@ def update_tile(tile_id: str, data: TileUpdate, db: Session = Depends(get_db)):
 #     return {"deleted": tile_id}
 
 # ================== POIs ==================
+# Now handled via Node endpoints with type filtering
 
-@app.get("/api/pois", response_model=List[POIResponse])
+@app.get("/api/pois", response_model=List[NodeResponse])
 def get_pois(db: Session = Depends(get_db)):
-    """Get all POIs."""
-    return db.query(POI).all()
+    """Get all POI nodes (restroom, entrance, food, etc)."""
+    pois = db.query(Node).filter(Node.type.in_(['poi', 'restroom', 'entrance', 'food', 'shop'])).all()
+    return pois
 
-@app.get("/api/pois/{poi_id}", response_model=POIResponse)
+@app.get("/api/pois/{poi_id}", response_model=NodeResponse)
 def get_poi(poi_id: str, db: Session = Depends(get_db)):
-    """Get a specific POI by ID."""
-    poi = db.query(POI).filter(POI.id == poi_id).first()
+    """Get a specific POI node by ID."""
+    poi = db.query(Node).filter(Node.id == poi_id).first()
     if not poi:
         raise HTTPException(status_code=404, detail="POI not found")
     return poi
 
-# @app.post("/api/pois", response_model=POIResponse, status_code=201)
-# def add_poi(data: POICreate, db: Session = Depends(get_db)):
-#     """Create a new POI."""
-#     existing = db.query(POI).filter(POI.id == data.id).first()
-#     if existing:
-#         raise HTTPException(status_code=400, detail="POI already exists")
-    
-#     poi = POI(
-#         id=data.id,
-#         name=data.name,
-#         category=data.category,
-#         x=data.x,
-#         y=data.y,
-#         level=data.level
-#     )
-#     db.add(poi)
-#     try:
-#         db.commit()
-#         db.refresh(poi)
-#     except Exception as e:
-#         db.rollback()
-#         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-    
-#     return poi
-
-@app.put("/api/pois/{poi_id}", response_model=POIResponse)
-def update_poi(poi_id: str, data: POIUpdate, db: Session = Depends(get_db)):
-    """Update an existing POI."""
-    poi = db.query(POI).filter(POI.id == poi_id).first()
+@app.put("/api/pois/{poi_id}", response_model=NodeResponse)
+def update_poi(poi_id: str, data: NodeUpdate, db: Session = Depends(get_db)):
+    """Update an existing POI node."""
+    poi = db.query(Node).filter(Node.id == poi_id).first()
     if not poi:
         raise HTTPException(status_code=404, detail="POI not found")
     
     if data.name is not None:
         poi.name = data.name
-    if data.category is not None:
-        poi.category = data.category
+    if data.type is not None:
+        poi.type = data.type
     if data.x is not None:
         poi.x = data.x
     if data.y is not None:
         poi.y = data.y
     if data.level is not None:
         poi.level = data.level
+    if data.num_servers is not None:
+        poi.num_servers = data.num_servers
+    if data.service_rate is not None:
+        poi.service_rate = data.service_rate
     
     try:
         db.commit()
@@ -434,67 +412,26 @@ def update_poi(poi_id: str, data: POIUpdate, db: Session = Depends(get_db)):
     
     return poi
 
-# @app.delete("/api/pois/{poi_id}")
-# def delete_poi(poi_id: str, db: Session = Depends(get_db)):
-#     """Delete a POI."""
-#     poi = db.query(POI).filter(POI.id == poi_id).first()
-#     if not poi:
-#         raise HTTPException(status_code=404, detail="POI not found")
-    
-#     try:
-#         db.delete(poi)
-#         db.commit()
-#     except Exception as e:
-#         db.rollback()
-#         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-    
-#     return {"deleted": poi_id}
-
 # ================== SEATS ==================
+# Now handled via Node endpoints with type='seat'
 
-@app.get("/api/seats", response_model=List[SeatResponse])
+@app.get("/api/seats", response_model=List[NodeResponse])
 def get_seats(db: Session = Depends(get_db)):
-    """Get all seats."""
-    return db.query(Seat).all()
+    """Get all seat nodes."""
+    return db.query(Node).filter(Node.type == 'seat').all()
 
-@app.get("/api/seats/{seat_id}", response_model=SeatResponse)
+@app.get("/api/seats/{seat_id}", response_model=NodeResponse)
 def get_seat(seat_id: str, db: Session = Depends(get_db)):
-    """Get a specific seat by ID."""
-    seat = db.query(Seat).filter(Seat.id == seat_id).first()
+    """Get a specific seat node by ID."""
+    seat = db.query(Node).filter(Node.id == seat_id).first()
     if not seat:
         raise HTTPException(status_code=404, detail="Seat not found")
     return seat
 
-# @app.post("/api/seats", response_model=SeatResponse, status_code=201)
-# def add_seat(data: SeatCreate, db: Session = Depends(get_db)):
-#     """Create a new seat."""
-#     existing = db.query(Seat).filter(Seat.id == data.id).first()
-#     if existing:
-#         raise HTTPException(status_code=400, detail="Seat already exists")
-    
-#     seat = Seat(
-#         id=data.id,
-#         block=data.block,
-#         row=data.row,
-#         number=data.number,
-#         x=data.x,
-#         y=data.y,
-#         level=data.level
-#     )
-#     db.add(seat)
-#     try:
-#         db.commit()
-#         db.refresh(seat)
-#     except Exception as e:
-#         db.rollback()
-#         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-    
-#     return seat
-
-@app.put("/api/seats/{seat_id}", response_model=SeatResponse)
-def update_seat(seat_id: str, data: SeatUpdate, db: Session = Depends(get_db)):
-    """Update an existing seat."""
-    seat = db.query(Seat).filter(Seat.id == seat_id).first()
+@app.put("/api/seats/{seat_id}", response_model=NodeResponse)
+def update_seat(seat_id: str, data: NodeUpdate, db: Session = Depends(get_db)):
+    """Update an existing seat node."""
+    seat = db.query(Node).filter(Node.id == seat_id).first()
     if not seat:
         raise HTTPException(status_code=404, detail="Seat not found")
     
@@ -520,76 +457,41 @@ def update_seat(seat_id: str, data: SeatUpdate, db: Session = Depends(get_db)):
     
     return seat
 
-# @app.delete("/api/seats/{seat_id}")
-# def delete_seat(seat_id: str, db: Session = Depends(get_db)):
-#     """Delete a seat."""
-#     seat = db.query(Seat).filter(Seat.id == seat_id).first()
-#     if not seat:
-#         raise HTTPException(status_code=404, detail="Seat not found")
-    
-#     try:
-#         db.delete(seat)
-#         db.commit()
-#     except Exception as e:
-#         db.rollback()
-#         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-    
-#     return {"deleted": seat_id}
-
 # ================== GATES ==================
+# Now handled via Node endpoints with type='gate'
 
-@app.get("/api/gates", response_model=List[GateResponse])
+@app.get("/api/gates", response_model=List[NodeResponse])
 def get_gates(db: Session = Depends(get_db)):
-    """Get all gates."""
-    return db.query(Gate).all()
+    """Get all gate nodes."""
+    return db.query(Node).filter(Node.type == 'gate').all()
 
-@app.get("/api/gates/{gate_id}", response_model=GateResponse)
+@app.get("/api/gates/{gate_id}", response_model=NodeResponse)
 def get_gate(gate_id: str, db: Session = Depends(get_db)):
-    """Get a specific gate by ID."""
-    gate = db.query(Gate).filter(Gate.id == gate_id).first()
+    """Get a specific gate node by ID."""
+    gate = db.query(Node).filter(Node.id == gate_id).first()
     if not gate:
         raise HTTPException(status_code=404, detail="Gate not found")
     return gate
 
-# @app.post("/api/gates", response_model=GateResponse, status_code=201)
-# def add_gate(data: GateCreate, db: Session = Depends(get_db)):
-#     """Create a new gate."""
-#     existing = db.query(Gate).filter(Gate.id == data.id).first()
-#     if existing:
-#         raise HTTPException(status_code=400, detail="Gate already exists")
-    
-#     gate = Gate(
-#         id=data.id,
-#         gate_number=data.gate_number,
-#         x=data.x,
-#         y=data.y,
-#         level=data.level
-#     )
-#     db.add(gate)
-#     try:
-#         db.commit()
-#         db.refresh(gate)
-#     except Exception as e:
-#         db.rollback()
-#         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-    
-#     return gate
-
-@app.put("/api/gates/{gate_id}", response_model=GateResponse)
-def update_gate(gate_id: str, data: GateUpdate, db: Session = Depends(get_db)):
-    """Update an existing gate."""
-    gate = db.query(Gate).filter(Gate.id == gate_id).first()
+@app.put("/api/gates/{gate_id}", response_model=NodeResponse)
+def update_gate(gate_id: str, data: NodeUpdate, db: Session = Depends(get_db)):
+    """Update an existing gate node."""
+    gate = db.query(Node).filter(Node.id == gate_id).first()
     if not gate:
         raise HTTPException(status_code=404, detail="Gate not found")
     
-    if data.gate_number is not None:
-        gate.gate_number = data.gate_number
+    if data.name is not None:
+        gate.name = data.name
     if data.x is not None:
         gate.x = data.x
     if data.y is not None:
         gate.y = data.y
     if data.level is not None:
         gate.level = data.level
+    if data.num_servers is not None:
+        gate.num_servers = data.num_servers
+    if data.service_rate is not None:
+        gate.service_rate = data.service_rate
     
     try:
         db.commit()
@@ -600,21 +502,7 @@ def update_gate(gate_id: str, data: GateUpdate, db: Session = Depends(get_db)):
     
     return gate
 
-# @app.delete("/api/gates/{gate_id}")
-# def delete_gate(gate_id: str, db: Session = Depends(get_db)):
-#     """Delete a gate."""
-#     gate = db.query(Gate).filter(Gate.id == gate_id).first()
-#     if not gate:
-#         raise HTTPException(status_code=404, detail="Gate not found")
-    
-#     try:
-#         db.delete(gate)
-#         db.commit()
-#     except Exception as e:
-#         db.rollback()
-#         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-    
-#     return {"deleted": gate_id}
+# ================== RESET ==================
 
 # ================== HEALTH CHECK ==================
 
