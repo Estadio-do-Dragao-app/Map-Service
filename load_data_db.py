@@ -196,6 +196,7 @@ def load_sample_data():
                 edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": mid_next, "to_id": outer, "weight": 9.0})
         
         # ==================== STAIRS & RAMPS (Level connections) ====================
+        # Each stair/ramp has TWO nodes (one per level) for proper visualization and navigation
         
         # 8 stair locations around the stadium
         stair_positions = [9, 18, 27, 36, 45, 54, 63, 72]
@@ -204,25 +205,44 @@ def load_sample_data():
             angle = pos * 360 / NUM_CORRIDOR_POINTS
             x, y = ellipse_pos(angle, CORRIDOR_OUTER_X + 15, CORRIDOR_OUTER_Y + 15)
             
-            stair_id = f"Stairs-{idx+1}"
+            # Create two nodes per stair (one for each level)
+            stair_l0_id = f"Stairs-{idx+1}-L0"
+            stair_l1_id = f"Stairs-{idx+1}-L1"
+            
             nodes_data.append({
-                "id": stair_id,
-                "name": f"Escadas {idx+1}",
+                "id": stair_l0_id,
+                "name": f"Escadas {idx+1} (Piso 0)",
                 "x": x,
                 "y": y,
                 "level": 0,
                 "type": "stairs",
-                "description": f"Stairs connecting Level 0 to Level 1"
+                "description": f"Escadas - acesso ao Piso 1"
+            })
+            nodes_data.append({
+                "id": stair_l1_id,
+                "name": f"Escadas {idx+1} (Piso 1)",
+                "x": x,
+                "y": y,
+                "level": 1,
+                "type": "stairs",
+                "description": f"Escadas - acesso ao Piso 0"
             })
             
-            # Connect to both levels - STAIRS ARE NOT ACCESSIBLE
-            l0_node = grid_nodes[(0, 'outer', pos)]
-            l1_node = grid_nodes[(1, 'outer', pos)]
+            # Connect each stair node to its level's corridor - NOT ACCESSIBLE
+            l0_corridor = grid_nodes[(0, 'outer', pos)]
+            l1_corridor = grid_nodes[(1, 'outer', pos)]
             
-            edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": l0_node, "to_id": stair_id, "weight": 2.0, "accessible": False})
-            edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": stair_id, "to_id": l0_node, "weight": 2.0, "accessible": False})
-            edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": stair_id, "to_id": l1_node, "weight": 15.0, "accessible": False})  # Going up
-            edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": l1_node, "to_id": stair_id, "weight": 10.0, "accessible": False})  # Going down
+            # L0 stair <-> L0 corridor
+            edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": l0_corridor, "to_id": stair_l0_id, "weight": 2.0, "accessible": False})
+            edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": stair_l0_id, "to_id": l0_corridor, "weight": 2.0, "accessible": False})
+            
+            # L1 stair <-> L1 corridor
+            edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": l1_corridor, "to_id": stair_l1_id, "weight": 2.0, "accessible": False})
+            edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": stair_l1_id, "to_id": l1_corridor, "weight": 2.0, "accessible": False})
+            
+            # Connect L0 stair <-> L1 stair (the level transition!)
+            edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": stair_l0_id, "to_id": stair_l1_id, "weight": 15.0, "accessible": False})  # Going up
+            edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": stair_l1_id, "to_id": stair_l0_id, "weight": 10.0, "accessible": False})  # Going down
         
         # 4 ramps for accessibility
         ramp_positions = [12, 30, 48, 66]
@@ -230,25 +250,44 @@ def load_sample_data():
             angle = pos * 360 / NUM_CORRIDOR_POINTS
             x, y = ellipse_pos(angle, CORRIDOR_OUTER_X + 20, CORRIDOR_OUTER_Y + 20)
             
-            ramp_id = f"Ramp-{idx+1}"
+            # Create two nodes per ramp (one for each level)
+            ramp_l0_id = f"Ramp-{idx+1}-L0"
+            ramp_l1_id = f"Ramp-{idx+1}-L1"
+            
             nodes_data.append({
-                "id": ramp_id,
-                "name": f"Rampa {idx+1}",
+                "id": ramp_l0_id,
+                "name": f"Rampa {idx+1} (Piso 0)",
                 "x": x,
                 "y": y,
                 "level": 0,
                 "type": "ramp",
-                "description": f"Accessible ramp for wheelchair users"
+                "description": f"Rampa acessível - acesso ao Piso 1"
+            })
+            nodes_data.append({
+                "id": ramp_l1_id,
+                "name": f"Rampa {idx+1} (Piso 1)",
+                "x": x,
+                "y": y,
+                "level": 1,
+                "type": "ramp",
+                "description": f"Rampa acessível - acesso ao Piso 0"
             })
             
-            # Connect to both levels - RAMPS ARE ACCESSIBLE
-            l0_node = grid_nodes[(0, 'outer', pos)]
-            l1_node = grid_nodes[(1, 'outer', pos)]
+            # Connect each ramp node to its level's corridor - RAMPS ARE ACCESSIBLE
+            l0_corridor = grid_nodes[(0, 'outer', pos)]
+            l1_corridor = grid_nodes[(1, 'outer', pos)]
             
-            edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": l0_node, "to_id": ramp_id, "weight": 2.0, "accessible": True})
-            edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": ramp_id, "to_id": l0_node, "weight": 2.0, "accessible": True})
-            edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": ramp_id, "to_id": l1_node, "weight": 20.0, "accessible": True})
-            edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": l1_node, "to_id": ramp_id, "weight": 15.0, "accessible": True})
+            # L0 ramp <-> L0 corridor
+            edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": l0_corridor, "to_id": ramp_l0_id, "weight": 2.0, "accessible": True})
+            edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": ramp_l0_id, "to_id": l0_corridor, "weight": 2.0, "accessible": True})
+            
+            # L1 ramp <-> L1 corridor
+            edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": l1_corridor, "to_id": ramp_l1_id, "weight": 2.0, "accessible": True})
+            edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": ramp_l1_id, "to_id": l1_corridor, "weight": 2.0, "accessible": True})
+            
+            # Connect L0 ramp <-> L1 ramp (the level transition!)
+            edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": ramp_l0_id, "to_id": ramp_l1_id, "weight": 20.0, "accessible": True})  # Going up
+            edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": ramp_l1_id, "to_id": ramp_l0_id, "weight": 15.0, "accessible": True})  # Going down
         
         # ==================== GATES ====================
         gates_data = []
