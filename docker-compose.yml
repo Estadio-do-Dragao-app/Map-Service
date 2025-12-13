@@ -35,15 +35,15 @@ services:
       - "8000:8000"
     networks:
       - map-network
-      - stadium_network
+      # - stadium_network  # Desactivado - não precisa do Stadium Event Generator
     restart: unless-stopped
 
 networks:
   map-network:
     driver: bridge
-  stadium_network:
-    external: true
-    name: stadium-event-generator_stadium-network
+  # stadium_network:
+  #   external: true
+  #   name: stadium-event-generator_stadium-network
 
 volumes:
   postgres_data:
