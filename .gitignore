@@ -8,9 +8,11 @@ venv
 # Test coverage
 .coverage
 htmlcov/
+coverage_html/
 .pytest_cache/
 *.cover
 .hypothesis/
+coverage.xml
 
 # IDE
 .vscode/

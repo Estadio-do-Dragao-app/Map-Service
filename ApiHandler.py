@@ -932,9 +932,12 @@ def update_poi(poi_id: str, data: NodeUpdate, db: Session = Depends(get_db)):
 # Now handled via Node endpoints with type='seat'
 
 @app.get("/seats", response_model=List[NodeResponse])
-def get_seats(db: Session = Depends(get_db)):
-    """Get all seat nodes."""
-    return db.query(Node).filter(Node.type == 'seat').all()
+def get_seats(block: Optional[str] = None, db: Session = Depends(get_db)):
+    """Get all seat nodes, optionally filtered by block."""
+    query = db.query(Node).filter(Node.type == 'seat')
+    if block:
+        query = query.filter(Node.block == block)
+    return query.all()
 
 @app.get("/seats/{seat_id}", response_model=NodeResponse)
 def get_seat(seat_id: str, db: Session = Depends(get_db)):
