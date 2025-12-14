@@ -8,3 +8,7 @@ pytest==7.4.3
 pytest-asyncio==0.21.1
 coverage==7.4.0
 httpx==0.25.1
+numpy==1.26.2
+opencv-python==4.8.1.78
+scikit-image==0.22.0
+scipy==1.11.4

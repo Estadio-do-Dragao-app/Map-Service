@@ -2,11 +2,17 @@
 Tests for floor_plan_to_graph.py module.
 """
 import pytest
-import numpy as np
-import cv2
 import json
 import os
 import tempfile
+
+# Skip all tests in this module if dependencies are not available
+pytest.importorskip("numpy", reason="numpy not installed - floor_plan_to_graph is optional")
+pytest.importorskip("cv2", reason="opencv-python not installed - floor_plan_to_graph is optional")
+pytest.importorskip("skimage", reason="scikit-image not installed - floor_plan_to_graph is optional")
+
+import numpy as np
+import cv2
 from floor_plan_to_graph import FloorPlanProcessor
 
 
