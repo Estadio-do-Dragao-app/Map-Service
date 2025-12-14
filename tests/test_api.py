@@ -539,3 +539,322 @@ class TestStartupEvents:
         # This test just verifies we can query
         response = client.get("/map")
         assert response.status_code == 200
+
+
+class TestGeoJSONEndpoints:
+    """Test GeoJSON endpoints for map visualization."""
+    
+    def test_get_geojson_empty(self, client):
+        """Test GeoJSON with no data."""
+        response = client.get("/map/geojson")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["type"] == "FeatureCollection"
+        assert len(data["features"]) == 0
+    
+    def test_get_geojson_with_nodes(self, client, test_db):
+        """Test GeoJSON with nodes."""
+        nodes = [
+            Node(id="N1", x=100, y=200, type="corridor", level=0),
+            Node(id="N2", x=150, y=250, type="gate", level=0),
+        ]
+        test_db.add_all(nodes)
+        test_db.commit()
+        
+        response = client.get("/map/geojson")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["type"] == "FeatureCollection"
+        assert len(data["features"]) >= 2
+    
+    def test_get_geojson_filtered_by_level(self, client, test_db):
+        """Test GeoJSON filtered by level."""
+        nodes = [
+            Node(id="N1", x=100, y=200, level=0),
+            Node(id="N2", x=150, y=250, level=1),
+        ]
+        test_db.add_all(nodes)
+        test_db.commit()
+        
+        response = client.get("/map/geojson?level=0")
+        assert response.status_code == 200
+    
+    def test_get_geojson_with_edges(self, client, test_db):
+        """Test GeoJSON including edges."""
+        nodes = [
+            Node(id="N1", x=0, y=0),
+            Node(id="N2", x=100, y=100),
+        ]
+        edge = Edge(id="E1", from_id="N1", to_id="N2", weight=5.0)
+        test_db.add_all([*nodes, edge])
+        test_db.commit()
+        
+        response = client.get("/map/geojson?include_edges=true")
+        assert response.status_code == 200
+        data = response.json()
+        # Should have both point and linestring features
+        assert len(data["features"]) >= 3
+    
+    def test_get_geojson_without_seats(self, client, test_db):
+        """Test GeoJSON excluding seats."""
+        nodes = [
+            Node(id="N1", x=100, y=200, type="corridor"),
+            Node(id="S1", x=150, y=250, type="seat"),
+        ]
+        test_db.add_all(nodes)
+        test_db.commit()
+        
+        response = client.get("/map/geojson?include_seats=false")
+        assert response.status_code == 200
+        data = response.json()
+        # Should not include seat
+        assert data["metadata"]["total_nodes"] == 1
+    
+    def test_get_map_bounds(self, client, test_db):
+        """Test getting map bounds."""
+        nodes = [
+            Node(id="N1", x=0, y=10),
+            Node(id="N2", x=100, y=50),
+        ]
+        test_db.add_all(nodes)
+        test_db.commit()
+        
+        response = client.get("/map/bounds")
+        assert response.status_code == 200
+        data = response.json()
+        assert "bounds" in data
+        assert "center" in data
+        assert "levels" in data
+    
+    def test_get_pois_geojson(self, client, test_db):
+        """Test POIs-only GeoJSON."""
+        nodes = [
+            Node(id="G1", x=0, y=0, type="gate"),
+            Node(id="C1", x=100, y=100, type="corridor"),
+        ]
+        test_db.add_all(nodes)
+        test_db.commit()
+        
+        response = client.get("/map/geojson/pois")
+        assert response.status_code == 200
+
+
+class TestGridEndpoints:
+    """Test grid management endpoints."""
+    
+    def test_get_grid_config(self, client):
+        """Test getting grid configuration."""
+        response = client.get("/maps/grid/config")
+        assert response.status_code == 200
+        data = response.json()
+        assert "tile_size" in data
+    
+    def test_get_grid_tiles(self, client, test_db):
+        """Test getting grid tiles."""
+        response = client.get("/maps/grid/tiles")
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, list)
+    
+    def test_rebuild_grid(self, client, test_db):
+        """Test rebuilding grid index."""
+        node = Node(id="N1", x=100, y=200, type="corridor")
+        test_db.add(node)
+        test_db.commit()
+        
+        response = client.post("/maps/grid/rebuild")
+        assert response.status_code == 200
+    
+    def test_get_grid_stats(self, client):
+        """Test getting grid statistics."""
+        response = client.get("/maps/grid/stats")
+        assert response.status_code == 200
+        data = response.json()
+        assert "total_tiles" in data
+
+
+class TestPOIEndpoints:
+    """Test POI-specific endpoints."""
+    
+    def test_get_all_pois(self, client, test_db):
+        """Test getting all POIs."""
+        pois = [
+            Node(id="G1", x=0, y=0, type="gate"),
+            Node(id="R1", x=100, y=100, type="restroom"),
+        ]
+        test_db.add_all(pois)
+        test_db.commit()
+        
+        response = client.get("/pois")
+        assert response.status_code == 200
+        assert len(response.json()) >= 2
+    
+    def test_get_single_poi(self, client, test_db):
+        """Test getting a single POI."""
+        poi = Node(id="G1", x=0, y=0, type="gate", name="Gate 1")
+        test_db.add(poi)
+        test_db.commit()
+        
+        response = client.get("/pois/G1")
+        assert response.status_code == 200
+        assert response.json()["name"] == "Gate 1"
+    
+    def test_update_poi(self, client, test_db):
+        """Test updating a POI."""
+        poi = Node(id="G1", x=0, y=0, type="gate")
+        test_db.add(poi)
+        test_db.commit()
+        
+        response = client.put("/pois/G1", json={"name": "Updated Gate"})
+        assert response.status_code == 200
+        assert response.json()["name"] == "Updated Gate"
+
+
+class TestSeatEndpoints:
+    """Test seat-specific endpoints."""
+    
+    def test_get_all_seats(self, client, test_db):
+        """Test getting all seats."""
+        seats = [
+            Node(id="S1", x=0, y=0, type="seat", block="A", row=1, number=1),
+            Node(id="S2", x=10, y=10, type="seat", block="A", row=1, number=2),
+        ]
+        test_db.add_all(seats)
+        test_db.commit()
+        
+        response = client.get("/seats")
+        assert response.status_code == 200
+        assert len(response.json()) >= 2
+    
+    def test_get_seats_by_block(self, client, test_db):
+        """Test filtering seats by block."""
+        seats = [
+            Node(id="S1", type="seat", block="A", row=1, number=1),
+            Node(id="S2", type="seat", block="B", row=1, number=1),
+        ]
+        test_db.add_all(seats)
+        test_db.commit()
+        
+        response = client.get("/seats?block=A")
+        assert response.status_code == 200
+        data = response.json()
+        assert all(s["block"] == "A" for s in data)
+    
+    def test_get_single_seat(self, client, test_db):
+        """Test getting a single seat."""
+        seat = Node(id="S1", type="seat", block="A", row=1, number=1)
+        test_db.add(seat)
+        test_db.commit()
+        
+        response = client.get("/seats/S1")
+        assert response.status_code == 200
+        assert response.json()["block"] == "A"
+    
+    def test_update_seat(self, client, test_db):
+        """Test updating a seat."""
+        seat = Node(id="S1", type="seat", block="A", row=1, number=1)
+        test_db.add(seat)
+        test_db.commit()
+        
+        response = client.put("/seats/S1", json={"block": "B"})
+        assert response.status_code == 200
+
+
+class TestGateEndpoints:
+    """Test gate-specific endpoints."""
+    
+    def test_get_all_gates(self, client, test_db):
+        """Test getting all gates."""
+        gates = [
+            Node(id="G1", type="gate", num_servers=3),
+            Node(id="G2", type="gate", num_servers=2),
+        ]
+        test_db.add_all(gates)
+        test_db.commit()
+        
+        response = client.get("/gates")
+        assert response.status_code == 200
+        assert len(response.json()) >= 2
+    
+    def test_get_single_gate(self, client, test_db):
+        """Test getting a single gate."""
+        gate = Node(id="G1", type="gate", name="Main Gate", num_servers=5)
+        test_db.add(gate)
+        test_db.commit()
+        
+        response = client.get("/gates/G1")
+        assert response.status_code == 200
+        assert response.json()["name"] == "Main Gate"
+    
+    def test_update_gate(self, client, test_db):
+        """Test updating a gate."""
+        gate = Node(id="G1", type="gate", num_servers=3)
+        test_db.add(gate)
+        test_db.commit()
+        
+        response = client.put("/gates/G1", json={"num_servers": 5})
+        assert response.status_code == 200
+
+
+class TestEmergencyRouteEndpoints:
+    """Test emergency route endpoints."""
+    
+    def test_list_emergency_routes(self, client, test_db):
+        """Test listing all emergency routes."""
+        response = client.get("/emergency-routes")
+        assert response.status_code == 200
+        assert isinstance(response.json(), list)
+    
+    def test_get_nearest_emergency_route(self, client, test_db):
+        """Test finding nearest emergency route."""
+        # Create nodes and route
+        nodes = [Node(id=f"N{i}", x=float(i*10), y=float(i*10)) for i in range(5)]
+        test_db.add_all(nodes)
+        test_db.commit()
+        
+        route = EmergencyRoute(
+            id="ER1",
+            name="Exit Route 1",
+            exit_id="N4",
+            node_ids=["N0", "N1", "N2", "N3", "N4"]
+        )
+        test_db.add(route)
+        test_db.commit()
+        
+        response = client.get("/emergency-routes/nearest?x=5&y=5")
+        assert response.status_code == 200
+    
+    def test_get_emergency_route_geojson(self, client, test_db):
+        """Test getting emergency route as GeoJSON."""
+        # Create nodes and route
+        nodes = [Node(id=f"N{i}", x=float(i*10), y=float(i*10)) for i in range(5)]
+        test_db.add_all(nodes)
+        test_db.commit()
+        
+        route = EmergencyRoute(
+            id="ER1",
+            name="Exit Route 1",
+            exit_id="N4",
+            node_ids=["N0", "N1", "N2", "N3", "N4"]
+        )
+        test_db.add(route)
+        test_db.commit()
+        
+        response = client.get("/emergency-routes/ER1")
+        assert response.status_code == 200
+
+
+class TestUtilityEndpoints:
+    """Test utility endpoints."""
+    
+    def test_health_check(self, client):
+        """Test health check endpoint."""
+        response = client.get("/health")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "healthy"
+    
+    def test_reset_database(self, client):
+        """Test database reset endpoint."""
+        response = client.post("/reset")
+        assert response.status_code == 200
