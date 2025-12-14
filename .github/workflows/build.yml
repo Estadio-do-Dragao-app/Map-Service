@@ -55,25 +55,51 @@ jobs:
           done
           echo "PostgreSQL is ready!"
       
-      - name: Setup test database
+      - name: Setup test database (Python init)
         env:
           PGPASSWORD: test_password
-        run: |
-          psql -h localhost -U test_user -d test_db -f "db/ddl.sql"
-          psql -h localhost -U test_user -d test_db -f "db/dml.sql"
-          echo "Database setup complete!"
-
-      - name: Verify database setup
-        env:
           DB_HOST: localhost
           DB_PORT: 5432
           DB_NAME: test_db
           DB_USER: test_user
           DB_PASSWORD: test_password
+          DATABASE_URI: postgresql://test_user:test_password@localhost:5432/test_db
         run: |
-          echo "Verificando configuração do banco de dados..."
-          python check_database.py
-      
+          echo "Creating database tables using init_db()..."
+          python -c "
+          from database import init_db
+          init_db()
+          print('Tables created successfully!')
+          "
+          
+          echo "Loading minimal test data..."
+          python -c "
+          from sqlalchemy.orm import Session
+          from database import SessionLocal, engine
+          from models import Node, Edge
+          
+          db = SessionLocal()
+          try:
+              # Create a few test nodes
+              test_nodes = [
+                  Node(id='N1', x=100, y=100, level=0, type='corridor'),
+                  Node(id='N2', x=150, y=100, level=0, type='corridor'),
+                  Node(id='Gate-1', x=200, y=200, level=0, type='gate'),
+              ]
+              
+              for node in test_nodes:
+                  db.add(node)
+              
+              # Create a test edge
+              test_edge = Edge(id='E1', from_id='N1', to_id='N2', weight=5.0)
+              db.add(test_edge)
+              
+              db.commit()
+              print(f'Added {len(test_nodes)} nodes and 1 edge for testing')
+          finally:
+              db.close()
+          "
+
       - name: Run tests with coverage
         env:
           DB_HOST: localhost
@@ -81,7 +107,7 @@ jobs:
           DB_NAME: test_db
           DB_USER: test_user
           DB_PASSWORD: test_password
-          QR_SECRET: test-secret-key-for-testing-only
+          DATABASE_URI: postgresql://test_user:test_password@localhost:5432/test_db
           TESTING: 'True'
         run: |
           echo "Running tests with coverage..."
@@ -130,7 +156,7 @@ jobs:
         with:
           args: >
             -Dsonar.sources=.
-            -Dsonar.exclusions=tests/**,test_*.py,conftest.py,load_data_db.py,load_from_config.py,visualize.py,check_database.py,db/**,**/__pycache__/**,**/*.pyc
+            -Dsonar.exclusions=tests/**,test_*.py,conftest.py,load_data_db.py,load_from_config.py,visualize.py,db/**,**/__pycache__/**,**/*.pyc
             -Dsonar.tests=tests
             -Dsonar.test.inclusions=tests/**/*.py
             -Dsonar.python.coverage.reportPaths=coverage.xml
