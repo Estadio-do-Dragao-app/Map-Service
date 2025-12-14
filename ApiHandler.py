@@ -1094,7 +1094,7 @@ def get_level_geojson(level: int, db: Session = Depends(get_db)):
     Shortcut endpoint to get GeoJSON for a specific floor level.
     Excludes seats for performance.
     """
-    return get_map_geojson(level=level, include_seats=False, db=db)
+    return get_map_geojson(level=level, types=None, include_edges=True, include_seats=False, db=db)
 
 
 @app.get("/map/bounds")
@@ -1147,7 +1147,8 @@ def get_pois_geojson(level: Optional[int] = None, db: Session = Depends(get_db))
     return get_map_geojson(
         level=level, 
         types=','.join(poi_types), 
-        include_edges=False, 
+        include_edges=False,
+        include_seats=False,
         db=db
     )
 
