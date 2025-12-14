@@ -1,0 +1,84 @@
+# Git and version control
+.git
+.gitignore
+.gitattributes
+
+# Python cache and build artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+.venv/
+ENV/
+env/
+
+# Testing and coverage
+.pytest_cache/
+.coverage
+.coverage.*
+coverage_html/
+htmlcov/
+coverage.xml
+*.cover
+.hypothesis/
+.tox/
+tests/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Documentation
+README.md
+docs/
+*.md
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# Database files (development only)
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+
+# SonarQube
+sonar-project.properties
+.scannerwork/
+
+# Docker
+docker-compose.yml
+Dockerfile
+.dockerignore
+
+# Other
+*.bak
+*.tmp
+.env.example

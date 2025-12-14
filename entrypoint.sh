@@ -33,18 +33,18 @@ exit(2)
 # Check the exit code
 DB_STATUS=$?
 
-if [ $DB_STATUS -eq 1 ]; then
+if [[ $DB_STATUS -eq 1 ]]; then
     echo "Loading stadium data..."
     python load_data_db.py
     
     # Verificar se carregou corretamente
-    if [ $? -ne 0 ]; then
-        echo "ERROR: Failed to load data!"
+    if [[ $? -ne 0 ]]; then
+        echo "ERROR: Failed to load data!" >&2
         exit 1
     fi
     echo "Data loaded successfully!"
-elif [ $DB_STATUS -eq 2 ]; then
-    echo "ERROR: Database connection failed!"
+elif [[ $DB_STATUS -eq 2 ]]; then
+    echo "ERROR: Database connection failed!" >&2
     exit 1
 fi
 

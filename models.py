@@ -8,6 +8,12 @@ Base = declarative_base()
 
 # ================== Constants for Valid Values ==================
 
+# SQLAlchemy cascade option for relationships
+CASCADE_ALL_DELETE_ORPHAN = "all, delete-orphan"
+
+# Foreign key reference to nodes table
+NODES_ID_FK = "nodes.id"
+
 # Valid node types used in the stadium map
 NODE_TYPES = [
     "corridor",       # Navigation node in corridors/concourses
@@ -88,9 +94,9 @@ class Node(Base):
     number = Column(Integer, nullable=True)  # Seat number within row
     
     # Relationships
-    edges_from = relationship("Edge", foreign_keys="Edge.from_id", back_populates="from_node", cascade="all, delete-orphan")
-    edges_to = relationship("Edge", foreign_keys="Edge.to_id", back_populates="to_node", cascade="all, delete-orphan")
-    closures = relationship("Closure", back_populates="node", cascade="all, delete-orphan")
+    edges_from = relationship("Edge", foreign_keys="Edge.from_id", back_populates="from_node", cascade=CASCADE_ALL_DELETE_ORPHAN)
+    edges_to = relationship("Edge", foreign_keys="Edge.to_id", back_populates="to_node", cascade=CASCADE_ALL_DELETE_ORPHAN)
+    closures = relationship("Closure", back_populates="node", cascade=CASCADE_ALL_DELETE_ORPHAN)
 
 
 class Edge(Base):
@@ -107,8 +113,8 @@ class Edge(Base):
     __tablename__ = "edges"
     
     id = Column(String, primary_key=True)
-    from_id = Column(String, ForeignKey("nodes.id", ondelete="CASCADE"), nullable=False)
-    to_id = Column(String, ForeignKey("nodes.id", ondelete="CASCADE"), nullable=False)
+    from_id = Column(String, ForeignKey(NODES_ID_FK, ondelete="CASCADE"), nullable=False)
+    to_id = Column(String, ForeignKey(NODES_ID_FK, ondelete="CASCADE"), nullable=False)
     
     # Weight/cost of traversing this edge (used in pathfinding)
     # Suggested weights:

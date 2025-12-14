@@ -563,30 +563,6 @@ def get_node(node_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Node not found")
     return node
 
-# @app.post("/nodes", response_model=NodeResponse, status_code=201)
-# def add_node(data: NodeCreate, db: Session = Depends(get_db)):
-#     """Create a new node."""
-#     existing = db.query(Node).filter(Node.id == data.id).first()
-#     if existing:
-#         raise HTTPException(status_code=400, detail="Node already exists")
-    
-#     node = Node(
-#         id=data.id,
-#         x=data.x,
-#         y=data.y,
-#         level=data.level,
-#         type=data.type
-#     )
-#     db.add(node)
-#     try:
-#         db.commit()
-#         db.refresh(node)
-#     except Exception as e:
-#         db.rollback()
-#         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-    
-#     return node
-
 @app.put("/nodes/{node_id}", response_model=NodeResponse)
 def update_node(node_id: str, data: NodeUpdate, db: Session = Depends(get_db)):
     """Update an existing node."""
@@ -614,22 +590,6 @@ def update_node(node_id: str, data: NodeUpdate, db: Session = Depends(get_db)):
     
     return node
 
-# @app.delete("/nodes/{node_id}")
-# def delete_node(node_id: str, db: Session = Depends(get_db)):
-#     """Delete a node. Will also delete related edges and closures due to CASCADE."""
-#     node = db.query(Node).filter(Node.id == node_id).first()
-#     if not node:
-#         raise HTTPException(status_code=404, detail="Node not found")
-    
-#     try:
-#         db.delete(node)
-#         db.commit()
-#     except Exception as e:
-#         db.rollback()
-#         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-    
-#     return {"deleted": node_id}
-
 # ================== EDGES ==================
 
 @app.get("/edges", response_model=List[EdgeResponse])
@@ -644,38 +604,6 @@ def get_edge(edge_id: str, db: Session = Depends(get_db)):
     if not edge:
         raise HTTPException(status_code=404, detail="Edge not found")
     return edge
-
-# @app.post("/edges", response_model=EdgeResponse, status_code=201)
-# def add_edge(data: EdgeCreate, db: Session = Depends(get_db)):
-#     """Create a new edge."""
-#     existing = db.query(Edge).filter(Edge.id == data.id).first()
-#     if existing:
-#         raise HTTPException(status_code=400, detail="Edge already exists")
-    
-#     # Validate that both nodes exist
-#     from_node = db.query(Node).filter(Node.id == data.from_id).first()
-#     to_node = db.query(Node).filter(Node.id == data.to_id).first()
-    
-#     if not from_node:
-#         raise HTTPException(status_code=400, detail=f"from_id node '{data.from_id}' does not exist")
-#     if not to_node:
-#         raise HTTPException(status_code=400, detail=f"to_id node '{data.to_id}' does not exist")
-    
-#     edge = Edge(
-#         id=data.id,
-#         from_id=data.from_id,
-#         to_id=data.to_id,
-#         weight=data.weight
-#     )
-#     db.add(edge)
-#     try:
-#         db.commit()
-#         db.refresh(edge)
-#     except Exception as e:
-#         db.rollback()
-#         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-    
-#     return edge
 
 @app.put("/edges/{edge_id}", response_model=EdgeResponse)
 def update_edge(edge_id: str, data: EdgeUpdate, db: Session = Depends(get_db)):
@@ -697,22 +625,6 @@ def update_edge(edge_id: str, data: EdgeUpdate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     
     return edge
-
-# @app.delete("/edges/{edge_id}")
-# def delete_edge(edge_id: str, db: Session = Depends(get_db)):
-#     """Delete an edge."""
-#     edge = db.query(Edge).filter(Edge.id == edge_id).first()
-#     if not edge:
-#         raise HTTPException(status_code=404, detail="Edge not found")
-    
-#     try:
-#         db.delete(edge)
-#         db.commit()
-#     except Exception as e:
-#         db.rollback()
-#         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-    
-#     return {"deleted": edge_id}
 
 # ================== CLOSURES ==================
 
@@ -1023,6 +935,85 @@ def update_gate(gate_id: str, data: NodeUpdate, db: Session = Depends(get_db)):
 
 # ================== GEOJSON ENDPOINTS ==================
 
+def _create_node_feature(node: Node) -> dict:
+    """Helper function to convert a Node to a GeoJSON Feature."""
+    feature = {
+        "type": "Feature",
+        "id": node.id,
+        "geometry": {
+            "type": "Point",
+            "coordinates": [node.x, node.y]
+        },
+        "properties": {
+            "id": node.id,
+            "name": node.name,
+            "type": node.type,
+            "level": node.level,
+            "description": node.description,
+        }
+    }
+    # Add optional properties only if present
+    if node.num_servers is not None:
+        feature["properties"]["num_servers"] = node.num_servers
+    if node.service_rate is not None:
+        feature["properties"]["service_rate"] = node.service_rate
+    if node.block is not None:
+        feature["properties"]["block"] = node.block
+    if node.row is not None:
+        feature["properties"]["row"] = node.row
+    if node.number is not None:
+        feature["properties"]["number"] = node.number
+    return feature
+
+
+def _create_edge_features(db: Session, nodes: list, node_map: dict, level: Optional[int]) -> list:
+    """Helper function to create GeoJSON features for edges."""
+    features = []
+    edge_query = db.query(Edge)
+    if level is not None:
+        level_node_ids = [n.id for n in nodes]
+        edge_query = edge_query.filter(Edge.from_id.in_(level_node_ids))
+    
+    for e in edge_query.all():
+        from_node = node_map.get(e.from_id)
+        to_node = node_map.get(e.to_id)
+        
+        if from_node and to_node:
+            features.append({
+                "type": "Feature",
+                "id": e.id,
+                "geometry": {
+                    "type": "LineString",
+                    "coordinates": [
+                        [from_node.x, from_node.y],
+                        [to_node.x, to_node.y]
+                    ]
+                },
+                "properties": {
+                    "id": e.id,
+                    "type": "edge",
+                    "weight": e.weight,
+                    "from_id": e.from_id,
+                    "to_id": e.to_id
+                }
+            })
+    return features
+
+
+def _calculate_bounds(nodes: list) -> dict:
+    """Helper function to calculate map bounds from nodes."""
+    if not nodes:
+        return None
+    xs = [n.x for n in nodes]
+    ys = [n.y for n in nodes]
+    return {
+        "min_x": min(xs),
+        "max_x": max(xs),
+        "min_y": min(ys),
+        "max_y": max(ys)
+    }
+
+
 @app.get("/map/geojson")
 def get_map_geojson(
     level: Optional[int] = Query(None, description="Filter by floor level (0, 1, 2)"),
@@ -1065,78 +1056,14 @@ def get_map_geojson(
     
     for n in nodes:
         node_map[n.id] = n
-        feature = {
-            "type": "Feature",
-            "id": n.id,
-            "geometry": {
-                "type": "Point",
-                "coordinates": [n.x, n.y]
-            },
-            "properties": {
-                "id": n.id,
-                "name": n.name,
-                "type": n.type,
-                "level": n.level,
-                "description": n.description,
-            }
-        }
-        # Add optional properties only if present
-        if n.num_servers is not None:
-            feature["properties"]["num_servers"] = n.num_servers
-        if n.service_rate is not None:
-            feature["properties"]["service_rate"] = n.service_rate
-        if n.block is not None:
-            feature["properties"]["block"] = n.block
-        if n.row is not None:
-            feature["properties"]["row"] = n.row
-        if n.number is not None:
-            feature["properties"]["number"] = n.number
-        
-        features.append(feature)
+        features.append(_create_node_feature(n))
     
     # Add edges as LineStrings
     if include_edges:
-        edge_query = db.query(Edge)
-        if level is not None:
-            # Get edges where from_node is in this level
-            level_node_ids = [n.id for n in nodes]
-            edge_query = edge_query.filter(Edge.from_id.in_(level_node_ids))
-        
-        for e in edge_query.all():
-            from_node = node_map.get(e.from_id)
-            to_node = node_map.get(e.to_id)
-            
-            if from_node and to_node:
-                features.append({
-                    "type": "Feature",
-                    "id": e.id,
-                    "geometry": {
-                        "type": "LineString",
-                        "coordinates": [
-                            [from_node.x, from_node.y],
-                            [to_node.x, to_node.y]
-                        ]
-                    },
-                    "properties": {
-                        "id": e.id,
-                        "type": "edge",
-                        "weight": e.weight,
-                        "from_id": e.from_id,
-                        "to_id": e.to_id
-                    }
-                })
+        features.extend(_create_edge_features(db, nodes, node_map, level))
     
     # Calculate bounds for viewport
-    bounds = None
-    if nodes:
-        xs = [n.x for n in nodes]
-        ys = [n.y for n in nodes]
-        bounds = {
-            "min_x": min(xs),
-            "max_x": max(xs),
-            "min_y": min(ys),
-            "max_y": max(ys)
-        }
+    bounds = _calculate_bounds(nodes)
     
     result = {
         "type": "FeatureCollection",
@@ -1325,7 +1252,12 @@ def get_emergency_route_geojson(route_id: str, db: Session = Depends(get_db)):
             coordinates.append([node.x, node.y])
             
             # Add waypoint marker
-            role = "start" if idx == 0 else ("exit" if idx == len(route.node_ids) - 1 else "waypoint")
+            if idx == 0:
+                role = "start"
+            elif idx == len(route.node_ids) - 1:
+                role = "exit"
+            else:
+                role = "waypoint"
             waypoint_features.append({
                 "type": "Feature",
                 "id": f"wp_{node_id}",
