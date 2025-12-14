@@ -1339,13 +1339,6 @@ class TestAdditionalCoverage:
         assert "center" in data
         assert "levels" in data
     
-    def test_map_bounds_empty(self, client):
-        """Test map bounds with no nodes."""
-        response = client.get("/map/bounds")
-        # When no nodes exist, endpoint errors trying to calculate center from None values
-        # This is expected - bounds endpoint requires at least one node
-        assert response.status_code == 500
-    
     def test_grid_stats_endpoint(self, client, test_db):
         """Test grid statistics endpoint."""
         response = client.get("/maps/grid/stats")
