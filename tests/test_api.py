@@ -647,14 +647,18 @@ class TestGridEndpoints:
         response = client.get("/maps/grid/config")
         assert response.status_code == 200
         data = response.json()
-        assert "tile_size" in data
+        assert "cell_size" in data
+        assert "origin_x" in data
+        assert "origin_y" in data
     
     def test_get_grid_tiles(self, client, test_db):
         """Test getting grid tiles."""
         response = client.get("/maps/grid/tiles")
         assert response.status_code == 200
         data = response.json()
-        assert isinstance(data, list)
+        assert "tiles" in data
+        assert "total_tiles" in data
+        assert isinstance(data["tiles"], list)
     
     def test_rebuild_grid(self, client, test_db):
         """Test rebuilding grid index."""
@@ -679,8 +683,8 @@ class TestPOIEndpoints:
     def test_get_all_pois(self, client, test_db):
         """Test getting all POIs."""
         pois = [
-            Node(id="G1", x=0, y=0, type="gate"),
             Node(id="R1", x=100, y=100, type="restroom"),
+            Node(id="F1", x=200, y=200, type="food"),
         ]
         test_db.add_all(pois)
         test_db.commit()
@@ -729,8 +733,8 @@ class TestSeatEndpoints:
     def test_get_seats_by_block(self, client, test_db):
         """Test filtering seats by block."""
         seats = [
-            Node(id="S1", type="seat", block="A", row=1, number=1),
-            Node(id="S2", type="seat", block="B", row=1, number=1),
+            Node(id="S1", x=0, y=0, type="seat", block="A", row=1, number=1),
+            Node(id="S2", x=10, y=10, type="seat", block="B", row=1, number=1),
         ]
         test_db.add_all(seats)
         test_db.commit()
@@ -742,7 +746,7 @@ class TestSeatEndpoints:
     
     def test_get_single_seat(self, client, test_db):
         """Test getting a single seat."""
-        seat = Node(id="S1", type="seat", block="A", row=1, number=1)
+        seat = Node(id="S1", x=0, y=0, type="seat", block="A", row=1, number=1)
         test_db.add(seat)
         test_db.commit()
         
@@ -752,7 +756,7 @@ class TestSeatEndpoints:
     
     def test_update_seat(self, client, test_db):
         """Test updating a seat."""
-        seat = Node(id="S1", type="seat", block="A", row=1, number=1)
+        seat = Node(id="S1", x=0, y=0, type="seat", block="A", row=1, number=1)
         test_db.add(seat)
         test_db.commit()
         
@@ -766,8 +770,8 @@ class TestGateEndpoints:
     def test_get_all_gates(self, client, test_db):
         """Test getting all gates."""
         gates = [
-            Node(id="G1", type="gate", num_servers=3),
-            Node(id="G2", type="gate", num_servers=2),
+            Node(id="G1", x=0, y=0, type="gate", num_servers=3),
+            Node(id="G2", x=50, y=50, type="gate", num_servers=2),
         ]
         test_db.add_all(gates)
         test_db.commit()
@@ -778,7 +782,7 @@ class TestGateEndpoints:
     
     def test_get_single_gate(self, client, test_db):
         """Test getting a single gate."""
-        gate = Node(id="G1", type="gate", name="Main Gate", num_servers=5)
+        gate = Node(id="G1", x=0, y=0, type="gate", name="Main Gate", num_servers=5)
         test_db.add(gate)
         test_db.commit()
         
@@ -788,7 +792,7 @@ class TestGateEndpoints:
     
     def test_update_gate(self, client, test_db):
         """Test updating a gate."""
-        gate = Node(id="G1", type="gate", num_servers=3)
+        gate = Node(id="G1", x=0, y=0, type="gate", num_servers=3)
         test_db.add(gate)
         test_db.commit()
         
@@ -852,7 +856,7 @@ class TestUtilityEndpoints:
         response = client.get("/health")
         assert response.status_code == 200
         data = response.json()
-        assert data["status"] == "healthy"
+        assert data["status"] == "ok"
     
     def test_reset_database(self, client):
         """Test database reset endpoint."""
