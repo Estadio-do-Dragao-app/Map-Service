@@ -594,6 +594,8 @@ def update_node(node_id: str, data: NodeUpdate, db: Session = Depends(get_db)):
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
     
+    if data.name is not None:
+        node.name = data.name
     if data.x is not None:
         node.x = data.x
     if data.y is not None:
@@ -684,6 +686,8 @@ def update_edge(edge_id: str, data: EdgeUpdate, db: Session = Depends(get_db)):
     
     if data.weight is not None:
         edge.weight = data.weight
+    if data.accessible is not None:
+        edge.accessible = data.accessible
     
     try:
         db.commit()

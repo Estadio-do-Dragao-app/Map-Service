@@ -247,7 +247,7 @@ class NodeUpdate(BaseModel):
     y: Optional[float] = None
     level: Optional[int] = None
     type: Optional[str] = None
-    description: Optional[str]
+    description: Optional[str] = None
     num_servers: Optional[int] = None
     service_rate: Optional[float] = None
     block: Optional[str] = None
