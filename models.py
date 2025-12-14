@@ -13,6 +13,7 @@ CASCADE_ALL_DELETE_ORPHAN = "all, delete-orphan"
 
 # Foreign key reference to nodes table
 NODES_ID_FK = "nodes.id"
+NODES_TABLE_ID = "nodes.id"  # Constant for ForeignKey references
 
 # Valid node types used in the stadium map
 NODE_TYPES = [

@@ -77,7 +77,7 @@ class FloorPlanProcessor:
     def find_corridors(self):
         """Detect main corridor areas using connected components."""
         # Find connected components (potential corridor areas)
-        num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(
+        num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(
             self.walkable, connectivity=8
         )
         
@@ -119,7 +119,7 @@ class FloorPlanProcessor:
         skeleton = self.skeleton.copy()
         
         # Find all non-zero points in skeleton
-        points = np.column_stack(np.where(skeleton > 0))
+        points = np.column_stack(np.nonzero(skeleton))
         
         if len(points) == 0:
             print("Warning: No skeleton points found!")
@@ -143,12 +143,20 @@ class FloorPlanProcessor:
             neighborhood = skeleton[max(0,y-1):y+2, max(0,x-1):x+2]
             neighbors = np.sum(neighborhood > 0) - 1  # Subtract the point itself
             
+            # Determine node type based on neighbor count
+            if neighbors == 2:
+                node_type = "corridor"
+            elif neighbors == 1:
+                node_type = "endpoint"
+            else:
+                node_type = "intersection"
+            
             # Add as node if it's an endpoint or intersection, or just at intervals
             nodes.append({
                 "id": f"N{node_id}",
                 "x": float(x),
                 "y": float(y),
-                "type": "corridor" if neighbors == 2 else ("endpoint" if neighbors == 1 else "intersection"),
+                "type": node_type,
                 "neighbors": int(neighbors)
             })
             node_id += 1

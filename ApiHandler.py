@@ -1000,7 +1000,7 @@ def _create_edge_features(db: Session, nodes: list, node_map: dict, level: Optio
     return features
 
 
-def _calculate_bounds(nodes: list) -> dict:
+def _calculate_bounds(nodes: list) -> Optional[dict]:
     """Helper function to calculate map bounds from nodes."""
     if not nodes:
         return None
@@ -1076,7 +1076,8 @@ def get_map_geojson(
         }
     }
     
-    # Generate ETag for HTTP caching
+    # Generate ETag for HTTP caching (MD5 is safe here - used only for cache fingerprinting, not security)
+    # nosemgrep: python.lang.security.insecure-hash-function-md5.insecure-hash-function-md5
     etag = hashlib.md5(f"{len(features)}:{level}:{types}".encode()).hexdigest()[:16]
     
     return JSONResponse(

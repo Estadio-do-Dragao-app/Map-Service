@@ -1301,3 +1301,227 @@ class TestHelperFunctions:
         assert data["stats"]["seats"] == 1
         assert data["stats"]["pois"] == 1  # restroom
 
+
+class TestAdditionalCoverage:
+    """Additional tests to increase coverage to 80%+."""
+    
+    def test_map_preview_endpoint(self, client, test_db):
+        """Test HTML map preview endpoint."""
+        from models import Node
+        node = Node(id="N1", name="Test", type="corridor", x=100.0, y=100.0, level=0)
+        test_db.add(node)
+        test_db.commit()
+        
+        response = client.get("/map/preview")
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+        assert b"Stadium Map Preview" in response.content or b"html" in response.content.lower()
+    
+    def test_map_bounds_endpoint(self, client, test_db):
+        """Test map bounds calculation endpoint."""
+        from models import Node
+        nodes = [
+            Node(id="N1", x=0.0, y=0.0, type="corridor"),
+            Node(id="N2", x=100.0, y=200.0, type="corridor"),
+            Node(id="N3", x=50.0, y=150.0, type="corridor")
+        ]
+        test_db.add_all(nodes)
+        test_db.commit()
+        
+        response = client.get("/map/bounds")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["min_x"] == 0.0
+        assert data["max_x"] == 100.0
+        assert data["min_y"] == 0.0
+        assert data["max_y"] == 200.0
+    
+    def test_map_bounds_empty(self, client):
+        """Test map bounds with no nodes."""
+        response = client.get("/map/bounds")
+        assert response.status_code == 200
+        data = response.json()
+        assert data is None or data == {}
+    
+    def test_grid_stats_endpoint(self, client, test_db):
+        """Test grid statistics endpoint."""
+        from models import Node
+        nodes = [
+            Node(id=f"N{i}", x=float(i*10), y=float(i*10), type="corridor", level=0)
+            for i in range(5)
+        ]
+        test_db.add_all(nodes)
+        test_db.commit()
+        
+        response = client.get("/maps/grid/stats")
+        assert response.status_code == 200
+        data = response.json()
+        assert "total_nodes" in data
+        assert "total_edges" in data
+        assert data["total_nodes"] == 5
+    
+    def test_geojson_with_types_filter(self, client, test_db):
+        """Test GeoJSON endpoint with types filter."""
+        from models import Node
+        nodes = [
+            Node(id="G1", x=0.0, y=0.0, type="gate"),
+            Node(id="C1", x=10.0, y=10.0, type="corridor"),
+            Node(id="R1", x=20.0, y=20.0, type="restroom")
+        ]
+        test_db.add_all(nodes)
+        test_db.commit()
+        
+        response = client.get("/map/geojson?types=gate,corridor")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["type"] == "FeatureCollection"
+        # Should only have gate and corridor, not restroom
+        types = [f["properties"]["type"] for f in data["features"] if f["geometry"]["type"] == "Point"]
+        assert "gate" in types or "corridor" in types
+        assert "restroom" not in types
+    
+    def test_geojson_without_edges(self, client, test_db):
+        """Test GeoJSON endpoint excluding edges."""
+        from models import Node, Edge
+        n1 = Node(id="N1", x=0.0, y=0.0, type="corridor")
+        n2 = Node(id="N2", x=10.0, y=10.0, type="corridor")
+        edge = Edge(id="E1", from_id="N1", to_id="N2", weight=5.0)
+        test_db.add_all([n1, n2, edge])
+        test_db.commit()
+        
+        response = client.get("/map/geojson?include_edges=false")
+        assert response.status_code == 200
+        data = response.json()
+        # Should have no LineString features
+        linestrings = [f for f in data["features"] if f["geometry"]["type"] == "LineString"]
+        assert len(linestrings) == 0
+    
+    def test_geojson_with_seats(self, client, test_db):
+        """Test GeoJSON endpoint including seats."""
+        from models import Node
+        seat = Node(id="S1", x=0.0, y=0.0, type="seat", block="Norte-T0", row=1, number=10)
+        test_db.add(seat)
+        test_db.commit()
+        
+        response = client.get("/map/geojson?include_seats=true")
+        assert response.status_code == 200
+        data = response.json()
+        seat_features = [f for f in data["features"] if f["properties"].get("type") == "seat"]
+        assert len(seat_features) > 0
+    
+    def test_pois_by_type_filter(self, client, test_db):
+        """Test POI endpoint with type filter."""
+        from models import Node
+        pois = [
+            Node(id="R1", x=0.0, y=0.0, type="restroom"),
+            Node(id="F1", x=10.0, y=10.0, type="food"),
+            Node(id="B1", x=20.0, y=20.0, type="bar")
+        ]
+        test_db.add_all(pois)
+        test_db.commit()
+        
+        response = client.get("/pois?type=restroom")
+        assert response.status_code == 200
+        data = response.json()
+        assert all(p["type"] == "restroom" for p in data)
+    
+    def test_seats_by_block_and_row(self, client, test_db):
+        """Test seat filtering by both block and row."""
+        from models import Node
+        seats = [
+            Node(id="S1", x=0.0, y=0.0, type="seat", block="Norte-T0", row=1, number=1),
+            Node(id="S2", x=1.0, y=0.0, type="seat", block="Norte-T0", row=1, number=2),
+            Node(id="S3", x=2.0, y=0.0, type="seat", block="Norte-T0", row=2, number=1),
+            Node(id="S4", x=3.0, y=0.0, type="seat", block="Sul-T0", row=1, number=1)
+        ]
+        test_db.add_all(seats)
+        test_db.commit()
+        
+        response = client.get("/seats?block=Norte-T0&row=1")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 2
+        assert all(s["block"] == "Norte-T0" and s["row"] == 1 for s in data)
+    
+    def test_gates_by_level(self, client, test_db):
+        """Test gate filtering by level."""
+        from models import Node
+        gates = [
+            Node(id="G1", x=0.0, y=0.0, type="gate", level=0),
+            Node(id="G2", x=10.0, y=10.0, type="gate", level=1)
+        ]
+        test_db.add_all(gates)
+        test_db.commit()
+        
+        response = client.get("/gates?level=0")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["level"] == 0
+    
+    def test_emergency_route_not_found(self, client):
+        """Test emergency route with non-existent IDs."""
+        response = client.get("/emergency/route?start=NONEXISTENT1&end=NONEXISTENT2")
+        assert response.status_code == 404
+    
+    def test_closure_update(self, client, test_db):
+        """Test updating an existing closure."""
+        from models import Node, Closure
+        node = Node(id="N1", x=0.0, y=0.0, type="corridor")
+        closure = Closure(id="C1", node_id="N1", reason="maintenance", is_active=True)
+        test_db.add_all([node, closure])
+        test_db.commit()
+        
+        response = client.put("/closures/C1", json={
+            "node_id": "N1",
+            "reason": "emergency",
+            "is_active": False
+        })
+        assert response.status_code == 200
+        data = response.json()
+        assert data["reason"] == "emergency"
+        assert data["is_active"] is False
+    
+    def test_edge_update(self, client, test_db):
+        """Test updating an existing edge."""
+        from models import Node, Edge
+        n1 = Node(id="N1", x=0.0, y=0.0, type="corridor")
+        n2 = Node(id="N2", x=10.0, y=10.0, type="corridor")
+        edge = Edge(id="E1", from_id="N1", to_id="N2", weight=5.0)
+        test_db.add_all([n1, n2, edge])
+        test_db.commit()
+        
+        response = client.put("/edges/E1", json={
+            "from_id": "N1",
+            "to_id": "N2",
+            "weight": 10.0
+        })
+        assert response.status_code == 200
+        data = response.json()
+        assert data["weight"] == 10.0
+    
+    def test_node_update_coordinates(self, client, test_db):
+        """Test updating node coordinates."""
+        from models import Node
+        node = Node(id="N1", x=0.0, y=0.0, type="corridor")
+        test_db.add(node)
+        test_db.commit()
+        
+        response = client.put("/nodes/N1", json={
+            "id": "N1",
+            "x": 50.0,
+            "y": 75.0,
+            "type": "corridor"
+        })
+        assert response.status_code == 200
+        data = response.json()
+        assert data["x"] == 50.0
+        assert data["y"] == 75.0
+    
+    def test_health_check_with_db(self, client, test_db):
+        """Test health check with database connection."""
+        response = client.get("/health")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "ok"
+        assert "timestamp" in data
