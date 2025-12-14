@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException, Depends, Query
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Optional
@@ -18,6 +19,15 @@ import hashlib
 import math
 
 app = FastAPI(title="Smart Stadium Map Backend")
+
+# Add CORS middleware (allows Flutter web app to make requests)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, specify exact origins
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Add GZip compression for large responses (reduces ~2MB GeoJSON to ~300KB)
 app.add_middleware(GZipMiddleware, minimum_size=500)
