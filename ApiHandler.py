@@ -166,13 +166,6 @@ def get_seat(seat_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Seat not found")
     return seat
 
-@app.get("/seats", response_model=List[NodeResponse])
-def get_seats(db: Session = Depends(get_db)):
-    """Get all seats."""
-    # This might be heavy, use with caution or add pagination
-    seats = db.query(Node).filter(Node.type == "seat").all()
-    return seats
-
 @app.get("/map/preview", response_class=HTMLResponse)
 def preview_map(level: int = 0, db: Session = Depends(get_db)):
     """Visual preview of nodes on a 2D canvas with improved UI."""
