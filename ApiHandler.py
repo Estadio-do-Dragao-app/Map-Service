@@ -158,6 +158,21 @@ def get_map_visualization(level: int = None, db: Session = Depends(get_db)):
         }
     }
 
+@app.get("/seats/{seat_id}", response_model=NodeResponse)
+def get_seat(seat_id: str, db: Session = Depends(get_db)):
+    """Get a specific seat by ID."""
+    seat = db.query(Node).filter(Node.id == seat_id).first()
+    if not seat:
+        raise HTTPException(status_code=404, detail="Seat not found")
+    return seat
+
+@app.get("/seats", response_model=List[NodeResponse])
+def get_seats(db: Session = Depends(get_db)):
+    """Get all seats."""
+    # This might be heavy, use with caution or add pagination
+    seats = db.query(Node).filter(Node.type == "seat").all()
+    return seats
+
 @app.get("/map/preview", response_class=HTMLResponse)
 def preview_map(level: int = 0, db: Session = Depends(get_db)):
     """Visual preview of nodes on a 2D canvas with improved UI."""
@@ -756,6 +771,37 @@ def rebuild_grid(db: Session = Depends(get_db)):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Grid rebuild failed: {str(e)}")
+
+@app.post("/maps/grid/tiles/nodes")
+def get_nodes_from_tiles(tile_ids: List[str], db: Session = Depends(get_db)):
+    """
+    Resolve tile IDs to node IDs for emergency closures.
+    
+    Given a list of tile IDs (e.g., ["tile_180_80_0", "tile_179_85_0"]),
+    returns all node IDs contained within those tiles.
+    """
+    if not tile_ids:
+        return {"node_ids": [], "tile_count": 0}
+    
+    tiles = db.query(Tile).filter(Tile.id.in_(tile_ids)).all()
+    
+    all_node_ids = set()
+    for tile in tiles:
+        if tile.node_id:
+            node_ids = [nid.strip() for nid in tile.node_id.split(',') if nid.strip()]
+            all_node_ids.update(node_ids)
+        if tile.poi_id:
+            poi_ids = [pid.strip() for pid in tile.poi_id.split(',') if pid.strip()]
+            all_node_ids.update(poi_ids)
+        if tile.gate_id:
+            gate_ids = [gid.strip() for gid in tile.gate_id.split(',') if gid.strip()]
+            all_node_ids.update(gate_ids)
+    
+    return {
+        "node_ids": list(all_node_ids),
+        "tile_count": len(tiles),
+        "tiles_found": [t.id for t in tiles]
+    }
     
 @app.get("/maps/grid/stats")
 def get_grid_stats(db: Session = Depends(get_db)):
@@ -797,8 +843,12 @@ def get_grid_stats(db: Session = Depends(get_db)):
 
 @app.get("/pois", response_model=List[NodeResponse])
 def get_pois(db: Session = Depends(get_db)):
-    """Get all POI nodes (restroom, entrance, food, etc)."""
-    pois = db.query(Node).filter(Node.type.in_(['poi', 'restroom', 'entrance', 'food', 'shop'])).all()
+    """Get all POI nodes (restroom, food, emergency_exit, etc)."""
+    poi_types = [
+        'poi', 'restroom', 'entrance', 'food', 'shop', 'bar',
+        'emergency_exit', 'first_aid', 'information', 'merchandise'
+    ]
+    pois = db.query(Node).filter(Node.type.in_(poi_types)).all()
     return pois
 
 @app.get("/pois/{poi_id}", response_model=NodeResponse)
