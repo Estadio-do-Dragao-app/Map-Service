@@ -1,717 +1,610 @@
+"""
+SVG Floor Plan → Navigation Graph Loader
+=========================================
+Parses Inkscape SVG floor plans and generates a navigation graph for A* routing.
+
+SVG Labeling Conventions (inkscape:label on <g> groups):
+    corridor*   → Corridor boundary (black wall lines define walkable area)
+    room*       → Room (dead-end, only reachable via its child doors)
+    wc*         → Restroom (same as room)
+    bar*        → Bar (same as room)
+    door*       → Door (child of room/wc/bar, bridges room to corridor)
+    stair*      → Staircase (bridges to corridor mesh)
+    exit*       → Emergency exit (bridges to corridor mesh)
+    elevator    → Elevator (bridges to corridor mesh)
+    courtyard   → Non-walkable exclusion zone (optional)
+    gap*        → Additional exclusion zone (optional)
+
+Rules:
+    1. Rooms/WCs/Bars only connect to their doors (never directly to corridor)
+    2. Doors/Stairs/Exits/Elevators bridge to the 1 nearest corridor node
+    3. A* cannot traverse room/wc/bar nodes as intermediaries (enforced in routing)
+"""
+
+import xml.etree.ElementTree as ET
+import re, math, json, sys, os
 from sqlalchemy.orm import Session
+from shapely.geometry import Point, MultiPoint, LineString, box
+from shapely.ops import unary_union
 from database import SessionLocal, init_db
+from models import Node, Edge, Tile, EmergencyRoute, Closure
 from grid_name import GridManager
-from models import Node, Edge, Closure, Tile, EmergencyRoute
-import math
+
+# ─────────────────────────────────────────────
+# SVG Geometry Helpers
+# ─────────────────────────────────────────────
+
+def parse_all_svg_points(d_str):
+    """Extract ALL coordinate points from an SVG path 'd' attribute.
+    Handles M/m, L/l, H/h, V/v and curve commands for accurate bounding boxes."""
+    points = []
+    cx, cy = 0.0, 0.0
+    tokens = re.findall(r'([MmLlHhVvCcSsQqTtAaZz])|([-+]?[\d.]+)', d_str)
+    cmd, nums = None, []
+
+    def flush():
+        nonlocal cx, cy
+        if not cmd: return
+        if cmd in ('M', 'L'):
+            for i in range(0, len(nums)-1, 2):
+                cx, cy = nums[i], nums[i+1]; points.append((cx, cy))
+        elif cmd in ('m', 'l'):
+            for i in range(0, len(nums)-1, 2):
+                cx += nums[i]; cy += nums[i+1]; points.append((cx, cy))
+        elif cmd == 'H':
+            for n in nums: cx = n; points.append((cx, cy))
+        elif cmd == 'h':
+            for n in nums: cx += n; points.append((cx, cy))
+        elif cmd == 'V':
+            for n in nums: cy = n; points.append((cx, cy))
+        elif cmd == 'v':
+            for n in nums: cy += n; points.append((cx, cy))
+        elif cmd in ('C', 'S', 'Q', 'T', 'A'):
+            for i in range(0, len(nums)-1, 2):
+                points.append((nums[i], nums[i+1]))
+            if len(nums) >= 2: cx, cy = nums[-2], nums[-1]
+        elif cmd in ('c', 's', 'q', 't', 'a'):
+            ox, oy = cx, cy
+            for i in range(0, len(nums)-1, 2):
+                points.append((ox+nums[i], oy+nums[i+1]))
+            if len(nums) >= 2: cx, cy = ox+nums[-2], oy+nums[-1]
+
+    for tok in tokens:
+        letter, number = tok
+        if letter: flush(); cmd = letter; nums = []
+        elif number: nums.append(float(number))
+    flush()
+    return points
 
 
-def load_sample_data():
-    """
-    Load Estádio do Dragão data with realistic structure.
-    
-    Based on real stadium data:
-    - Capacity: 50,033 seats
-    - 4 stands: Norte, Sul (single-tier), Este, Oeste (double-tier with VIP boxes)
-    - 27 gates distributed around the stadium
-    - Continuous bowl design (European style)
-    """
-    
-    init_db()
-    db: Session = SessionLocal()
-    
-    try:
-        # ==================== STADIUM CONFIGURATION ====================
-        # Real Estádio do Dragão structure
-        
-        # Stadium dimensions (pixels - for visualization)
-        CENTER_X = 500
-        CENTER_Y = 400
-        
-        # Elliptical shape
-        OUTER_PERIMETER_X = 420
-        OUTER_PERIMETER_Y = 340
-        
-        # Corridors
-        CORRIDOR_OUTER_X = 400
-        CORRIDOR_OUTER_Y = 320
-        CORRIDOR_MID_X = 360
-        CORRIDOR_MID_Y = 280
-        CORRIDOR_INNER_X = 320
-        CORRIDOR_INNER_Y = 240
-        
-        # Navigation grid density
-        NUM_CORRIDOR_POINTS = 72  # Every 5 degrees
-        
-        # Real stand configuration
-        # Norte/Sul: single tier (bancada simples)
-        # Este/Oeste: double tier with VIP boxes (bancada + arquibancada)
-        STANDS = {
-            'Norte': {
-                'angle_start': 45,    # degrees
-                'angle_end': 135,
-                'tiers': 1,           # Single tier
-                'rows_per_tier': [35],
-                'sponsor': 'Coca-Cola',
-                'ultra_group': 'Colectivo Ultras 95'
-            },
-            'Sul': {
-                'angle_start': 225,
-                'angle_end': 315,
-                'tiers': 1,
-                'rows_per_tier': [35],
-                'sponsor': 'Super Bock',
-                'ultra_group': 'Super Dragões'
-            },
-            'Este': {
-                'angle_start': 315,
-                'angle_end': 405,  # 45 degrees (wraps around)
-                'tiers': 2,        # Double tier
-                'rows_per_tier': [20, 15],  # Lower + Upper
-                'sponsor': 'tmn',
-                'has_vip_boxes': True,
-                'away_fans': True
-            },
-            'Oeste': {
-                'angle_start': 135,
-                'angle_end': 225,
-                'tiers': 2,
-                'rows_per_tier': [20, 15],
-                'sponsor': 'meo',
-                'has_vip_boxes': True,
-                'has_tunnel': True  # Players tunnel
+def get_group_bbox(group, ns_svg):
+    """Get bounding box of ALL paths and rects inside a group element."""
+    xs, ys = [], []
+    for path in group.iter(ns_svg + 'path'):
+        for x, y in parse_all_svg_points(path.get('d', '')):
+            xs.append(x); ys.append(y)
+    for rect in group.iter(ns_svg + 'rect'):
+        x, y = float(rect.get('x', '0')), float(rect.get('y', '0'))
+        w, h = float(rect.get('width', '0')), float(rect.get('height', '0'))
+        xs.extend([x, x+w]); ys.extend([y, y+h])
+    if xs and ys:
+        return (min(xs), min(ys), max(xs), max(ys))
+    return None
+
+
+def line_of_sight(p1, p2, exclusion_union):
+    """Check if a straight line between two points does NOT cross exclusion zones."""
+    line = LineString([p1, p2])
+    return not line.crosses(exclusion_union) and not exclusion_union.contains(line)
+
+
+# ─────────────────────────────────────────────
+# Node Type Classification
+# ─────────────────────────────────────────────
+
+# Labels → node types
+LABEL_TYPES = {
+    'corridor': 'corridor',
+    'room':     'room',
+    'wc':       'restroom',
+    'bar':      'bar',
+    'exit':     'emergency_exit',
+    'stair':    'stairs',
+}
+
+# Exact-match labels
+EXACT_TYPES = {
+    'elevator': 'elevator',
+}
+
+# Types that are dead-ends (only accessible via their child doors)
+DEAD_END_TYPES = {'room', 'restroom', 'bar'}
+
+# Labels that create exclusion zones in the corridor mesh
+EXCLUSION_PREFIXES = ('room', 'wc', 'bar', 'stair', 'courtyard', 'gap')
+EXCLUSION_EXACT = ('elevator',)
+
+
+def classify_label(label):
+    """Map an SVG inkscape:label to a node type. Returns None if unrecognized."""
+    if label in EXACT_TYPES:
+        return EXACT_TYPES[label]
+    for prefix, ntype in LABEL_TYPES.items():
+        if label.startswith(prefix):
+            return ntype
+    return None
+
+
+# ─────────────────────────────────────────────
+# Main Loader
+# ─────────────────────────────────────────────
+
+class SVGLoader:
+    def __init__(self, svg_path, level=0):
+        self.svg_path = svg_path
+        self.level = level
+        self.nodes_data = {}
+        self.edges_data = []
+
+    # ── Node / Edge helpers ──
+
+    def add_node(self, node_id, name, node_type, x, y, level=None):
+        if level is None: level = self.level
+        uid = f"{node_id}_L{level}"
+        if uid not in self.nodes_data:
+            self.nodes_data[uid] = {
+                "id": uid, "name": name, "type": node_type,
+                "x": round(x, 2), "y": round(y, 2), "level": level,
             }
-        }
-        
-        # Real gates based on official FC Porto info
-        GATES = {
-            # Norte (Superior Norte)
-            'Norte': [21, 22, 23],
-            # Sul (similar distribution)
-            'Sul': [7, 8, 9],
-            # Este (Bancada + Arquibancada Nascente)
-            'Este': [10, 11, 12, 13, 17, 18],
-            # Oeste (Bancada + Arquibancada Poente)
-            'Oeste': [3, 4, 5, 6, 24, 25, 26, 27]
-        }
-        
-        SEATS_PER_ROW = 40  # ~50k / (4 stands * ~30 rows) ≈ 40 per row
-        
-        nodes_data = []
-        edges_data = []
-        node_id_counter = 1
-        grid_nodes = {}  # (level, corridor_type, position) -> node_id
-        
-        # Helper function for elliptical position
-        def ellipse_pos(angle_deg, radius_x, radius_y):
-            angle = math.radians(angle_deg)
-            return (
-                CENTER_X + radius_x * math.cos(angle),
-                CENTER_Y + radius_y * math.sin(angle)
+
+    def add_edge(self, from_id, to_id, weight, accessible=True):
+        from_uid = f"{from_id}_L{self.level}" if not from_id.endswith(f"_L{self.level}") else from_id
+        to_uid = f"{to_id}_L{self.level}" if not to_id.endswith(f"_L{self.level}") else to_id
+        edge_id = f"E_{from_uid}_{to_uid}"
+        self.edges_data.append({
+            "id": edge_id, "from_id": from_uid, "to_id": to_uid,
+            "weight": round(weight, 2), "accessible": accessible,
+        })
+
+    # ── Main parse pipeline ──
+
+    def parse(self):
+        tree = ET.parse(self.svg_path)
+        root = tree.getroot()
+        ns_ink = '{http://www.inkscape.org/namespaces/inkscape}'
+        ns_svg = '{http://www.w3.org/2000/svg}'
+
+        # Step 1: Parse labeled groups → nodes + room↔door edges
+        self._parse_groups(root, ns_svg, ns_ink)
+
+        # Step 2: Generate corridor mesh
+        corr_nodes = self._generate_corridor_mesh(root, ns_svg, ns_ink)
+
+        # Step 3: Bridge connectable nodes to nearest corridor node
+        self._bridge_to_mesh(corr_nodes)
+
+        print(f"\n  Nodes: {len(self.nodes_data)}, Edges: {len(self.edges_data)}")
+
+    # ── Step 1: Parse SVG groups ──
+
+    def _parse_groups(self, root, ns_svg, ns_ink):
+        """Extract nodes from labeled SVG groups and create room↔door edges."""
+        SVG_SCALE = 12.567  # SVG units per meter
+
+        for g in root.iter(ns_svg + 'g'):
+            label = g.get(ns_ink + 'label', '')
+            if not label:
+                continue
+
+            node_type = classify_label(label)
+            if not node_type or node_type == 'corridor':
+                continue
+
+            bbox = get_group_bbox(g, ns_svg)
+            if not bbox:
+                continue
+
+            cx = (bbox[0] + bbox[2]) / 2
+            cy = (bbox[1] + bbox[3]) / 2
+            self.add_node(label, label, node_type, cx, cy)
+
+            # Parse child doors inside this group
+            for child in g:
+                child_label = child.get(ns_ink + 'label', '')
+                if not child_label or not child_label.startswith('door'):
+                    continue
+
+                child_bbox = get_group_bbox(child, ns_svg)
+                if not child_bbox:
+                    continue
+
+                dcx = (child_bbox[0] + child_bbox[2]) / 2
+                dcy = (child_bbox[1] + child_bbox[3]) / 2
+                self.add_node(child_label, f"Porta {child_label}", "door", dcx, dcy)
+
+                # Room ↔ Door edge (physical distance)
+                dist = math.sqrt((cx-dcx)**2 + (cy-dcy)**2) / SVG_SCALE
+                self.add_edge(label, child_label, dist)
+                self.add_edge(child_label, label, dist)
+
+    # ── Step 2: Generate corridor mesh ──
+
+    def _generate_corridor_mesh(self, root, ns_svg, ns_ink, grid_spacing=12.0):
+        """Generate a grid of walkable corridor nodes within the corridor boundary."""
+        SVG_SCALE = 12.567
+        print("\nGenerating corridor grid mesh...")
+
+        # Find corridor group
+        corridor_group = None
+        for g in root.iter(ns_svg + 'g'):
+            if g.get(ns_ink + 'label', '').startswith('corridor'):
+                corridor_group = g
+                break
+
+        if corridor_group is None:
+            print("  WARNING: No 'corridor*' group found in SVG!")
+            return []
+
+        # Build corridor boundary from black wall lines
+        wall_points = []
+        for path in corridor_group.findall(ns_svg + 'path'):
+            if path.get('stroke', '') == '#000000':
+                wall_points.extend(parse_all_svg_points(path.get('d', '')))
+
+        if len(wall_points) < 3:
+            print("  WARNING: Not enough wall points to form corridor boundary!")
+            return []
+
+        corridor_hull = MultiPoint(wall_points).convex_hull
+
+        # Build exclusion zones from labeled groups
+        exclusion_zones = []
+        for g in root.iter(ns_svg + 'g'):
+            label = g.get(ns_ink + 'label', '')
+            if not label:
+                continue
+            is_excluded = (
+                any(label.startswith(p) for p in EXCLUSION_PREFIXES) or
+                label in EXCLUSION_EXACT
             )
+            if is_excluded:
+                bbox = get_group_bbox(g, ns_svg)
+                if bbox:
+                    pad = 3.0
+                    exclusion_zones.append(box(
+                        bbox[0]-pad, bbox[1]-pad,
+                        bbox[2]+pad, bbox[3]+pad
+                    ))
+
+        exclusion_union = unary_union(exclusion_zones) if exclusion_zones else None
+        walkable = corridor_hull.difference(exclusion_union) if exclusion_union else corridor_hull
+
+        if walkable.is_empty:
+            print("  WARNING: No walkable area after exclusions!")
+            return []
+
+        # Generate grid nodes
+        corr_nodes = []
+        min_x, min_y, max_x, max_y = walkable.bounds
+        node_grid = {}
+        node_idx = 0
+        col = 0
+        x = min_x + grid_spacing / 2
+        while x < max_x:
+            row = 0
+            y = min_y + grid_spacing / 2
+            while y < max_y:
+                if walkable.contains(Point(x, y)):
+                    nid = f"corr_n{node_idx}"
+                    self.add_node(nid, f"Corredor {node_idx}", "corridor", round(x,2), round(y,2))
+                    uid = f"{nid}_L{self.level}"
+                    corr_nodes.append(self.nodes_data[uid])
+                    node_grid[(col, row)] = nid
+                    node_idx += 1
+                row += 1
+                y += grid_spacing
+            col += 1
+            x += grid_spacing
+
+        # Generate grid edges (4-connected + diagonals, with line-of-sight)
+        weight = round(grid_spacing / SVG_SCALE, 2)
+        diag_weight = round(weight * math.sqrt(2), 2)
+        NEIGHBORS = [((1,0), weight), ((0,1), weight), ((1,1), diag_weight), ((-1,1), diag_weight)]
+
+        for (c, r), nid in node_grid.items():
+            uid1 = f"{nid}_L{self.level}"
+            n1 = self.nodes_data[uid1]
+            for (dc, dr), w in NEIGHBORS:
+                nb_key = (c+dc, r+dr)
+                if nb_key not in node_grid:
+                    continue
+                nbid = node_grid[nb_key]
+                uid2 = f"{nbid}_L{self.level}"
+                n2 = self.nodes_data[uid2]
+                if not exclusion_union or line_of_sight(
+                    (n1['x'], n1['y']), (n2['x'], n2['y']), exclusion_union
+                ):
+                    self.add_edge(nid, nbid, w)
+                    self.add_edge(nbid, nid, w)
+
+        print(f"  Grid: {len(corr_nodes)} nodes, {len(node_grid)} cells")
+        return corr_nodes
+
+    # ── Step 3: Bridge nodes to corridor mesh ──
+
+    def _bridge_to_mesh(self, corr_nodes, max_dist_svg=150):
+        """Connect connectable nodes to nearest corridor node(s).
         
-        # ==================== NAVIGATION CORRIDORS ====================
-        # Level 0 = Ground floor, Level 1 = Upper tier (Este/Oeste only)
+        - Doors/exits/elevators: connect to 1 nearest corridor node
+        - Stairs: connect to nearest node in EACH corridor mesh component
+          (ensures bridging across floor barriers)
         
-        for level in range(2):  # 0 = lower, 1 = upper
-            # Outer corridor (main concourse)
-            for i in range(NUM_CORRIDOR_POINTS):
-                angle = i * 360 / NUM_CORRIDOR_POINTS
-                x, y = ellipse_pos(angle, CORRIDOR_OUTER_X, CORRIDOR_OUTER_Y)
-                node_id = f"N{node_id_counter}"
-                nodes_data.append({
-                    "id": node_id,
-                    "x": x,
-                    "y": y,
-                    "level": level,
-                    "type": "corridor",
-                    "name": f"Concourse L{level} P{i}"
-                })
-                grid_nodes[(level, 'outer', i)] = node_id
-                node_id_counter += 1
+        Dead-end types (room/restroom/bar) are NOT bridged.
+        """
+        SVG_SCALE = 12.567
+        if not corr_nodes:
+            return
+
+        # Pre-compute corridor mesh connected components for stair bridging
+        corr_graph = {}
+        for e in self.edges_data:
+            if e['from_id'].startswith('corr_') and e['to_id'].startswith('corr_'):
+                corr_graph.setdefault(e['from_id'], []).append(e['to_id'])
+        
+        components = []  # list of sets of node IDs
+        visited = set()
+        for cn in corr_nodes:
+            if cn['id'] in visited:
+                continue
+            # BFS to find component
+            comp = set()
+            queue = [cn['id']]
+            while queue:
+                node = queue.pop(0)
+                if node in comp:
+                    continue
+                comp.add(node)
+                visited.add(node)
+                for nb in corr_graph.get(node, []):
+                    if nb not in comp:
+                        queue.append(nb)
+            components.append(comp)
+        
+        if len(components) > 1:
+            print(f"  Corridor mesh has {len(components)} components (sizes: {[len(c) for c in components]})")
+
+        # ── Determine component floor identities for directional stair bridging ──
+        # Parse stair labels (stair-X-to-Y) to determine which floor each component represents.
+        # A stair only bridges to a component if its label references that component's floor.
+        
+        def parse_stair_floors(label):
+            """Parse 'stair-X-to-Y' → (X, Y) or None."""
+            m = re.match(r'stair-(.+)-to-(.+)', label)
+            return (m.group(1), m.group(2)) if m else None
+        
+        # Map each stair to its local component (nearest corridor node's component)
+        stair_to_comp = {}  # stair_id → component_index
+        for n_id, n_data in self.nodes_data.items():
+            if n_data['type'] != 'stairs':
+                continue
+            nx, ny = n_data['x'], n_data['y']
+            nearest = min(corr_nodes, key=lambda cn: (nx-cn['x'])**2 + (ny-cn['y'])**2)
+            for ci, comp in enumerate(components):
+                if nearest['id'] in comp:
+                    stair_to_comp[n_id] = ci
+                    break
+        
+        # Determine each component's floor identity:
+        # Collect all floor IDs from stairs in each component, pick the most common one
+        comp_floors = {}  # component_index → floor_id
+        for ci in range(len(components)):
+            floor_counts = {}
+            for s_id, s_ci in stair_to_comp.items():
+                if s_ci != ci:
+                    continue
+                floors = parse_stair_floors(s_id)
+                if floors:
+                    for f in floors:
+                        floor_counts[f] = floor_counts.get(f, 0) + 1
+            if floor_counts:
+                # The floor that appears in ALL stairs of this component = component's floor
+                comp_floors[ci] = max(floor_counts, key=floor_counts.get)
+        
+        if comp_floors:
+            print(f"  Component floor identities: {comp_floors}")
+
+        for n_id, n_data in self.nodes_data.items():
+            if n_id.startswith('corr_') or n_data['type'] == 'corridor':
+                continue
+            if n_data['type'] in DEAD_END_TYPES:
+                continue
+
+            nx, ny = n_data['x'], n_data['y']
             
-            # Middle corridor
-            for i in range(NUM_CORRIDOR_POINTS):
-                angle = i * 360 / NUM_CORRIDOR_POINTS
-                x, y = ellipse_pos(angle, CORRIDOR_MID_X, CORRIDOR_MID_Y)
-                node_id = f"N{node_id_counter}"
-                nodes_data.append({
-                    "id": node_id,
-                    "x": x,
-                    "y": y,
-                    "level": level,
-                    "type": "corridor",
-                    "name": f"Mid L{level} P{i}"
-                })
-                grid_nodes[(level, 'mid', i)] = node_id
-                node_id_counter += 1
-            
-            # Inner corridor (seating access)
-            for i in range(NUM_CORRIDOR_POINTS):
-                angle = i * 360 / NUM_CORRIDOR_POINTS
-                x, y = ellipse_pos(angle, CORRIDOR_INNER_X, CORRIDOR_INNER_Y)
-                node_id = f"N{node_id_counter}"
-                nodes_data.append({
-                    "id": node_id,
-                    "x": x,
-                    "y": y,
-                    "level": level,
-                    "type": "corridor",
-                    "name": f"Inner L{level} P{i}"
-                })
-                grid_nodes[(level, 'inner', i)] = node_id
-                node_id_counter += 1
-        
-        # ==================== CORRIDOR CONNECTIONS ====================
-        
-        for level in range(2):
-            # Connect along each corridor ring (circular)
-            for corridor_type in ['outer', 'mid', 'inner']:
-                for i in range(NUM_CORRIDOR_POINTS):
-                    next_i = (i + 1) % NUM_CORRIDOR_POINTS
-                    from_node = grid_nodes[(level, corridor_type, i)]
-                    to_node = grid_nodes[(level, corridor_type, next_i)]
-                    edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": from_node, "to_id": to_node, "weight": 5.0})
-                    edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": to_node, "to_id": from_node, "weight": 5.0})
-            
-            # Radial connections between corridors (every 2 points for denser network)
-            for i in range(0, NUM_CORRIDOR_POINTS, 2):
-                outer = grid_nodes[(level, 'outer', i)]
-                mid = grid_nodes[(level, 'mid', i)]
-                inner = grid_nodes[(level, 'inner', i)]
+            if n_data['type'] == 'stairs' and len(components) > 1:
+                stair_floors = parse_stair_floors(n_id)
+                local_ci = stair_to_comp.get(n_id)
                 
-                # Outer <-> Mid
-                edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": outer, "to_id": mid, "weight": 8.0})
-                edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": mid, "to_id": outer, "weight": 8.0})
-                # Mid <-> Inner
-                edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": mid, "to_id": inner, "weight": 8.0})
-                edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": inner, "to_id": mid, "weight": 8.0})
-            
-            # Diagonal shortcuts (every 6 points) - allows cutting corners
-            for i in range(0, NUM_CORRIDOR_POINTS, 6):
-                next_i = (i + 1) % NUM_CORRIDOR_POINTS
-                outer = grid_nodes[(level, 'outer', i)]
-                mid_next = grid_nodes[(level, 'mid', next_i)]
-                
-                edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": outer, "to_id": mid_next, "weight": 9.0})
-                edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": mid_next, "to_id": outer, "weight": 9.0})
-        
-        # ==================== STAIRS & RAMPS (Level connections) ====================
-        # Each stair/ramp has TWO nodes (one per level) for proper visualization and navigation
-        
-        # 8 stair locations around the stadium
-        stair_positions = [9, 18, 27, 36, 45, 54, 63, 72]
-        for idx, pos in enumerate(stair_positions):
-            pos = pos % NUM_CORRIDOR_POINTS
-            angle = pos * 360 / NUM_CORRIDOR_POINTS
-            x, y = ellipse_pos(angle, CORRIDOR_OUTER_X + 15, CORRIDOR_OUTER_Y + 15)
-            
-            # Create two nodes per stair (one for each level)
-            stair_l0_id = f"Stairs-{idx+1}-L0"
-            stair_l1_id = f"Stairs-{idx+1}-L1"
-            
-            nodes_data.append({
-                "id": stair_l0_id,
-                "name": f"Escadas {idx+1} (Piso 0)",
-                "x": x,
-                "y": y,
-                "level": 0,
-                "type": "stairs",
-                "description": f"Escadas - acesso ao Piso 1"
-            })
-            nodes_data.append({
-                "id": stair_l1_id,
-                "name": f"Escadas {idx+1} (Piso 1)",
-                "x": x,
-                "y": y,
-                "level": 1,
-                "type": "stairs",
-                "description": f"Escadas - acesso ao Piso 0"
-            })
-            
-            # Connect each stair node to its level's corridor - NOT ACCESSIBLE
-            l0_corridor = grid_nodes[(0, 'outer', pos)]
-            l1_corridor = grid_nodes[(1, 'outer', pos)]
-            
-            # L0 stair <-> L0 corridor
-            edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": l0_corridor, "to_id": stair_l0_id, "weight": 2.0, "accessible": False})
-            edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": stair_l0_id, "to_id": l0_corridor, "weight": 2.0, "accessible": False})
-            
-            # L1 stair <-> L1 corridor
-            edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": l1_corridor, "to_id": stair_l1_id, "weight": 2.0, "accessible": False})
-            edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": stair_l1_id, "to_id": l1_corridor, "weight": 2.0, "accessible": False})
-            
-            # Connect L0 stair <-> L1 stair (the level transition!)
-            edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": stair_l0_id, "to_id": stair_l1_id, "weight": 15.0, "accessible": False})  # Going up
-            edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": stair_l1_id, "to_id": stair_l0_id, "weight": 10.0, "accessible": False})  # Going down
-        
-        # 4 ramps for accessibility
-        ramp_positions = [12, 30, 48, 66]
-        for idx, pos in enumerate(ramp_positions):
-            angle = pos * 360 / NUM_CORRIDOR_POINTS
-            x, y = ellipse_pos(angle, CORRIDOR_OUTER_X + 20, CORRIDOR_OUTER_Y + 20)
-            
-            # Create two nodes per ramp (one for each level)
-            ramp_l0_id = f"Ramp-{idx+1}-L0"
-            ramp_l1_id = f"Ramp-{idx+1}-L1"
-            
-            nodes_data.append({
-                "id": ramp_l0_id,
-                "name": f"Rampa {idx+1} (Piso 0)",
-                "x": x,
-                "y": y,
-                "level": 0,
-                "type": "ramp",
-                "description": f"Rampa acessível - acesso ao Piso 1"
-            })
-            nodes_data.append({
-                "id": ramp_l1_id,
-                "name": f"Rampa {idx+1} (Piso 1)",
-                "x": x,
-                "y": y,
-                "level": 1,
-                "type": "ramp",
-                "description": f"Rampa acessível - acesso ao Piso 0"
-            })
-            
-            # Connect each ramp node to its level's corridor - RAMPS ARE ACCESSIBLE
-            l0_corridor = grid_nodes[(0, 'outer', pos)]
-            l1_corridor = grid_nodes[(1, 'outer', pos)]
-            
-            # L0 ramp <-> L0 corridor
-            edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": l0_corridor, "to_id": ramp_l0_id, "weight": 2.0, "accessible": True})
-            edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": ramp_l0_id, "to_id": l0_corridor, "weight": 2.0, "accessible": True})
-            
-            # L1 ramp <-> L1 corridor
-            edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": l1_corridor, "to_id": ramp_l1_id, "weight": 2.0, "accessible": True})
-            edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": ramp_l1_id, "to_id": l1_corridor, "weight": 2.0, "accessible": True})
-            
-            # Connect L0 ramp <-> L1 ramp (the level transition!)
-            edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": ramp_l0_id, "to_id": ramp_l1_id, "weight": 20.0, "accessible": True})  # Going up
-            edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": ramp_l1_id, "to_id": ramp_l0_id, "weight": 15.0, "accessible": True})  # Going down
-        
-        # ==================== GATES ====================
-        gates_data = []
-        
-        for stand_name, gate_numbers in GATES.items():
-            stand = STANDS[stand_name]
-            angle_range = stand['angle_end'] - stand['angle_start']
-            
-            for i, gate_num in enumerate(gate_numbers):
-                # Distribute gates evenly across stand
-                angle = stand['angle_start'] + (i + 0.5) * angle_range / len(gate_numbers)
-                if angle >= 360:
-                    angle -= 360
-                
-                x, y = ellipse_pos(angle, OUTER_PERIMETER_X, OUTER_PERIMETER_Y)
-                
-                gate_id = f"Gate-{gate_num}"
-                gates_data.append({
-                    "id": gate_id,
-                    "name": f"Porta {gate_num}",
-                    "x": x,
-                    "y": y,
-                    "level": 0,
-                    "type": "gate",
-                    "description": f"Entrada {stand_name}",
-                    "num_servers": 4,
-                    "service_rate": 0.8
-                })
-                
-                # Connect to nearest corridor node
-                corridor_pos = round(angle * NUM_CORRIDOR_POINTS / 360) % NUM_CORRIDOR_POINTS
-                corridor = grid_nodes[(0, 'outer', corridor_pos)]
-                edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": gate_id, "to_id": corridor, "weight": 3.0})
-                edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": corridor, "to_id": gate_id, "weight": 3.0})
-        
-        # ==================== ROW AISLES & SEATS (New Navigation Structure) ====================
-        # Seats are ENDPOINTS only - routes go through row_aisle nodes
-        
-        seats_data = []
-        aisles_data = []
-        aisle_nodes = {}  # Track aisle nodes: (stand, tier, row, position) -> node_id
-        
-        # Aisle positions: left, center-left, center-right, right
-        AISLE_POSITIONS = [0, SEATS_PER_ROW // 3, 2 * SEATS_PER_ROW // 3, SEATS_PER_ROW - 1]
-        
-        for stand_name, stand in STANDS.items():
-            angle_start = stand['angle_start']
-            angle_end = stand['angle_end']
-            if angle_end > 360:
-                angle_end -= 360
-            
-            for tier in range(stand['tiers']):
-                rows = stand['rows_per_tier'][tier]
-                level = tier
-                
-                base_radius_x = CORRIDOR_INNER_X - 20 - (tier * 40)
-                base_radius_y = CORRIDOR_INNER_Y - 20 - (tier * 40)
-                
-                for row in range(1, rows + 1):
-                    row_progress = (row - 1) / max(rows - 1, 1)
-                    row_radius_x = base_radius_x - row_progress * 100
-                    row_radius_y = base_radius_y - row_progress * 80
+                for ci, comp in enumerate(components):
+                    comp_nodes = [cn for cn in corr_nodes if cn['id'] in comp]
+                    if not comp_nodes:
+                        continue
                     
-                    # Create aisle nodes for this row (positioned between seats)
-                    for aisle_idx, aisle_pos in enumerate(AISLE_POSITIONS):
-                        seat_progress = (aisle_pos + 1) / (SEATS_PER_ROW + 1)
-                        if angle_end < angle_start:
-                            angle = angle_start + seat_progress * (360 - angle_start + angle_end)
-                            if angle >= 360:
-                                angle -= 360
-                        else:
-                            angle = angle_start + seat_progress * (angle_end - angle_start)
+                    # Always connect to local component
+                    # For other components: only bridge if this stair's label
+                    # references that component's floor
+                    if ci != local_ci:
+                        comp_floor = comp_floors.get(ci)
+                        if not comp_floor or not stair_floors or comp_floor not in stair_floors:
+                            continue  # Skip — stair doesn't connect to this floor
+                    
+                    nearest = min(comp_nodes, key=lambda cn: (nx-cn['x'])**2 + (ny-cn['y'])**2)
+                    dist_svg = math.sqrt((nx-nearest['x'])**2 + (ny-nearest['y'])**2)
+                    if dist_svg > max_dist_svg:
+                        continue
+                    dist_m = dist_svg / SVG_SCALE
+                    self.add_edge(n_id, nearest['id'], dist_m)
+                    self.add_edge(nearest['id'], n_id, dist_m)
+                    
+                    if ci != local_ci:
+                        print(f"  Stair bridge: {n_id} <-> comp[{comp_floor}] via {nearest['id']}")
+            else:
+                # Create a list of all potential connection targets:
+                # 1. All corridor nodes
+                # 2. All stair nodes on this same level
+                potential_targets = list(corr_nodes)
+                for sid, sdata in self.nodes_data.items():
+                    if sdata['type'] == 'stairs' and sdata['level'] == self.level:
+                        potential_targets.append(sdata)
+
+                # Connect to 1 nearest target overall, BUT if it is an emergency exit
+                # and there are stairs very close (like in a hall), connect to ALL stairs within radius.
+                nearby_targets = [t for t in potential_targets if math.sqrt((nx-t['x'])**2 + (ny-t['y'])**2) <= max_dist_svg]
+                
+                if not nearby_targets:
+                    print(f"  WARNING: {n_id} has no nearby targets")
+                    continue
+                    
+                nearest = min(nearby_targets, key=lambda t: (nx-t['x'])**2 + (ny-t['y'])**2)
+                min_dist_svg = math.sqrt((nx-nearest['x'])**2 + (ny-nearest['y'])**2)
+                
+                targets_to_connect = [nearest]
+                
+                # Special rule for emergency exits in halls/atriums:
+                # If there are other stairs very close to the nearest distance (e.g. within 20 SVG units difference),
+                # connect to them too. This ensures exit1_L0 connects to BOTH stair-1-to-hall AND stair-hall-to-2.
+                if n_data['type'] == 'emergency_exit':
+                    for t in nearby_targets:
+                        if t['type'] == 'stairs' and t['id'] != nearest['id']:
+                            dist_t = math.sqrt((nx-t['x'])**2 + (ny-t['y'])**2)
+                            if dist_t <= min_dist_svg + 25.0: # 25 SVG units threshold
+                                targets_to_connect.append(t)
+                
+                for target in targets_to_connect:
+                    dist_svg = math.sqrt((nx-target['x'])**2 + (ny-target['y'])**2)
+                    dist_m = dist_svg / SVG_SCALE
+                    self.add_edge(n_id, target['id'], dist_m)
+                    self.add_edge(target['id'], n_id, dist_m)
+
+    # ── Database loading ──
+
+    def load_to_db(self, clear_db=False):
+        """Load all nodes + edges. Optionally clear DB first."""
+        init_db()
+        db: Session = SessionLocal()
+
+        try:
+            if clear_db:
+                db.query(EmergencyRoute).delete()
+                db.query(Closure).delete()
+                db.query(Edge).delete()
+                db.query(Tile).delete()
+                db.query(Node).delete()
+                db.commit()
+
+            print(f"Loading SVG (Level {self.level}) → DB from: {self.svg_path}")
+
+            for node_data in self.nodes_data.values():
+                db.merge(Node(**node_data))
+            for edge_data in self.edges_data:
+                db.merge(Edge(**edge_data))
+            db.commit()
+
+            # Auto-link vertical connections (stairs, elevators) across floors
+            # Emergency exits should NOT teleport people between floors
+            vertical_types = ['stairs', 'elevator']
+            for node_data in self.nodes_data.values():
+                if node_data['type'] in vertical_types:
+                    base_name = node_data['id'].rsplit('_L', 1)[0]
+                    # Find nodes on other floors with the same base name
+                    other_nodes = db.query(Node).filter(
+                        Node.id.like(f"{base_name}_L%"),
+                        Node.id != node_data['id']
+                    ).all()
+                    
+                    for other in other_nodes:
+                        if node_data['type'] == 'stairs':
+                            # Verificação estrita para escadas com nomes arquitetónicos (ex: stair-1-to-hall)
+                            import re
+                            m = re.match(r'stair-(.+)-to-(.+)', base_name)
+                            if m:
+                                allowed_targets = {m.group(1), m.group(2)}
+                                # Mapear os níveis internos (0, 1) para os nomes da arquitetura ("1", "2")
+                                def get_arch_name(lvl):
+                                    if lvl == 0: return "1"
+                                    if lvl == 1: return "2"
+                                    return str(lvl)
+                                
+                                arch_this = get_arch_name(node_data['level'])
+                                arch_other = get_arch_name(other.level)
+                                
+                                # Se as escadas não foram feitas para ir de arch_this para arch_other, não unir!
+                                if arch_this not in allowed_targets or arch_other not in allowed_targets:
+                                    print(f"Skipping vertical link for {base_name} between {arch_this} and {arch_other}")
+                                    continue
+                                    
+                        weight = 15.0 if node_data['type'] == 'stairs' else 5.0
+                        accessible = node_data['type'] in ['elevator']
                         
-                        # Position aisle slightly outward from seats (clearer separation)
-                        x, y = ellipse_pos(angle, row_radius_x, row_radius_y)
-                        
-                        aisle_id = f"Aisle-{stand_name}-T{tier}-R{row:02d}-{aisle_idx}"
-                        aisles_data.append({
-                            "id": aisle_id,
-                            "type": "row_aisle",
-                            "name": f"Corredor {stand_name} T{tier} Fila {row}",
-                            "x": x,
-                            "y": y,
-                            "level": level
-                        })
-                        aisle_nodes[(stand_name, tier, row, aisle_idx)] = aisle_id
-                    
-                    # Connect aisles horizontally (along the row) - ACCESSIBLE (flat)
-                    for i in range(len(AISLE_POSITIONS) - 1):
-                        a1 = aisle_nodes[(stand_name, tier, row, i)]
-                        a2 = aisle_nodes[(stand_name, tier, row, i + 1)]
-                        edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": a1, "to_id": a2, "weight": 3.0, "accessible": True})
-                        edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": a2, "to_id": a1, "weight": 3.0, "accessible": True})
-                    
-                    # Connect aisles vertically to previous row - NOT ACCESSIBLE (has stairs/steps)
-                    if row > 1:
-                        for aisle_idx in range(len(AISLE_POSITIONS)):
-                            curr_aisle = aisle_nodes[(stand_name, tier, row, aisle_idx)]
-                            prev_aisle = aisle_nodes[(stand_name, tier, row - 1, aisle_idx)]
-                            # These edges have stairs between rows - NOT wheelchair accessible
-                            edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": prev_aisle, "to_id": curr_aisle, "weight": 1.5, "accessible": False})
-                            edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": curr_aisle, "to_id": prev_aisle, "weight": 1.5, "accessible": False})
-                    
-                    # Connect first row aisles to inner corridor
-                    if row == 1:
-                        for aisle_idx, aisle_pos in enumerate(AISLE_POSITIONS):
-                            aisle_id = aisle_nodes[(stand_name, tier, 1, aisle_idx)]
-                            seat_progress = (aisle_pos + 1) / (SEATS_PER_ROW + 1)
-                            if angle_end < angle_start:
-                                aisle_angle = angle_start + seat_progress * (360 - angle_start + angle_end)
-                                if aisle_angle >= 360:
-                                    aisle_angle -= 360
-                            else:
-                                aisle_angle = angle_start + seat_progress * (angle_end - angle_start)
-                            
-                            corridor_pos = round(aisle_angle * NUM_CORRIDOR_POINTS / 360) % NUM_CORRIDOR_POINTS
-                            corridor = grid_nodes[(level, 'inner', corridor_pos)]
-                            edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": corridor, "to_id": aisle_id, "weight": 2.0})
-                            edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": aisle_id, "to_id": corridor, "weight": 2.0})
-                    
-                    # Create seats (endpoints only!)
-                    for num in range(1, SEATS_PER_ROW + 1):
-                        seat_progress = num / (SEATS_PER_ROW + 1)
-                        if angle_end < angle_start:
-                            angle = angle_start + seat_progress * (360 - angle_start + angle_end)
-                            if angle >= 360:
-                                angle -= 360
-                        else:
-                            angle = angle_start + seat_progress * (angle_end - angle_start)
-                        
-                        x, y = ellipse_pos(angle, row_radius_x, row_radius_y)
-                        
-                        seat_id = f"Seat-{stand_name}-T{tier}-R{row:02d}-{num:02d}"
-                        seats_data.append({
-                            "id": seat_id,
-                            "type": "seat",
-                            "block": f"{stand_name}-T{tier}",
-                            "row": row,
-                            "number": num,
-                            "x": x,
-                            "y": y,
-                            "level": level
-                        })
-                        
-                        # Connect seat to nearest aisle (seat is an ENDPOINT)
-                        nearest_aisle_idx = min(range(len(AISLE_POSITIONS)), 
-                                                key=lambda i: abs(AISLE_POSITIONS[i] - (num - 1)))
-                        nearest_aisle = aisle_nodes[(stand_name, tier, row, nearest_aisle_idx)]
-                        distance = abs(AISLE_POSITIONS[nearest_aisle_idx] - (num - 1)) * 0.5 + 0.5
-                        edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": nearest_aisle, "to_id": seat_id, "weight": distance})
-                        edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": seat_id, "to_id": nearest_aisle, "weight": distance})
-        
-        # ==================== POIs ====================
-        pois_data = []
-        
-        # WCs - 2 per stand per level
-        for level in range(2):
-            for idx, stand_name in enumerate(['Norte', 'Sul', 'Este', 'Oeste']):
-                stand = STANDS[stand_name]
-                for wc_idx in range(2):
-                    angle = stand['angle_start'] + (wc_idx + 1) * (stand['angle_end'] - stand['angle_start']) / 3
-                    if angle >= 360:
-                        angle -= 360
-                    x, y = ellipse_pos(angle, CORRIDOR_MID_X, CORRIDOR_MID_Y)
-                    
-                    wc_id = f"WC-{stand_name}-L{level}-{wc_idx+1}"
-                    pois_data.append({
-                        "id": wc_id,
-                        "name": f"WC {stand_name} {wc_idx+1}",
-                        "type": "restroom",
-                        "x": x,
-                        "y": y,
-                        "level": level,
-                        "num_servers": 8,
-                        "service_rate": 0.5
-                    })
-                    
-                    corridor_pos = round(angle * NUM_CORRIDOR_POINTS / 360) % NUM_CORRIDOR_POINTS
-                    corridor = grid_nodes[(level, 'mid', corridor_pos)]
-                    edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": wc_id, "to_id": corridor, "weight": 2.0})
-                    edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": corridor, "to_id": wc_id, "weight": 2.0})
-        
-        # Food/Bars - 3 per stand on level 0
-        for idx, stand_name in enumerate(['Norte', 'Sul', 'Este', 'Oeste']):
-            stand = STANDS[stand_name]
-            for food_idx in range(3):
-                angle = stand['angle_start'] + (food_idx + 0.5) * (stand['angle_end'] - stand['angle_start']) / 3
-                if angle >= 360:
-                    angle -= 360
-                x, y = ellipse_pos(angle, CORRIDOR_MID_X + 10, CORRIDOR_MID_Y + 10)
-                
-                food_id = f"Food-{stand_name}-{food_idx+1}"
-                pois_data.append({
-                    "id": food_id,
-                    "name": f"Bar/Restaurante {stand_name} {food_idx+1}",
-                    "type": "food" if food_idx % 2 == 0 else "bar",
-                    "x": x,
-                    "y": y,
-                    "level": 0,
-                    "num_servers": 6,
-                    "service_rate": 0.4
-                })
-                
-                corridor_pos = round(angle * NUM_CORRIDOR_POINTS / 360) % NUM_CORRIDOR_POINTS
-                corridor = grid_nodes[(0, 'mid', corridor_pos)]
-                edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": food_id, "to_id": corridor, "weight": 2.0})
-                edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": corridor, "to_id": food_id, "weight": 2.0})
-        
-        # Emergency exits - 2 per stand
-        for idx, stand_name in enumerate(['Norte', 'Sul', 'Este', 'Oeste']):
-            stand = STANDS[stand_name]
-            for exit_idx in range(2):
-                angle = stand['angle_start'] + (exit_idx + 0.5) * (stand['angle_end'] - stand['angle_start']) / 2
-                if angle >= 360:
-                    angle -= 360
-                x, y = ellipse_pos(angle, OUTER_PERIMETER_X - 10, OUTER_PERIMETER_Y - 10)
-                
-                exit_id = f"Exit-{stand_name}-{exit_idx+1}"
-                pois_data.append({
-                    "id": exit_id,
-                    "name": f"Saída Emergência {stand_name} {exit_idx+1}",
-                    "type": "emergency_exit",
-                    "x": x,
-                    "y": y,
-                    "level": 0
-                })
-                
-                corridor_pos = round(angle * NUM_CORRIDOR_POINTS / 360) % NUM_CORRIDOR_POINTS
-                corridor = grid_nodes[(0, 'outer', corridor_pos)]
-                edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": exit_id, "to_id": corridor, "weight": 2.0})
-                edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": corridor, "to_id": exit_id, "weight": 2.0})
-        
-        # First aid stations - 1 per side
-        for idx, (stand_name, angle) in enumerate([('Norte', 90), ('Sul', 270), ('Este', 0), ('Oeste', 180)]):
-            x, y = ellipse_pos(angle, CORRIDOR_MID_X - 15, CORRIDOR_MID_Y - 15)
-            
-            aid_id = f"Medical-{stand_name}"
-            pois_data.append({
-                "id": aid_id,
-                "name": f"Posto Médico {stand_name}",
-                "type": "first_aid",
-                "x": x,
-                "y": y,
-                "level": 0,
-                "num_servers": 3,
-                "service_rate": 0.2
-            })
-            
-            corridor_pos = round(angle * NUM_CORRIDOR_POINTS / 360) % NUM_CORRIDOR_POINTS
-            corridor = grid_nodes[(0, 'mid', corridor_pos)]
-            edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": aid_id, "to_id": corridor, "weight": 2.0})
-            edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": corridor, "to_id": aid_id, "weight": 2.0})
-        
-        # FC Porto Store - 2 locations
-        for idx, angle in enumerate([60, 240]):
-            x, y = ellipse_pos(angle, CORRIDOR_MID_X, CORRIDOR_MID_Y)
-            
-            store_id = f"Store-{idx+1}"
-            pois_data.append({
-                "id": store_id,
-                "name": f"Loja FC Porto {idx+1}",
-                "type": "merchandise",
-                "x": x,
-                "y": y,
-                "level": 0,
-                "num_servers": 4,
-                "service_rate": 0.5
-            })
-            
-            corridor_pos = round(angle * NUM_CORRIDOR_POINTS / 360) % NUM_CORRIDOR_POINTS
-            corridor = grid_nodes[(0, 'mid', corridor_pos)]
-            edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": store_id, "to_id": corridor, "weight": 2.0})
-            edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": corridor, "to_id": store_id, "weight": 2.0})
-        
-        # Information points - 3 locations
-        for idx, angle in enumerate([90, 180, 270]):
-            x, y = ellipse_pos(angle, CORRIDOR_OUTER_X - 20, CORRIDOR_OUTER_Y - 20)
-            
-            info_id = f"Info-{idx+1}"
-            pois_data.append({
-                "id": info_id,
-                "name": f"Informações {idx+1}",
-                "type": "information",
-                "x": x,
-                "y": y,
-                "level": 0,
-                "num_servers": 2,
-                "service_rate": 0.6
-            })
-            
-            corridor_pos = round(angle * NUM_CORRIDOR_POINTS / 360) % NUM_CORRIDOR_POINTS
-            corridor = grid_nodes[(0, 'outer', corridor_pos)]
-            edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": info_id, "to_id": corridor, "weight": 2.0})
-            edges_data.append({"id": f"E{len(edges_data)+1}", "from_id": corridor, "to_id": info_id, "weight": 2.0})
-        
-        # ==================== INSERT DATA ====================
-        
-        for node_data in nodes_data:
-            db.add(Node(**node_data))
-        
-        for gate_data in gates_data:
-            db.add(Node(**gate_data))
-        
-        for poi_data in pois_data:
-            db.add(Node(**poi_data))
-        
-        # Insert aisles (new navigation nodes)
-        for aisle_data in aisles_data:
-            db.add(Node(**aisle_data))
-        
-        for seat_data in seats_data:
-            db.add(Node(**seat_data))
-        
-        for edge_data in edges_data:
-            db.add(Edge(**edge_data))
-        
-        # ==================== EMERGENCY ROUTES ====================
-        # Create evacuation routes from various parts of the stadium to emergency exits
-        emergency_routes_data = []
-        
-        # Find all emergency exits
-        exit_nodes = [poi for poi in pois_data if poi['type'] == 'emergency_exit']
-        
-        for exit_node in exit_nodes:
-            exit_id = exit_node['id']
-            stand_name = exit_id.split('-')[1]  # e.g., "Norte" from "Exit-Norte-1"
-            
-            # Get corridor nodes near this exit to form evacuation path
-            exit_angle = STANDS[stand_name]['angle_start'] + (STANDS[stand_name]['angle_end'] - STANDS[stand_name]['angle_start']) / 2
-            if exit_angle >= 360:
-                exit_angle -= 360
-            
-            # Build a path from inner corridor to exit
-            center_pos = round(exit_angle * NUM_CORRIDOR_POINTS / 360) % NUM_CORRIDOR_POINTS
-            
-            # Path: inner corridor -> mid corridor -> outer corridor -> exit
-            path_nodes = []
-            for level in [0]:  # Level 0 evacuation
-                path_nodes.append(grid_nodes[(level, 'inner', center_pos)])
-                path_nodes.append(grid_nodes[(level, 'mid', center_pos)])
-                path_nodes.append(grid_nodes[(level, 'outer', center_pos)])
-            path_nodes.append(exit_id)
-            
-            route_id = f"ER-{exit_id}"
-            emergency_routes_data.append({
-                "id": route_id,
-                "name": f"Rota de Evacuação {exit_node['name']}",
-                "description": f"Evacuação para {stand_name}",
-                "exit_id": exit_id,
-                "node_ids": path_nodes
-            })
-        
-        # Insert emergency routes
-        for route_data in emergency_routes_data:
-            db.add(EmergencyRoute(**route_data))
-        
-        db.commit()
-        
-        # ==================== SUMMARY ====================
-        print("=" * 70)
-        print("ESTADIO DO DRAGAO - Dados Realistas Carregados!")
-        print("=" * 70)
-        print("\nESTATISTICAS:")
-        print(f"   - Corredores:          {len(nodes_data):>7} nodes")
-        print(f"   - Corredores filas:    {len(aisles_data):>7} (row_aisle)")
-        print(f"   - Portoes:             {len(gates_data):>7}")
-        print(f"   - POIs:                {len(pois_data):>7}")
-        print(f"   - Lugares:             {len(seats_data):>7}")
-        print(f"   - Rotas emergencia:    {len(emergency_routes_data):>7}")
-        print(f"   - Conexoes:            {len(edges_data):>7}")
-        total_nodes = len(nodes_data) + len(aisles_data) + len(gates_data) + len(pois_data) + len(seats_data)
-        print(f"\n   TOTAL NODES:           {total_nodes:>7}")
-        print("\nCARACTERISTICAS:")
-        print("   [x] Estrutura real: Norte/Sul (1 tier), Este/Oeste (2 tiers)")
-        print("   [x] Seats sao endpoints (rotas passam por row_aisle)")
-        print("   [x] Rotas de emergencia predefinidas")
-        print("   [x] 8 escadas + 4 rampas entre niveis")
-        
-        # ==================== REBUILD GRID ====================
-        grid_manager = GridManager(cell_size=5.0, origin_x=0.0, origin_y=0.0)
-        tile_count = grid_manager.rebuild_grid(db)
-        print(f"\n   TILES:                 {tile_count:>7}")
-        
-        print("\nBase de dados pronta!")
-        print("=" * 70)
-        
-    except Exception as e:
-        db.rollback()
-        print(f"\nError loading data: {str(e)}")
-        raise
-    finally:
-        db.close()
+                        e1 = Edge(id=f"E_vert_{node_data['id']}_{other.id}", from_id=node_data['id'], to_id=other.id, weight=weight, accessible=accessible)
+                        e2 = Edge(id=f"E_vert_{other.id}_{node_data['id']}", from_id=other.id, to_id=node_data['id'], weight=weight, accessible=accessible)
+                        db.merge(e1)
+                        db.merge(e2)
+            db.commit()
+
+            # Rebuild spatial grid (cell_size ≈ 1 meter)
+            # We must pass the level if we only want to rebuild tiles for this floor, or it rebuilds all?
+            # grid_manager.rebuild_grid clears tiles. If it clears ALL tiles, we lose level 0!
+            # Let's import GridManager. Rebuild might drop everything.
+            grid_manager = GridManager(cell_size=12.5, origin_x=0.0, origin_y=0.0)
+            # WARNING: rebuild_grid usually wipes the Tile table. We will let it handle its own logic or update it if needed.
+            tile_count = grid_manager.rebuild_grid(db)
+
+            print("=" * 50)
+            print(f"Nodes: {len(self.nodes_data)}")
+            print(f"Edges: {len(self.edges_data)}")
+            print(f"Tiles: {tile_count} (total in DB)")
+            print("=" * 50)
+
+        except Exception as e:
+            db.rollback()
+            raise
+        finally:
+            db.close()
 
 
-def clear_all_data():
-    """Clear all data from the database."""
-    # Ensure tables exist before trying to delete
-    init_db()
-    
-    db: Session = SessionLocal()
-    try:
+# ─────────────────────────────────────────────
+# CLI
+# ─────────────────────────────────────────────
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="SVG Floor Plan → DB Loader")
+    parser.add_argument("svg_path", nargs="?", default=os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "Fanapp", "fan_app_interface", "assets", "images", "PLANTA1.svg"
+    ))
+    parser.add_argument("--level", type=int, default=0, help="Floor level for the SVG nodes (e.g. 0 for PLANTA1, 1 for PLANTA2)")
+    parser.add_argument("--clear", action="store_true", help="Clear the entire DB before loading")
+    parser.add_argument("--clear-only", action="store_true", help="Clear the entire DB and exit")
+
+    args = parser.parse_args()
+
+    if args.clear_only:
+        print("Clearing all data...")
+        init_db()
+        db = SessionLocal()
         db.query(EmergencyRoute).delete()
         db.query(Closure).delete()
         db.query(Edge).delete()
         db.query(Tile).delete()
         db.query(Node).delete()
         db.commit()
-        print("All data cleared from database")
-    except Exception as e:
-        db.rollback()
-        print(f"Error clearing data: {str(e)}")
-        raise
-    finally:
         db.close()
+        print("Done!")
+        sys.exit(0)
 
-
-if __name__ == "__main__":
-    import sys
-    
-    if len(sys.argv) > 1 and sys.argv[1] == "--clear":
-        print("Clearing all data...")
-        clear_all_data()
-        print()
-    
-    print("Loading Estádio do Dragão data...")
-    load_sample_data()
+    loader = SVGLoader(args.svg_path, level=args.level)
+    loader.parse()
+    loader.load_to_db(clear_db=args.clear)
     print("\nDone! You can now start the FastAPI server.")

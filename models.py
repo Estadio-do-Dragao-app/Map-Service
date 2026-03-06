@@ -15,22 +15,18 @@ CASCADE_ALL_DELETE_ORPHAN = "all, delete-orphan"
 NODES_ID_FK = "nodes.id"
 NODES_TABLE_ID = "nodes.id"  # Constant for ForeignKey references
 
-# Valid node types used in the stadium map
+# Valid node types used in the floor plan
 NODE_TYPES = [
     "corridor",       # Navigation node in corridors/concourses
-    "row_aisle",      # Aisle between seat rows (for accessing seats)
-    "seat",           # Individual seat in the stands (endpoint only)
-    "gate",           # Stadium entrance/exit gate
     "stairs",         # Stairs connecting levels
     "ramp",           # Accessible ramp connecting levels
     "restroom",       # WC/Bathroom facilities
-    "food",           # Food court/restaurant
     "bar",            # Bar/drinks area
-    "merchandise",    # FC Porto store/merchandise shop
     "first_aid",      # Medical/first aid station
-    "emergency_exit", # Emergency exit point
-    "information",    # Information desk
-    "vip_box",        # VIP box/corporate area
+    "emergency_exit", # Building exit / emergency exit
+    "room",           # Generic room (center point — visual POI)
+    "door",           # Room door (routing target for pathfinding)
+    "elevator",       # Elevator connecting levels
     "normal",         # Generic navigation node
 ]
 
@@ -44,55 +40,43 @@ CLOSURE_REASONS = [
     "weather",        # Weather-related closure
 ]
 
-# Stadium levels (0 = ground/lower, 1 = upper for Este/Oeste)
-LEVELS = [0, 1]
-
-# Stadium stands/sections
-STANDS = [
-    "Norte",   # North stand (Coca-Cola) - Single tier, Ultras Colectivo 95
-    "Sul",     # South stand (Super Bock) - Single tier, Super Dragões
-    "Este",    # East stand (tmn) - Double tier, Away fans upper
-    "Oeste",   # West stand (meo) - Double tier, VIP boxes, players tunnel
-]
+# Floor levels (1 = Piso 1 / PLANTA1, 2 = Piso 2 / PLANTA2)
+LEVELS = [0, 1]  # Piso 0 (PLANTA1.svg) e Piso 1 (PLANTA2.svg)
 
 # ================== SQLAlchemy Models ==================
 
 class Node(Base):
     """
-    Represents a point in the stadium navigation graph.
+    Represents a point in the floor plan navigation graph.
     
     Nodes can be:
-    - Navigation points (corridors, stairs, ramps)
-    - Points of Interest (gates, restrooms, bars, etc.)
-    - Seats (individual stadium seats)
+    - Navigation points (corridors, stairs)
+    - Points of Interest (rooms, restrooms, bars, etc.)
+    - Doors (routing targets for room access)
     """
     __tablename__ = "nodes"
     
     id = Column(String, primary_key=True)
     name = Column(String, nullable=True)  # Human-readable name for display
-    x = Column(Float, nullable=False)     # X coordinate (pixels, center ~500)
-    y = Column(Float, nullable=False)     # Y coordinate (pixels, center ~400)
+    x = Column(Float, nullable=False)     # X coordinate (SVG viewBox: 0-800)
+    y = Column(Float, nullable=False)     # Y coordinate (SVG viewBox: 0-600)
     
-    # Level: 0 = ground floor/lower tier, 1 = upper tier
-    level = Column(Integer, default=0)
+    # Level: 1 = Piso 1 (PLANTA1), 2 = Piso 2 (PLANTA2)
+    level = Column(Integer, default=1)
     
     # Node type - see NODE_TYPES constant for valid values
-    # Options: "corridor", "seat", "gate", "stairs", "ramp", "restroom", 
-    #          "food", "bar", "merchandise", "first_aid", "emergency_exit",
-    #          "information", "vip_box", "normal"
     type = Column(String, default="normal")
     
-    description = Column(String, nullable=True)  # Additional info (e.g., sponsor name)
+    description = Column(String, nullable=True)  # Additional info
 
-    # Waiting/queue service fields (for POIs with queues like gates, WCs)
+    # Waiting/queue service fields (for POIs with queues like WCs, bar)
     num_servers = Column(Integer, nullable=True)   # Number of service points
     service_rate = Column(Float, nullable=True)    # Average service rate (people/min)
     
-    # Seat-specific fields (only for type="seat")
-    # Block format: "{Stand}-T{Tier}" e.g., "Norte-T0", "Este-T1"
-    block = Column(String, nullable=True)
-    row = Column(Integer, nullable=True)     # Row number (1 = closest to corridor)
-    number = Column(Integer, nullable=True)  # Seat number within row
+    # Room-specific fields
+    block = Column(String, nullable=True)   # Room number (e.g., "1.05", "2.07")
+    row = Column(Integer, nullable=True)    # Reserved for future use
+    number = Column(Integer, nullable=True) # Reserved for future use
     
     # Relationships
     edges_from = relationship("Edge", foreign_keys="Edge.from_id", back_populates="from_node", cascade=CASCADE_ALL_DELETE_ORPHAN)

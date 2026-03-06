@@ -96,10 +96,11 @@ def get_map_visualization(level: int = None, db: Session = Depends(get_db)):
     # Group nodes by type for easier frontend rendering
     grouped_nodes = {
         "navigation": [],
-        "gates": [],
+        "rooms": [],
+        "doors": [],
         "pois": [],
-        "seats": [],
-        "stairs": []
+        "stairs": [],
+        "elevators": []
     }
     
     for node in nodes:
@@ -114,23 +115,22 @@ def get_map_visualization(level: int = None, db: Session = Depends(get_db)):
         
         if node.type in ["corridor", "normal"]:
             grouped_nodes["navigation"].append(node_data)
-        elif node.type == "gate":
-            grouped_nodes["gates"].append({
+        elif node.type == "room":
+            grouped_nodes["rooms"].append({
                 **node_data,
-                "num_servers": node.num_servers,
-                "service_rate": node.service_rate
+                "block": node.block,
+            })
+        elif node.type == "door":
+            grouped_nodes["doors"].append({
+                **node_data,
+                "block": node.block,
             })
         elif node.type == "stairs":
             grouped_nodes["stairs"].append(node_data)
-        elif node.type == "seat":
-            grouped_nodes["seats"].append({
-                **node_data,
-                "block": node.block,
-                "row": node.row,
-                "number": node.number
-            })
+        elif node.type == "elevator":
+            grouped_nodes["elevators"].append(node_data)
         else:
-            # POIs: restroom, food, bar, emergency_exit, first_aid, information, merchandise
+            # POIs: restroom, bar, emergency_exit, first_aid
             grouped_nodes["pois"].append({
                 **node_data,
                 "type": node.type,
@@ -150,24 +150,18 @@ def get_map_visualization(level: int = None, db: Session = Depends(get_db)):
         "edges": [serialize_edge(e) for e in edges],
         "stats": {
             "navigation": len(grouped_nodes["navigation"]),
-            "gates": len(grouped_nodes["gates"]),
+            "rooms": len(grouped_nodes["rooms"]),
+            "doors": len(grouped_nodes["doors"]),
             "pois": len(grouped_nodes["pois"]),
-            "seats": len(grouped_nodes["seats"]),
             "stairs": len(grouped_nodes["stairs"]),
+            "elevators": len(grouped_nodes["elevators"]),
             "total": len(nodes)
         }
     }
 
-@app.get("/seats/{seat_id}", response_model=NodeResponse)
-def get_seat(seat_id: str, db: Session = Depends(get_db)):
-    """Get a specific seat by ID."""
-    seat = db.query(Node).filter(Node.id == seat_id).first()
-    if not seat:
-        raise HTTPException(status_code=404, detail="Seat not found")
-    return seat
 
 @app.get("/map/preview", response_class=HTMLResponse)
-def preview_map(level: int = 0, db: Session = Depends(get_db)):
+def preview_map(level: int = 1, db: Session = Depends(get_db)):
     """Visual preview of nodes on a 2D canvas with improved UI."""
     nodes = db.query(Node).filter(Node.level == level).all()
     edges = db.query(Edge).join(Node, Edge.from_id == Node.id).filter(Node.level == level).all()
@@ -175,11 +169,11 @@ def preview_map(level: int = 0, db: Session = Depends(get_db)):
     # Count by type
     counts = {
         'corridor': sum(1 for n in nodes if n.type == 'corridor'),
-        'row_aisle': sum(1 for n in nodes if n.type == 'row_aisle'),
-        'gate': sum(1 for n in nodes if n.type == 'gate'),
+        'room': sum(1 for n in nodes if n.type == 'room'),
+        'door': sum(1 for n in nodes if n.type == 'door'),
         'stairs': sum(1 for n in nodes if n.type in ['stairs', 'ramp']),
-        'poi': sum(1 for n in nodes if n.type in ['restroom', 'food', 'bar', 'emergency_exit', 'first_aid', 'information', 'merchandise']),
-        'seat': sum(1 for n in nodes if n.type == 'seat'),
+        'elevator': sum(1 for n in nodes if n.type == 'elevator'),
+        'poi': sum(1 for n in nodes if n.type in ['restroom', 'bar', 'emergency_exit', 'first_aid']),
     }
     
     html_content = f"""
@@ -323,12 +317,12 @@ def preview_map(level: int = 0, db: Session = Depends(get_db)):
     </head>
     <body>
         <div class="container">
-            <h1>Estadio do Dragao - Nivel {level}</h1>
+            <h1>Planta Piso {level}</h1>
             
             <div class="controls">
                 <div class="btn-group">
-                    <button class="btn {'active' if level == 0 else ''}" onclick="window.location.href='/map/preview?level=0'">Piso 0</button>
                     <button class="btn {'active' if level == 1 else ''}" onclick="window.location.href='/map/preview?level=1'">Piso 1</button>
+                    <button class="btn {'active' if level == 2 else ''}" onclick="window.location.href='/map/preview?level=2'">Piso 2</button>
                 </div>
                 
                 <div class="checkbox-group">
@@ -341,16 +335,16 @@ def preview_map(level: int = 0, db: Session = Depends(get_db)):
                         <span>Corredores</span>
                     </label>
                     <label class="checkbox-label">
-                        <input type="checkbox" id="showAisles" checked onchange="draw()">
-                        <span>Aisles</span>
+                        <input type="checkbox" id="showRooms" checked onchange="draw()">
+                        <span>Salas</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="showDoors" checked onchange="draw()">
+                        <span>Portas</span>
                     </label>
                     <label class="checkbox-label">
                         <input type="checkbox" id="showPOIs" checked onchange="draw()">
                         <span>POIs</span>
-                    </label>
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="showSeats" onchange="draw()">
-                        <span>Seats</span>
                     </label>
                     <label class="checkbox-label">
                         <input type="checkbox" id="showLabels" onchange="draw()">
@@ -376,24 +370,24 @@ def preview_map(level: int = 0, db: Session = Depends(get_db)):
                         <span>Corredores ({counts['corridor']})</span>
                     </div>
                     <div class="legend-item">
-                        <div class="legend-color" style="background: #fbbf24;"></div>
-                        <span>Row Aisles ({counts['row_aisle']})</span>
+                        <div class="legend-color" style="background: #60a5fa;"></div>
+                        <span>Salas ({counts['room']})</span>
                     </div>
                     <div class="legend-item">
-                        <div class="legend-color" style="background: #60a5fa;"></div>
-                        <span>Portões ({counts['gate']})</span>
+                        <div class="legend-color" style="background: #fbbf24;"></div>
+                        <span>Portas ({counts['door']})</span>
                     </div>
                     <div class="legend-item">
                         <div class="legend-color" style="background: #f97316;"></div>
-                        <span>Escadas/Rampas ({counts['stairs']})</span>
+                        <span>Escadas ({counts['stairs']})</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #8b5cf6;"></div>
+                        <span>Elevadores ({counts['elevator']})</span>
                     </div>
                     <div class="legend-item">
                         <div class="legend-color" style="background: #ec4899;"></div>
                         <span>POIs ({counts['poi']})</span>
-                    </div>
-                    <div class="legend-item">
-                        <div class="legend-color" style="background: #a855f7;"></div>
-                        <span>Seats ({counts['seat']})</span>
                     </div>
                 </div>
             </div>
@@ -424,18 +418,16 @@ def preview_map(level: int = 0, db: Session = Depends(get_db)):
             function getNodeColor(type) {{
                 const colors = {{
                     'corridor': '#4ade80',
-                    'row_aisle': '#fbbf24',
-                    'gate': '#60a5fa',
+                    'room': '#60a5fa',
+                    'door': '#fbbf24',
                     'stairs': '#f97316',
                     'ramp': '#f97316',
-                    'seat': '#a855f7',
+                    'elevator': '#8b5cf6',
                     'emergency_exit': '#ef4444',
                     'restroom': '#06b6d4',
-                    'food': '#f97316',
-                    'bar': '#8b5cf6',
+                    'bar': '#a855f7',
                     'first_aid': '#22c55e',
-                    'information': '#3b82f6',
-                    'merchandise': '#ec4899'
+                    'normal': '#666'
                 }};
                 return colors[type] || '#ec4899';
             }}
@@ -452,9 +444,9 @@ def preview_map(level: int = 0, db: Session = Depends(get_db)):
                 
                 const showEdges = document.getElementById('showEdges').checked;
                 const showCorridors = document.getElementById('showCorridors').checked;
-                const showAisles = document.getElementById('showAisles').checked;
+                const showRooms = document.getElementById('showRooms').checked;
+                const showDoors = document.getElementById('showDoors').checked;
                 const showPOIs = document.getElementById('showPOIs').checked;
-                const showSeats = document.getElementById('showSeats').checked;
                 const showLabels = document.getElementById('showLabels').checked;
                 
                 // Draw edges
@@ -475,27 +467,27 @@ def preview_map(level: int = 0, db: Session = Depends(get_db)):
                 
                 // Draw nodes
                 nodes.forEach(node => {{
-                    if (node.type === 'seat' && !showSeats) return;
+                    if (node.type === 'room' && !showRooms) return;
+                    if (node.type === 'door' && !showDoors) return;
                     if (node.type === 'corridor' && !showCorridors) return;
-                    if (node.type === 'row_aisle' && !showAisles) return;
-                    if (['restroom', 'food', 'bar', 'emergency_exit', 'first_aid', 'information', 'merchandise', 'gate', 'stairs', 'ramp'].includes(node.type) && !showPOIs) return;
+                    if (['restroom', 'bar', 'emergency_exit', 'first_aid', 'stairs', 'ramp', 'elevator'].includes(node.type) && !showPOIs) return;
                     
                     const x = screenX(node.x);
                     const y = screenY(node.y);
                     
                     let radius = 4;
-                    if (node.type === 'seat') radius = 2;
-                    else if (node.type === 'gate') radius = 10;
-                    else if (node.type === 'row_aisle') radius = 3;
-                    else if (['stairs', 'ramp', 'emergency_exit'].includes(node.type)) radius = 8;
+                    if (node.type === 'door') radius = 5;
+                    else if (node.type === 'room') radius = 7;
+                    else if (['stairs', 'ramp', 'emergency_exit', 'elevator'].includes(node.type)) radius = 8;
+                    else if (['restroom', 'bar'].includes(node.type)) radius = 7;
                     
                     ctx.fillStyle = getNodeColor(node.type);
                     ctx.beginPath();
                     ctx.arc(x, y, radius, 0, Math.PI * 2);
                     ctx.fill();
                     
-                    // Draw labels for POIs
-                    if (showLabels && ['gate', 'stairs', 'ramp', 'emergency_exit', 'first_aid', 'restroom', 'food', 'bar'].includes(node.type)) {{
+                    // Draw labels for POIs and rooms
+                    if (showLabels && ['room', 'stairs', 'ramp', 'emergency_exit', 'first_aid', 'restroom', 'bar', 'elevator'].includes(node.type)) {{
                         ctx.fillStyle = '#fff';
                         ctx.font = '10px Arial';
                         ctx.fillText(node.name || node.id, x + 12, y + 3);
@@ -512,7 +504,7 @@ def preview_map(level: int = 0, db: Session = Depends(get_db)):
                 for (let node of nodes) {{
                     const x = screenX(node.x);
                     const y = screenY(node.y);
-                    const radius = node.type === 'seat' ? 4 : 10;
+                    const radius = node.type === 'door' ? 6 : 10;
                     
                     if (Math.sqrt((mouseX - x)**2 + (mouseY - y)**2) < radius) {{
                         hoveredNode = node;
@@ -563,7 +555,7 @@ def get_nodes(db: Session = Depends(get_db)):
     """Get all nodes."""
     return db.query(Node).all()
 
-@app.get("/nodes/{node_id}", response_model=NodeResponse)
+@app.get("/nodes/{node_id:path}", response_model=NodeResponse)
 def get_node(node_id: str, db: Session = Depends(get_db)):
     """Get a specific node by ID."""
     node = db.query(Node).filter(Node.id == node_id).first()
@@ -571,7 +563,7 @@ def get_node(node_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Node not found")
     return node
 
-@app.put("/nodes/{node_id}", response_model=NodeResponse)
+@app.put("/nodes/{node_id:path}", response_model=NodeResponse)
 def update_node(node_id: str, data: NodeUpdate, db: Session = Depends(get_db)):
     """Update an existing node."""
     node = db.query(Node).filter(Node.id == node_id).first()
@@ -836,15 +828,15 @@ def get_grid_stats(db: Session = Depends(get_db)):
 
 @app.get("/pois", response_model=List[NodeResponse])
 def get_pois(db: Session = Depends(get_db)):
-    """Get all POI nodes (restroom, food, emergency_exit, etc)."""
+    """Get all POI nodes (restroom, bar, emergency_exit, room, etc)."""
     poi_types = [
-        'poi', 'restroom', 'entrance', 'food', 'shop', 'bar',
-        'emergency_exit', 'first_aid', 'information', 'merchandise'
+        'restroom', 'bar', 'room',
+        'emergency_exit', 'first_aid', 'stairs', 'elevator'
     ]
     pois = db.query(Node).filter(Node.type.in_(poi_types)).all()
     return pois
 
-@app.get("/pois/{poi_id}", response_model=NodeResponse)
+@app.get("/pois/{poi_id:path}", response_model=NodeResponse)
 def get_poi(poi_id: str, db: Session = Depends(get_db)):
     """Get a specific POI node by ID."""
     poi = db.query(Node).filter(Node.id == poi_id).first()
@@ -852,7 +844,7 @@ def get_poi(poi_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="POI not found")
     return poi
 
-@app.put("/pois/{poi_id}", response_model=NodeResponse)
+@app.put("/pois/{poi_id:path}", response_model=NodeResponse)
 def update_poi(poi_id: str, data: NodeUpdate, db: Session = Depends(get_db)):
     """Update an existing POI node."""
     poi = db.query(Node).filter(Node.id == poi_id).first()
@@ -883,98 +875,41 @@ def update_poi(poi_id: str, data: NodeUpdate, db: Session = Depends(get_db)):
     
     return poi
 
-# ================== SEATS ==================
-# Now handled via Node endpoints with type='seat'
+# ================== ROOMS ==================
+# Room and door nodes
 
-@app.get("/seats", response_model=List[NodeResponse])
-def get_seats(block: Optional[str] = None, db: Session = Depends(get_db)):
-    """Get all seat nodes, optionally filtered by block."""
-    query = db.query(Node).filter(Node.type == 'seat')
-    if block:
-        query = query.filter(Node.block == block)
+@app.get("/rooms", response_model=List[NodeResponse])
+def get_rooms(level: Optional[int] = None, db: Session = Depends(get_db)):
+    """Get all room nodes, optionally filtered by level."""
+    query = db.query(Node).filter(Node.type == 'room')
+    if level is not None:
+        query = query.filter(Node.level == level)
     return query.all()
 
-@app.get("/seats/{seat_id}", response_model=NodeResponse)
-def get_seat(seat_id: str, db: Session = Depends(get_db)):
-    """Get a specific seat node by ID."""
-    seat = db.query(Node).filter(Node.id == seat_id).first()
-    if not seat:
-        raise HTTPException(status_code=404, detail="Seat not found")
-    return seat
+@app.get("/rooms/{room_id:path}", response_model=NodeResponse)
+def get_room(room_id: str, db: Session = Depends(get_db)):
+    """Get a specific room node by ID."""
+    room = db.query(Node).filter(Node.id == room_id).first()
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+    return room
 
-@app.put("/seats/{seat_id}", response_model=NodeResponse)
-def update_seat(seat_id: str, data: NodeUpdate, db: Session = Depends(get_db)):
-    """Update an existing seat node."""
-    seat = db.query(Node).filter(Node.id == seat_id).first()
-    if not seat:
-        raise HTTPException(status_code=404, detail="Seat not found")
-    
-    if data.block is not None:
-        seat.block = data.block
-    if data.row is not None:
-        seat.row = data.row
-    if data.number is not None:
-        seat.number = data.number
-    if data.x is not None:
-        seat.x = data.x
-    if data.y is not None:
-        seat.y = data.y
-    if data.level is not None:
-        seat.level = data.level
-    
-    try:
-        db.commit()
-        db.refresh(seat)
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-    
-    return seat
+@app.get("/doors", response_model=List[NodeResponse])
+def get_doors(level: Optional[int] = None, db: Session = Depends(get_db)):
+    """Get all door nodes, optionally filtered by level."""
+    query = db.query(Node).filter(Node.type == 'door')
+    if level is not None:
+        query = query.filter(Node.level == level)
+    return query.all()
 
-# ================== GATES ==================
-# Now handled via Node endpoints with type='gate'
+@app.get("/doors/{door_id:path}", response_model=NodeResponse)
+def get_door(door_id: str, db: Session = Depends(get_db)):
+    """Get a specific door node by ID."""
+    door = db.query(Node).filter(Node.id == door_id).first()
+    if not door:
+        raise HTTPException(status_code=404, detail="Door not found")
+    return door
 
-@app.get("/gates", response_model=List[NodeResponse])
-def get_gates(db: Session = Depends(get_db)):
-    """Get all gate nodes."""
-    return db.query(Node).filter(Node.type == 'gate').all()
-
-@app.get("/gates/{gate_id}", response_model=NodeResponse)
-def get_gate(gate_id: str, db: Session = Depends(get_db)):
-    """Get a specific gate node by ID."""
-    gate = db.query(Node).filter(Node.id == gate_id).first()
-    if not gate:
-        raise HTTPException(status_code=404, detail="Gate not found")
-    return gate
-
-@app.put("/gates/{gate_id}", response_model=NodeResponse)
-def update_gate(gate_id: str, data: NodeUpdate, db: Session = Depends(get_db)):
-    """Update an existing gate node."""
-    gate = db.query(Node).filter(Node.id == gate_id).first()
-    if not gate:
-        raise HTTPException(status_code=404, detail="Gate not found")
-    
-    if data.name is not None:
-        gate.name = data.name
-    if data.x is not None:
-        gate.x = data.x
-    if data.y is not None:
-        gate.y = data.y
-    if data.level is not None:
-        gate.level = data.level
-    if data.num_servers is not None:
-        gate.num_servers = data.num_servers
-    if data.service_rate is not None:
-        gate.service_rate = data.service_rate
-    
-    try:
-        db.commit()
-        db.refresh(gate)
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-    
-    return gate
 
 # ================== GEOJSON ENDPOINTS ==================
 
@@ -1088,8 +1023,7 @@ def get_map_geojson(
         type_list = [t.strip() for t in types.split(',')]
         query = query.filter(Node.type.in_(type_list))
     
-    if not include_seats:
-        query = query.filter(Node.type != 'seat')
+
     
     nodes = query.all()
     
@@ -1181,12 +1115,11 @@ def get_pois_geojson(level: Optional[int] = None, db: Session = Depends(get_db))
     """
     Get only POI nodes in GeoJSON format (optimized for markers layer).
     
-    Includes: gates, restrooms, food, bars, stairs, ramps, emergency exits, 
-    first aid, information, and merchandise.
+    Includes: rooms, restrooms, bars, stairs, elevators, emergency exits, and first aid.
     """
     poi_types = [
-        'gate', 'restroom', 'food', 'bar', 'stairs', 'ramp',
-        'emergency_exit', 'first_aid', 'information', 'merchandise'
+        'room', 'restroom', 'bar', 'stairs', 'ramp',
+        'emergency_exit', 'first_aid', 'elevator'
     ]
     return get_map_geojson(
         level=level, 
