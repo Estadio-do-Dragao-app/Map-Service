@@ -82,7 +82,7 @@ class Node(Base):
     #          "information", "vip_box", "normal"
     type = Column(String, default="normal")
     
-    description = Column(String, nullable=True)  # Additional info (e.g., sponsor name)
+    description = Column(String, default="null",nullable=True)  # Additional info (e.g., sponsor name)
 
     # Waiting/queue service fields (for POIs with queues like gates, WCs)
     num_servers = Column(Integer, nullable=True)   # Number of service points

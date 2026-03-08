@@ -2,6 +2,8 @@ from fastapi import FastAPI, HTTPException, Depends, Query
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.middleware.cors import CORSMiddleware
+from networkx import edges, nodes
+from networkx import edges
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Optional
@@ -575,6 +577,24 @@ def get_node(node_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Node not found")
     return node
 
+@app.post("/nodes", response_model=NodeResponse, status_code=201)
+def create_node(data: NodeCreate, db: Session = Depends(get_db)):
+    """Create a new node."""
+    existing = db.query(Node).filter(Node.id == data.id).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Node already exists")
+    
+    node = Node(**data.model_dump())
+    db.add(node)
+    try:
+        db.commit()
+        db.refresh(node)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    
+    return node
+
 @app.put("/nodes/{node_id}", response_model=NodeResponse)
 def update_node(node_id: str, data: NodeUpdate, db: Session = Depends(get_db)):
     """Update an existing node."""
@@ -602,6 +622,24 @@ def update_node(node_id: str, data: NodeUpdate, db: Session = Depends(get_db)):
     
     return node
 
+@app.delete("/nodes/{node_id}")
+def delete_node(node_id: str, db: Session = Depends(get_db)):
+    node = db.query(Node).filter(Node.id == node_id).first()
+    if not node:
+        raise HTTPException(status_code=404, detail="Node not found")
+    try:
+        # Delete edges that reference this node
+        db.query(Edge).filter(
+            (Edge.from_id == node_id) | (Edge.to_id == node_id)
+        ).delete(synchronize_session=False)
+        # Delete closures that reference this node
+        db.query(Closure).filter(Closure.node_id == node_id).delete(synchronize_session=False)
+        db.delete(node)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    return {"deleted": node_id}
 # ================== EDGES ==================
 
 @app.get("/edges", response_model=List[EdgeResponse])
@@ -615,6 +653,32 @@ def get_edge(edge_id: str, db: Session = Depends(get_db)):
     edge = db.query(Edge).filter(Edge.id == edge_id).first()
     if not edge:
         raise HTTPException(status_code=404, detail="Edge not found")
+    return edge
+
+@app.post("/edges", response_model=EdgeResponse, status_code=201)
+def create_edge(data: EdgeCreate, db: Session = Depends(get_db)):
+    """Create a new edge between two nodes."""
+    existing = db.query(Edge).filter(Edge.id == data.id).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Edge already exists")
+    
+    # Validate that both nodes exist
+    from_node = db.query(Node).filter(Node.id == data.from_id).first()
+    if not from_node:
+        raise HTTPException(status_code=400, detail=f"from_id '{data.from_id}' does not exist")
+    to_node = db.query(Node).filter(Node.id == data.to_id).first()
+    if not to_node:
+        raise HTTPException(status_code=400, detail=f"to_id '{data.to_id}' does not exist")
+    
+    edge = Edge(**data.model_dump())
+    db.add(edge)
+    try:
+        db.commit()
+        db.refresh(edge)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    
     return edge
 
 @app.put("/edges/{edge_id}", response_model=EdgeResponse)
@@ -637,6 +701,22 @@ def update_edge(edge_id: str, data: EdgeUpdate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     
     return edge
+
+@app.delete("/edges/{edge_id}")
+def delete_edge(edge_id: str, db: Session = Depends(get_db)):
+    """Delete an edge."""
+    edge = db.query(Edge).filter(Edge.id == edge_id).first()
+    if not edge:
+        raise HTTPException(status_code=404, detail="Edge not found")
+    
+    try:
+        db.delete(edge)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    
+    return {"deleted": edge_id}
 
 # ================== CLOSURES ==================
 
@@ -805,20 +885,18 @@ def get_grid_stats(db: Session = Depends(get_db)):
     """Get grid statistics."""
     tiles = db.query(Tile).all()
     
-    total_nodes = 0
-    total_pois = 0
-    total_seats = 0
-    total_gates = 0
-    
-    for tile in tiles:
-        if tile.node_id:
-            total_nodes += len([i for i in tile.node_id.split(',') if i])
-        if tile.poi_id:
-            total_pois += len([i for i in tile.poi_id.split(',') if i])
-        if tile.seat_id:
-            total_seats += len([i for i in tile.seat_id.split(',') if i])
-        if tile.gate_id:
-            total_gates += len([i for i in tile.gate_id.split(',') if i])
+    total_nodes: int = sum(
+        len([i for i in str(tile.node_id).split(',') if i]) for tile in tiles if tile.node_id
+    )
+    total_pois: int = sum(
+        len([i for i in str(tile.poi_id).split(',') if i]) for tile in tiles if tile.poi_id
+    )
+    total_seats: int = sum(
+        len([i for i in str(tile.seat_id).split(',') if i]) for tile in tiles if tile.seat_id
+    )
+    total_gates: int = sum(
+        len([i for i in str(tile.gate_id).split(',') if i]) for tile in tiles if tile.gate_id
+    )
     
     return {
         "total_tiles": len(tiles),
@@ -1014,7 +1092,7 @@ def get_osm_pois(db: Session = Depends(get_db)):
             "y": lat,
             "level": 0,
             "nearest_node_id": nearest_id,
-            "distance_to_node_m": round(min_dist, 1),
+            "distance_to_node_m": round(float(min_dist), 1),
         })
 
     result = {

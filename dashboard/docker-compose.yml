@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  dashboard-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: dashboard-backend
+    ports:
+      - "8001:8000"   # Mapeia a porta 8000 do container para a porta 8001 do host
+    environment:
+      MAP_SERVICE_URL: http://host.docker.internal:8000
+    # Para Linux, é necessário adicionar isto para que host.docker.internal funcione:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
