@@ -34,26 +34,9 @@ exit(2)
 DB_STATUS=$?
 
 if [[ $DB_STATUS -eq 1 ]]; then
-    MAP_MODE=${MAP_MODE:-outdoor}
-    echo "MAP_MODE=$MAP_MODE"
-
-    if [[ "$MAP_MODE" == "outdoor" ]]; then
-        echo "Generating UA outdoor data from OSM..."
-        python generate_ua.py
-
-        echo "Loading data into database..."
-        python load_instituto.py output/ua_graph.json --clear
-    else
-        echo "Loading indoor data into database..."
-        # Indoor mode: usa dados pré-gerados (sem Overpass)
-        if [[ -f "output/ua_graph.json" ]]; then
-            python load_instituto.py output/ua_graph.json --clear
-        else
-            echo "WARNING: output/ua_graph.json not found! Run generate_ua.py manually first."
-            exit 1
-        fi
-    fi
-
+    echo "Loading stadium data..."
+    python load_data_db.py
+    
     # Verificar se carregou corretamente
     if [[ $? -ne 0 ]]; then
         echo "ERROR: Failed to load data!" >&2

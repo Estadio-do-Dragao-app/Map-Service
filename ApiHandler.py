@@ -17,6 +17,10 @@ from models import (
 from grid_name import GridManager
 import hashlib
 import math
+import time
+import json as json_module
+import urllib.request
+import urllib.parse
 
 app = FastAPI(title="Smart Stadium Map Backend")
 
@@ -844,6 +848,187 @@ def get_pois(db: Session = Depends(get_db)):
     pois = db.query(Node).filter(Node.type.in_(poi_types)).all()
     return pois
 
+# ================== OSM POIs (Dynamic) ==================
+
+# In-memory cache for OSM POI queries
+_osm_poi_cache: dict = {"data": None, "timestamp": 0}
+_OSM_CACHE_TTL = 3600  # 1 hour
+
+# UA Santiago Campus bounding box
+_UA_BBOX = "40.628,-8.662,40.635,-8.654"
+
+_OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+_OVERPASS_POI_QUERY = f"""
+[out:json];
+(
+  node["amenity"]({_UA_BBOX});
+  node["shop"]({_UA_BBOX});
+  node["tourism"]({_UA_BBOX});
+  way["amenity"]["name"]({_UA_BBOX});
+  way["building"]["name"]({_UA_BBOX});
+  way["shop"]["name"]({_UA_BBOX});
+);
+out center;
+"""
+
+# Separate query for entrance nodes
+_OVERPASS_ENTRANCE_QUERY = f"""
+[out:json];
+node["entrance"]({_UA_BBOX});
+out;
+"""
+
+def _osm_tag_to_type(tags: dict) -> str:
+    """Map OSM tags to internal POI type."""
+    amenity = tags.get("amenity", "")
+    shop = tags.get("shop", "")
+    tourism = tags.get("tourism", "")
+    if amenity in ("restaurant", "cafe", "fast_food", "food_court", "canteen"):
+        return "food"
+    if amenity == "bar" or amenity == "pub":
+        return "bar"
+    if amenity == "toilets":
+        return "wc"
+    if amenity == "library":
+        return "library"
+    if amenity == "parking":
+        return "parking"
+    if amenity in ("pharmacy", "hospital", "clinic", "first_aid"):
+        return "first_aid"
+    if amenity == "university" or amenity == "school" or amenity == "college":
+        return "poi"
+    if shop:
+        return "shop"
+    if tourism:
+        return "poi"
+    return "poi"
+
+
+def _haversine(lon1, lat1, lon2, lat2):
+    """Distance in meters between two GPS points."""
+    lon1, lat1, lon2, lat2 = map(math.radians, [lon1, lat1, lon2, lat2])
+    dlon = lon2 - lon1
+    dlat = lat2 - lat1
+    a = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
+    return 6371000 * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+
+@app.get("/pois/osm")
+def get_osm_pois(db: Session = Depends(get_db)):
+    """
+    Fetch POIs dynamically from OpenStreetMap Overpass API.
+    Results are cached in memory for 1 hour.
+    Each POI is snapped to the nearest walkable node in the DB graph.
+    Response format matches /pois for Flutter compatibility.
+    """
+    global _osm_poi_cache
+
+    now = time.time()
+    if _osm_poi_cache["data"] is not None and (now - _osm_poi_cache["timestamp"]) < _OSM_CACHE_TTL:
+        return _osm_poi_cache["data"]
+
+    try:
+        # Fetch from Overpass API
+        data = urllib.parse.urlencode({"data": _OVERPASS_POI_QUERY}).encode("utf-8")
+        req = urllib.request.Request(_OVERPASS_URL, data=data)
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            osm_data = json_module.loads(resp.read().decode("utf-8"))
+    except Exception as e:
+        # If Overpass fails, return cached data if available, otherwise empty
+        import traceback
+        print(f"[OSM POIs] Main query failed: {e}")
+        traceback.print_exc()
+        if _osm_poi_cache["data"]:
+            return _osm_poi_cache["data"]
+        # return empty list instead of crashing app
+        return {"pois": [], "total": 0, "source": "openstreetmap", "error": str(e)}
+
+    # Also fetch entrance nodes for building entrance snapping
+    entrance_nodes = []
+    try:
+        ent_data = urllib.parse.urlencode({"data": _OVERPASS_ENTRANCE_QUERY}).encode("utf-8")
+        ent_req = urllib.request.Request(_OVERPASS_URL, data=ent_data)
+        with urllib.request.urlopen(ent_req, timeout=15) as ent_resp:
+            ent_json = json_module.loads(ent_resp.read().decode("utf-8"))
+            entrance_nodes = [e for e in ent_json.get("elements", []) if e["type"] == "node"]
+            print(f"[OSM POIs] Fetched {len(entrance_nodes)} entrance nodes")
+    except Exception as e:
+        print(f"[OSM POIs] Could not fetch entrances: {e} (using building centers)")
+
+    # Load walkable nodes from DB for snapping
+    walkable_nodes = db.query(Node).filter(Node.type == "normal").all()
+
+    pois = []
+    seen_names = set()  # deduplicate by name
+
+    for el in osm_data.get("elements", []):
+        tags = el.get("tags", {})
+        name = tags.get("name") or tags.get("alt_name") or tags.get("short_name")
+        if not name:
+            continue
+
+        # Deduplicate (same building can appear as node + way)
+        if name.lower() in seen_names:
+            continue
+        seen_names.add(name.lower())
+
+        # Get coordinates — prefer entrance if available
+        if el["type"] == "node":
+            lon, lat = el["lon"], el["lat"]
+        elif el["type"] == "way" and "center" in el:
+            # For buildings: check if we have an entrance node nearby
+            center_lon, center_lat = el["center"]["lon"], el["center"]["lat"]
+            lon, lat = center_lon, center_lat
+
+            # Look for entrance nodes within 50m of building center
+            best_entrance_dist = float("inf")
+            for ent in entrance_nodes:
+                ent_dist = _haversine(center_lon, center_lat, ent["lon"], ent["lat"])
+                if ent_dist < 50 and ent_dist < best_entrance_dist:
+                    best_entrance_dist = ent_dist
+                    lon, lat = ent["lon"], ent["lat"]  # Use entrance coords for snap
+        else:
+            continue
+
+        # Find nearest walkable node (within 100m)
+        nearest_id = None
+        min_dist = float("inf")
+        for wn in walkable_nodes:
+            d = _haversine(lon, lat, wn.x, wn.y)
+            if d < min_dist:
+                min_dist = d
+                nearest_id = wn.id
+
+        if nearest_id is None or min_dist > 100:
+            continue
+
+        poi_type = _osm_tag_to_type(tags)
+        description = tags.get("description", name)
+
+        pois.append({
+            "id": f"OSM-{el['id']}",
+            "name": name,
+            "type": poi_type,
+            "description": description,
+            "x": lon,
+            "y": lat,
+            "level": 0,
+            "nearest_node_id": nearest_id,
+            "distance_to_node_m": round(min_dist, 1),
+        })
+
+    result = {
+        "pois": pois,
+        "total": len(pois),
+        "source": "openstreetmap",
+        "cached_at": now,
+    }
+
+    _osm_poi_cache = {"data": result, "timestamp": now}
+    print(f"[OSM POIs] Fetched {len(pois)} POIs from Overpass API")
+
+    return result
+
 @app.get("/pois/{poi_id}", response_model=NodeResponse)
 def get_poi(poi_id: str, db: Session = Depends(get_db)):
     """Get a specific POI node by ID."""
@@ -882,6 +1067,60 @@ def update_poi(poi_id: str, data: NodeUpdate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     
     return poi
+
+
+from pydantic import BaseModel as PydanticBaseModel
+
+class POICreate(PydanticBaseModel):
+    name: str
+    type: str = "poi"
+    x: float
+    y: float
+    level: int = 0
+    description: Optional[str] = None
+
+
+@app.post("/pois", response_model=NodeResponse, status_code=201)
+def create_poi(data: POICreate, db: Session = Depends(get_db)):
+    """
+    Create a custom POI (e.g. for events).
+    Auto-generates an ID and links to nearest walkable node.
+    """
+    import uuid
+    poi_id = f"CUSTOM-{uuid.uuid4().hex[:8]}"
+
+    new_poi = Node(
+        id=poi_id,
+        name=data.name,
+        type=data.type,
+        x=data.x,
+        y=data.y,
+        level=data.level,
+        description=data.description or data.name,
+    )
+
+    try:
+        db.add(new_poi)
+        db.commit()
+        db.refresh(new_poi)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+    print(f"[POI] Created custom POI '{data.name}' ({poi_id}) at ({data.x}, {data.y})")
+    return new_poi
+
+
+@app.delete("/pois/{poi_id}")
+def delete_poi(poi_id: str, db: Session = Depends(get_db)):
+    """Delete a custom POI."""
+    poi = db.query(Node).filter(Node.id == poi_id).first()
+    if not poi:
+        raise HTTPException(status_code=404, detail="POI not found")
+    db.delete(poi)
+    db.commit()
+    return {"status": "deleted", "id": poi_id}
+
 
 # ================== SEATS ==================
 # Now handled via Node endpoints with type='seat'
