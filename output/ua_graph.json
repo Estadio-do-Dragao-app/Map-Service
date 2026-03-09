@@ -1,9 +1,9 @@
 {
   "metadata": {
-    "name": "Universidade de Aveiro (OSM Smooth)",
+    "name": "Universidade de Aveiro — Santiago Campus (OSM)",
     "source": "openstreetmap",
-    "total_nodes": 701,
-    "total_edges": 1504,
+    "total_nodes": 854,
+    "total_edges": 1810,
     "levels": [
       0
     ]
@@ -5578,44 +5578,1844 @@
       "name": "Node_11898995596"
     },
     {
-      "id": "POI-reitoria",
-      "x": -8.65622,
-      "y": 40.63032,
+      "id": "POI-1443502559",
+      "x": -8.6580299,
+      "y": 40.6319888,
       "level": 0,
-      "type": "poi",
-      "name": "Reitoria"
+      "type": "parking",
+      "name": "Bicycle Parking",
+      "description": "Bicycle Parking",
+      "osm_tags": {
+        "amenity": "bicycle_parking"
+      }
     },
     {
-      "id": "POI-biblioteca",
-      "x": -8.65789,
-      "y": 40.63152,
+      "id": "POI-1443502571",
+      "x": -8.6588018,
+      "y": 40.6326563,
       "level": 0,
-      "type": "poi",
-      "name": "Biblioteca Central"
+      "type": "parking",
+      "name": "Bicycle Parking",
+      "description": "Bicycle Parking",
+      "osm_tags": {
+        "amenity": "bicycle_parking"
+      }
     },
     {
-      "id": "POI-deti",
-      "x": -8.65934,
-      "y": 40.63321,
+      "id": "POI-1443502592",
+      "x": -8.6588194,
+      "y": 40.6334459,
       "level": 0,
-      "type": "poi",
-      "name": "DETI (Inform\u00e1tica)"
+      "type": "parking",
+      "name": "Bicycle Parking",
+      "description": "Bicycle Parking",
+      "osm_tags": {
+        "amenity": "bicycle_parking"
+      }
     },
     {
-      "id": "POI-fisica",
-      "x": -8.65856,
-      "y": 40.63278,
+      "id": "POI-1590137985",
+      "x": -8.6588386,
+      "y": 40.6309171,
       "level": 0,
-      "type": "poi",
-      "name": "F\u00edsica"
+      "type": "first_aid",
+      "name": "Parafarmácia",
+      "description": "Parafarmácia",
+      "osm_tags": {
+        "amenity": "pharmacy"
+      }
     },
     {
-      "id": "POI-cantina",
-      "x": -8.65825,
-      "y": 40.62972,
+      "id": "POI-1590138005",
+      "x": -8.6588823,
+      "y": 40.6313562,
+      "level": 0,
+      "type": "shop",
+      "name": "Livraria da Universidade de Aveiro",
+      "description": "Livraria da Universidade de Aveiro",
+      "osm_tags": {
+        "shop": "books"
+      }
+    },
+    {
+      "id": "POI-1870236063",
+      "x": -8.6591976,
+      "y": 40.6310164,
+      "level": 0,
+      "type": "bar",
+      "name": "CUA",
+      "description": "CUA",
+      "osm_tags": {
+        "amenity": "bar"
+      }
+    },
+    {
+      "id": "POI-1870236080",
+      "x": -8.6590833,
+      "y": 40.6306398,
       "level": 0,
       "type": "food",
-      "name": "Cantina Santiago"
+      "name": "Cantina de Santiago - Universidade de Aveiro",
+      "description": "Cantina de Santiago - Universidade de Aveiro",
+      "osm_tags": {
+        "amenity": "restaurant"
+      }
+    },
+    {
+      "id": "POI-1870236097",
+      "x": -8.6587507,
+      "y": 40.630707,
+      "level": 0,
+      "type": "wc",
+      "name": "Toilets",
+      "description": "Toilets",
+      "osm_tags": {
+        "amenity": "toilets"
+      }
+    },
+    {
+      "id": "POI-3204861112",
+      "x": -8.6580323,
+      "y": 40.6302571,
+      "level": 0,
+      "type": "parking",
+      "name": "Universidade de Aveiro",
+      "description": "Universidade de Aveiro",
+      "osm_tags": {
+        "amenity": "bicycle_parking"
+      }
+    },
+    {
+      "id": "POI-4852045624",
+      "x": -8.6569545,
+      "y": 40.6349818,
+      "level": 0,
+      "type": "poi",
+      "name": "Universidade - Antiga Reitoria A",
+      "description": "Universidade - Antiga Reitoria A",
+      "osm_tags": {}
+    },
+    {
+      "id": "POI-4852045625",
+      "x": -8.6571952,
+      "y": 40.6316069,
+      "level": 0,
+      "type": "poi",
+      "name": "Universidade - Reitoria",
+      "description": "Universidade - Reitoria",
+      "osm_tags": {}
+    },
+    {
+      "id": "POI-4852045626",
+      "x": -8.6550542,
+      "y": 40.6301441,
+      "level": 0,
+      "type": "poi",
+      "name": "Universidade - Pavilhão A",
+      "description": "Universidade - Pavilhão A",
+      "osm_tags": {}
+    },
+    {
+      "id": "POI-4852045627",
+      "x": -8.659106,
+      "y": 40.6299495,
+      "level": 0,
+      "type": "poi",
+      "name": "Universidade - Santiago",
+      "description": "Universidade - Santiago",
+      "osm_tags": {}
+    },
+    {
+      "id": "POI-4852045629",
+      "x": -8.6548507,
+      "y": 40.6315198,
+      "level": 0,
+      "type": "poi",
+      "name": "Avenida da Universidade",
+      "description": "Avenida da Universidade",
+      "osm_tags": {}
+    },
+    {
+      "id": "POI-4852045630",
+      "x": -8.6561897,
+      "y": 40.6347402,
+      "level": 0,
+      "type": "poi",
+      "name": "Hospital / Universidade",
+      "description": "Hospital / Universidade",
+      "osm_tags": {}
+    },
+    {
+      "id": "POI-4852045631",
+      "x": -8.655731,
+      "y": 40.63494,
+      "level": 0,
+      "type": "poi",
+      "name": "Hospital / Universidade",
+      "description": "Hospital / Universidade",
+      "osm_tags": {}
+    },
+    {
+      "id": "POI-4852088189",
+      "x": -8.6595738,
+      "y": 40.6298117,
+      "level": 0,
+      "type": "poi",
+      "name": "Universidade - Santiago",
+      "description": "Universidade - Santiago",
+      "osm_tags": {}
+    },
+    {
+      "id": "POI-4852088190",
+      "x": -8.6547643,
+      "y": 40.6298682,
+      "level": 0,
+      "type": "poi",
+      "name": "Universidade - Pavilhão B",
+      "description": "Universidade - Pavilhão B",
+      "osm_tags": {}
+    },
+    {
+      "id": "POI-4852088191",
+      "x": -8.6547145,
+      "y": 40.6316261,
+      "level": 0,
+      "type": "poi",
+      "name": "Avenida da Universidade",
+      "description": "Avenida da Universidade",
+      "osm_tags": {}
+    },
+    {
+      "id": "POI-4852088192",
+      "x": -8.6572502,
+      "y": 40.6317336,
+      "level": 0,
+      "type": "poi",
+      "name": "Universidade - Reitoria",
+      "description": "Universidade - Reitoria",
+      "osm_tags": {}
+    },
+    {
+      "id": "POI-4852088193",
+      "x": -8.656838,
+      "y": 40.6348957,
+      "level": 0,
+      "type": "poi",
+      "name": "Universidade - Antiga Reitoria B",
+      "description": "Universidade - Antiga Reitoria B",
+      "osm_tags": {}
+    },
+    {
+      "id": "POI-4961602580",
+      "x": -8.6565203,
+      "y": 40.6301308,
+      "level": 0,
+      "type": "parking",
+      "name": "Bicycle Parking",
+      "description": "Bicycle Parking",
+      "osm_tags": {
+        "amenity": "bicycle_parking"
+      }
+    },
+    {
+      "id": "POI-4961602586",
+      "x": -8.6571411,
+      "y": 40.6310882,
+      "level": 0,
+      "type": "parking",
+      "name": "Parking Entrance",
+      "description": "Parking Entrance",
+      "osm_tags": {
+        "amenity": "parking_entrance"
+      }
+    },
+    {
+      "id": "POI-4961602591",
+      "x": -8.6580852,
+      "y": 40.6316481,
+      "level": 0,
+      "type": "parking",
+      "name": "Parking Entrance",
+      "description": "Parking Entrance",
+      "osm_tags": {
+        "amenity": "parking_entrance"
+      }
+    },
+    {
+      "id": "POI-4966381614",
+      "x": -8.657146,
+      "y": 40.6349828,
+      "level": 0,
+      "type": "atm",
+      "name": "CGD",
+      "description": "CGD",
+      "osm_tags": {
+        "amenity": "atm"
+      }
+    },
+    {
+      "id": "POI-5234938568",
+      "x": -8.6555635,
+      "y": 40.6349399,
+      "level": 0,
+      "type": "parking",
+      "name": "Motorcycle Parking",
+      "description": "Motorcycle Parking",
+      "osm_tags": {
+        "amenity": "motorcycle_parking"
+      }
+    },
+    {
+      "id": "POI-5366099993",
+      "x": -8.6548105,
+      "y": 40.6315476,
+      "level": 0,
+      "type": "poi",
+      "name": "Avenida da Universidade",
+      "description": "Avenida da Universidade",
+      "osm_tags": {}
+    },
+    {
+      "id": "POI-5366099994",
+      "x": -8.654747,
+      "y": 40.6316043,
+      "level": 0,
+      "type": "poi",
+      "name": "Avenida da Universidade",
+      "description": "Avenida da Universidade",
+      "osm_tags": {}
+    },
+    {
+      "id": "POI-5366100005",
+      "x": -8.6561655,
+      "y": 40.6347212,
+      "level": 0,
+      "type": "poi",
+      "name": "Hospital / Universidade",
+      "description": "Hospital / Universidade",
+      "osm_tags": {}
+    },
+    {
+      "id": "POI-5366100006",
+      "x": -8.6557947,
+      "y": 40.634926,
+      "level": 0,
+      "type": "poi",
+      "name": "Hospital / Universidade",
+      "description": "Hospital / Universidade",
+      "osm_tags": {}
+    },
+    {
+      "id": "POI-5367963788",
+      "x": -8.6572111,
+      "y": 40.6317061,
+      "level": 0,
+      "type": "poi",
+      "name": "Universidade - Reitoria",
+      "description": "Universidade - Reitoria",
+      "osm_tags": {}
+    },
+    {
+      "id": "POI-5367963789",
+      "x": -8.6590396,
+      "y": 40.6299898,
+      "level": 0,
+      "type": "poi",
+      "name": "Universidade - Santiago",
+      "description": "Universidade - Santiago",
+      "osm_tags": {}
+    },
+    {
+      "id": "POI-5367963790",
+      "x": -8.6595345,
+      "y": 40.6297914,
+      "level": 0,
+      "type": "poi",
+      "name": "Universidade - Santiago",
+      "description": "Universidade - Santiago",
+      "osm_tags": {}
+    },
+    {
+      "id": "POI-8301125095",
+      "x": -8.6596075,
+      "y": 40.6329658,
+      "level": 0,
+      "type": "parking",
+      "name": "Bicycle Parking",
+      "description": "Bicycle Parking",
+      "osm_tags": {
+        "amenity": "bicycle_parking"
+      }
+    },
+    {
+      "id": "POI-8301125096",
+      "x": -8.6596436,
+      "y": 40.6330477,
+      "level": 0,
+      "type": "parking",
+      "name": "Bicycle Parking",
+      "description": "Bicycle Parking",
+      "osm_tags": {
+        "amenity": "bicycle_parking"
+      }
+    },
+    {
+      "id": "POI-8301125109",
+      "x": -8.6586806,
+      "y": 40.6313501,
+      "level": 0,
+      "type": "atm",
+      "name": "Atm",
+      "description": "Atm",
+      "osm_tags": {
+        "amenity": "atm"
+      }
+    },
+    {
+      "id": "POI-8301125110",
+      "x": -8.6592008,
+      "y": 40.6308471,
+      "level": 0,
+      "type": "atm",
+      "name": "Caixa Geral de Depósitos",
+      "description": "Caixa Geral de Depósitos",
+      "osm_tags": {
+        "amenity": "atm"
+      }
+    },
+    {
+      "id": "POI-10130250538",
+      "x": -8.6600644,
+      "y": 40.6349183,
+      "level": 0,
+      "type": "parking",
+      "name": "Bicycle Parking",
+      "description": "Bicycle Parking",
+      "osm_tags": {
+        "amenity": "bicycle_parking"
+      }
+    },
+    {
+      "id": "POI-10140013034",
+      "x": -8.6599206,
+      "y": 40.6338966,
+      "level": 0,
+      "type": "parking",
+      "name": "Bicycle Parking",
+      "description": "Bicycle Parking",
+      "osm_tags": {
+        "amenity": "bicycle_parking"
+      }
+    },
+    {
+      "id": "POI-11051669003",
+      "x": -8.6541777,
+      "y": 40.6293532,
+      "level": 0,
+      "type": "poi",
+      "name": "AVR-00008",
+      "description": "AVR-00008",
+      "osm_tags": {}
+    },
+    {
+      "id": "POI-11898983752",
+      "x": -8.6552637,
+      "y": 40.634996,
+      "level": 0,
+      "type": "poi",
+      "name": "Liga dos Amigos do Centro Hospitalar do Baixo Vouga",
+      "description": "Liga dos Amigos do Centro Hospitalar do Baixo Vouga",
+      "osm_tags": {}
+    },
+    {
+      "id": "POI-11898983757",
+      "x": -8.6549668,
+      "y": 40.6342671,
+      "level": 0,
+      "type": "information",
+      "name": "Receção Principal",
+      "description": "Receção Principal",
+      "osm_tags": {
+        "amenity": "reception_desk"
+      }
+    },
+    {
+      "id": "POI-11898983758",
+      "x": -8.65539,
+      "y": 40.6340742,
+      "level": 0,
+      "type": "information",
+      "name": "Receção Zona A, B e C",
+      "description": "Receção Zona A, B e C",
+      "osm_tags": {
+        "amenity": "reception_desk"
+      }
+    },
+    {
+      "id": "POI-11898994914",
+      "x": -8.655061,
+      "y": 40.6343971,
+      "level": 0,
+      "type": "atm",
+      "name": "Novo Banco",
+      "description": "Novo Banco",
+      "osm_tags": {
+        "amenity": "atm"
+      }
+    },
+    {
+      "id": "POI-11898995605",
+      "x": -8.6548736,
+      "y": 40.6347683,
+      "level": 0,
+      "type": "cafe",
+      "name": "Café Snack Externo Hospital Baixo Vouga",
+      "description": "Café Snack Externo Hospital Baixo Vouga",
+      "osm_tags": {
+        "amenity": "cafe"
+      }
+    },
+    {
+      "id": "POI-11898995782",
+      "x": -8.6555217,
+      "y": 40.6348716,
+      "level": 0,
+      "type": "wc",
+      "name": "Toilets",
+      "description": "Toilets",
+      "osm_tags": {
+        "amenity": "toilets"
+      }
+    },
+    {
+      "id": "POI-12153486502",
+      "x": -8.6584929,
+      "y": 40.6288033,
+      "level": 0,
+      "type": "poi",
+      "name": "São Tiago",
+      "description": "São Tiago",
+      "osm_tags": {}
+    },
+    {
+      "id": "POI-12246915463",
+      "x": -8.6575241,
+      "y": 40.6342973,
+      "level": 0,
+      "type": "parking",
+      "name": "Bicycle Parking",
+      "description": "Bicycle Parking",
+      "osm_tags": {
+        "amenity": "bicycle_parking"
+      }
+    },
+    {
+      "id": "POI-12431304534",
+      "x": -8.6575635,
+      "y": 40.6314797,
+      "level": 0,
+      "type": "poi",
+      "name": "Estátuas de Pedra",
+      "description": "Estátuas de Pedra",
+      "osm_tags": {}
+    },
+    {
+      "id": "POI-12461161759",
+      "x": -8.6574551,
+      "y": 40.6300329,
+      "level": 0,
+      "type": "parking",
+      "name": "Bicycle Parking",
+      "description": "Bicycle Parking",
+      "osm_tags": {
+        "amenity": "bicycle_parking"
+      }
+    },
+    {
+      "id": "POI-12461161761",
+      "x": -8.6574949,
+      "y": 40.6300661,
+      "level": 0,
+      "type": "parking",
+      "name": "Bicycle Parking",
+      "description": "Bicycle Parking",
+      "osm_tags": {
+        "amenity": "bicycle_parking"
+      }
+    },
+    {
+      "id": "POI-12461161762",
+      "x": -8.6565006,
+      "y": 40.6298558,
+      "level": 0,
+      "type": "parking",
+      "name": "Bicycle Parking",
+      "description": "Bicycle Parking",
+      "osm_tags": {
+        "amenity": "bicycle_parking"
+      }
+    },
+    {
+      "id": "POI-12461161763",
+      "x": -8.6565354,
+      "y": 40.6298779,
+      "level": 0,
+      "type": "parking",
+      "name": "Bicycle Parking",
+      "description": "Bicycle Parking",
+      "osm_tags": {
+        "amenity": "bicycle_parking"
+      }
+    },
+    {
+      "id": "POI-12461161764",
+      "x": -8.6577627,
+      "y": 40.6302505,
+      "level": 0,
+      "type": "parking",
+      "name": "Bicycle Parking",
+      "description": "Bicycle Parking",
+      "osm_tags": {
+        "amenity": "bicycle_parking"
+      }
+    },
+    {
+      "id": "POI-12480669535",
+      "x": -8.6541407,
+      "y": 40.6345484,
+      "level": 0,
+      "type": "poi",
+      "name": "iTaxi",
+      "description": "Máquina para chamada de táxi",
+      "osm_tags": {}
+    },
+    {
+      "id": "POI-12487426191",
+      "x": -8.657299,
+      "y": 40.6317041,
+      "level": 0,
+      "type": "poi",
+      "name": "Rua Dom António Baltasar Marcelino (1930-2013) Bispo de Aveiro",
+      "description": "Rua Dom António Baltasar Marcelino (1930-2013) Bispo de Aveiro",
+      "osm_tags": {}
+    },
+    {
+      "id": "POI-12487426192",
+      "x": -8.6558972,
+      "y": 40.6331269,
+      "level": 0,
+      "type": "poi",
+      "name": "Rua Dom António Baltasar Marcelino (1930-2013) Bispo de Aveiro",
+      "description": "Rua Dom António Baltasar Marcelino (1930-2013) Bispo de Aveiro",
+      "osm_tags": {}
+    },
+    {
+      "id": "POI-12487426224",
+      "x": -8.6559619,
+      "y": 40.6332437,
+      "level": 0,
+      "type": "shop",
+      "name": "Emanuel Moreira - O Rei da Tripa e Bolacha Americana",
+      "description": "Emanuel Moreira - O Rei da Tripa e Bolacha Americana",
+      "osm_tags": {
+        "shop": "pastry"
+      }
+    },
+    {
+      "id": "POI-12487426255",
+      "x": -8.6544665,
+      "y": 40.6348686,
+      "level": 0,
+      "type": "poi",
+      "name": "Zona J",
+      "description": "Zona J",
+      "osm_tags": {}
+    },
+    {
+      "id": "POI-12487426256",
+      "x": -8.6543898,
+      "y": 40.6345413,
+      "level": 0,
+      "type": "poi",
+      "name": "Zona F, Zona G",
+      "description": "Zona F, Zona G",
+      "osm_tags": {}
+    },
+    {
+      "id": "POI-12487426283",
+      "x": -8.6547414,
+      "y": 40.6343815,
+      "level": 0,
+      "type": "poi",
+      "name": "Central Gases Medicinais",
+      "description": "Central Gases Medicinais",
+      "osm_tags": {}
+    },
+    {
+      "id": "POI-12487426306",
+      "x": -8.655239,
+      "y": 40.6336142,
+      "level": 0,
+      "type": "information",
+      "name": "Receção Urgências",
+      "description": "Receção Urgências",
+      "osm_tags": {
+        "amenity": "reception_desk"
+      }
+    },
+    {
+      "id": "POI-12487426331",
+      "x": -8.6548835,
+      "y": 40.634788,
+      "level": 0,
+      "type": "wc",
+      "name": "Toilets",
+      "description": "Toilets",
+      "osm_tags": {
+        "amenity": "toilets"
+      }
+    },
+    {
+      "id": "POI-12487426340",
+      "x": -8.654822,
+      "y": 40.6339887,
+      "level": 0,
+      "type": "wc",
+      "name": "Toilets",
+      "description": "Toilets",
+      "osm_tags": {
+        "amenity": "toilets"
+      }
+    },
+    {
+      "id": "POI-12487426341",
+      "x": -8.654776,
+      "y": 40.6339826,
+      "level": 0,
+      "type": "cafe",
+      "name": "Cafetarias Blend",
+      "description": "Cafetarias Blend",
+      "osm_tags": {
+        "amenity": "cafe"
+      }
+    },
+    {
+      "id": "POI-12487426345",
+      "x": -8.6555368,
+      "y": 40.6340218,
+      "level": 0,
+      "type": "wc",
+      "name": "Toilets",
+      "description": "Toilets",
+      "osm_tags": {
+        "amenity": "toilets"
+      }
+    },
+    {
+      "id": "POI-12487426346",
+      "x": -8.6551697,
+      "y": 40.6343511,
+      "level": 0,
+      "type": "poi",
+      "name": "CTT",
+      "description": "CTT",
+      "osm_tags": {
+        "amenity": "post_box"
+      }
+    },
+    {
+      "id": "POI-12487426488",
+      "x": -8.656324,
+      "y": 40.6348843,
+      "level": 0,
+      "type": "poi",
+      "name": "Bicicletas Buga Estação 10",
+      "description": "Bicicletas Buga Estação 10",
+      "osm_tags": {
+        "amenity": "bicycle_rental"
+      }
+    },
+    {
+      "id": "POI-12487426513",
+      "x": -8.6541635,
+      "y": 40.6346289,
+      "level": 0,
+      "type": "information",
+      "name": "Receção",
+      "description": "Receção",
+      "osm_tags": {
+        "amenity": "reception_desk"
+      }
+    },
+    {
+      "id": "POI-12583176583",
+      "x": -8.6569939,
+      "y": 40.6315589,
+      "level": 0,
+      "type": "poi",
+      "name": "Places Under Sky",
+      "description": "Places Under Sky",
+      "osm_tags": {}
+    },
+    {
+      "id": "POI-12714314217",
+      "x": -8.6557527,
+      "y": 40.6349081,
+      "level": 0,
+      "type": "poi",
+      "name": "Hospital / Universidade B",
+      "description": "Hospital / Universidade B",
+      "osm_tags": {}
+    },
+    {
+      "id": "POI-13094842405",
+      "x": -8.6562576,
+      "y": 40.6283316,
+      "level": 0,
+      "type": "poi",
+      "name": "Bicicletas Buga Estação 12",
+      "description": "Bicicletas Buga Estação 12",
+      "osm_tags": {
+        "amenity": "bicycle_rental"
+      }
+    },
+    {
+      "id": "POI-131114424",
+      "x": -8.6541887,
+      "y": 40.6327285,
+      "level": 0,
+      "type": "departamento",
+      "name": "Escola Básica do 2° e 3° Ciclo João Afonso",
+      "description": "Escola Básica do 2° e 3° Ciclo João Afonso",
+      "osm_tags": {
+        "amenity": "school"
+      }
+    },
+    {
+      "id": "POI-131114469",
+      "x": -8.6555562,
+      "y": 40.6344961,
+      "level": 0,
+      "type": "parking",
+      "name": "Parking",
+      "description": "Parking",
+      "osm_tags": {
+        "amenity": "parking"
+      }
+    },
+    {
+      "id": "POI-141793995",
+      "x": -8.6600356,
+      "y": 40.6335639,
+      "level": 0,
+      "type": "departamento",
+      "name": "Departamento de Biologia - Herbário e Laboratórios",
+      "description": "Departamento de Biologia - Herbário e Laboratórios",
+      "osm_tags": {
+        "building": "university"
+      }
+    },
+    {
+      "id": "POI-142696009",
+      "x": -8.6580439,
+      "y": 40.6327581,
+      "level": 0,
+      "type": "poi",
+      "name": "Centro Comunitário de Fé e Cultura",
+      "description": "Centro Comunitário de Fé e Cultura",
+      "osm_tags": {
+        "amenity": "community_centre",
+        "building": "yes"
+      }
+    },
+    {
+      "id": "POI-142696012",
+      "x": -8.6582657,
+      "y": 40.6327462,
+      "level": 0,
+      "type": "poi",
+      "name": "Centro Comunitário de Fé e Cultura",
+      "description": "Centro Comunitário de Fé e Cultura",
+      "osm_tags": {
+        "amenity": "community_centre",
+        "building": "yes"
+      }
+    },
+    {
+      "id": "POI-145459276",
+      "x": -8.6581991,
+      "y": 40.6299979,
+      "level": 0,
+      "type": "departamento",
+      "name": "Departamento de Ciências Sociais Políticas e Território",
+      "description": "Departamento de Ciências Sociais Políticas e Território",
+      "osm_tags": {
+        "building": "university"
+      }
+    },
+    {
+      "id": "POI-145477045",
+      "x": -8.6583625,
+      "y": 40.6302994,
+      "level": 0,
+      "type": "departamento",
+      "name": "Departamento de Matemática",
+      "description": "Departamento de Matemática",
+      "osm_tags": {
+        "building": "university"
+      }
+    },
+    {
+      "id": "POI-145477175",
+      "x": -8.658749,
+      "y": 40.6300155,
+      "level": 0,
+      "type": "departamento",
+      "name": "Serviço de Tecnologias de Informação e Comunicação",
+      "description": "Serviço de Tecnologias de Informação e Comunicação",
+      "osm_tags": {
+        "building": "university"
+      }
+    },
+    {
+      "id": "POI-145477308",
+      "x": -8.6580936,
+      "y": 40.6313653,
+      "level": 0,
+      "type": "parking",
+      "name": "Parque Universidade Aveiro - Visitas",
+      "description": "Parque Universidade Aveiro - Visitas",
+      "osm_tags": {
+        "amenity": "parking"
+      }
+    },
+    {
+      "id": "POI-145478314",
+      "x": -8.6583971,
+      "y": 40.6319278,
+      "level": 0,
+      "type": "departamento",
+      "name": "Cifop",
+      "description": "Cifop",
+      "osm_tags": {
+        "building": "university"
+      }
+    },
+    {
+      "id": "POI-145478316",
+      "x": -8.6587812,
+      "y": 40.6322737,
+      "level": 0,
+      "type": "departamento",
+      "name": "Mediateca da Universidade de Aveiro",
+      "description": "Mediateca da Universidade de Aveiro",
+      "osm_tags": {
+        "building": "university"
+      }
+    },
+    {
+      "id": "POI-145482742",
+      "x": -8.6593078,
+      "y": 40.6336071,
+      "level": 0,
+      "type": "departamento",
+      "name": "Departamento de Biologia",
+      "description": "Departamento de Biologia",
+      "osm_tags": {
+        "building": "university"
+      }
+    },
+    {
+      "id": "POI-145482890",
+      "x": -8.6595976,
+      "y": 40.6328407,
+      "level": 0,
+      "type": "departamento",
+      "name": "Anfiteatros do Departamento de Electrónica e Telecomunicações",
+      "description": "Anfiteatros do Departamento de Electrónica e Telecomunicações",
+      "osm_tags": {
+        "building": "university"
+      }
+    },
+    {
+      "id": "POI-145482891",
+      "x": -8.6593861,
+      "y": 40.6331582,
+      "level": 0,
+      "type": "departamento",
+      "name": "Departamento de Eletrónica, Telecomunicações e Informática",
+      "description": "Departamento de Eletrónica, Telecomunicações e Informática",
+      "osm_tags": {
+        "building": "university"
+      }
+    },
+    {
+      "id": "POI-145483194",
+      "x": -8.658861,
+      "y": 40.631883,
+      "level": 0,
+      "type": "departamento",
+      "name": "Departamento de Educação e Psicologia",
+      "description": "Departamento de Educação e Psicologia",
+      "osm_tags": {
+        "building": "university"
+      }
+    },
+    {
+      "id": "POI-145631186",
+      "x": -8.6574625,
+      "y": 40.6348404,
+      "level": 0,
+      "type": "departamento",
+      "name": "Centro de Estudos de Ambiente e do Mar",
+      "description": "Centro de Estudos de Ambiente e do Mar",
+      "osm_tags": {
+        "building": "university"
+      }
+    },
+    {
+      "id": "POI-145631187",
+      "x": -8.657951,
+      "y": 40.635169,
+      "level": 0,
+      "type": "departamento",
+      "name": "Departamento de Línguas e Culturas",
+      "description": "Departamento de Línguas e Culturas",
+      "osm_tags": {
+        "building": "university"
+      }
+    },
+    {
+      "id": "POI-145631188",
+      "x": -8.6592759,
+      "y": 40.6325421,
+      "level": 0,
+      "type": "departamento",
+      "name": "Departamento de Ambiente e Ordenamento",
+      "description": "Departamento de Ambiente e Ordenamento",
+      "osm_tags": {
+        "building": "university"
+      }
+    },
+    {
+      "id": "POI-145632684",
+      "x": -8.660096,
+      "y": 40.6305284,
+      "level": 0,
+      "type": "parking",
+      "name": "Parque Poente",
+      "description": "Parque Poente",
+      "osm_tags": {
+        "amenity": "parking"
+      }
+    },
+    {
+      "id": "POI-145634793",
+      "x": -8.654169,
+      "y": 40.6297707,
+      "level": 0,
+      "type": "departamento",
+      "name": "Pavilhão Aristides Hall",
+      "description": "Pavilhão Aristides Hall",
+      "osm_tags": {
+        "building": "university"
+      }
+    },
+    {
+      "id": "POI-145636264",
+      "x": -8.6549173,
+      "y": 40.6309019,
+      "level": 0,
+      "type": "poi",
+      "name": "Centro de Infância Arte e Qualidade",
+      "description": "Centro de Infância Arte e Qualidade",
+      "osm_tags": {
+        "building": "kindergarten"
+      }
+    },
+    {
+      "id": "POI-145636274",
+      "x": -8.6554208,
+      "y": 40.6312395,
+      "level": 0,
+      "type": "food",
+      "name": "Restaurante Universitário / Snack-bar",
+      "description": "Restaurante Universitário / Snack-bar",
+      "osm_tags": {
+        "amenity": "restaurant",
+        "building": "yes"
+      }
+    },
+    {
+      "id": "POI-146532290",
+      "x": -8.6574106,
+      "y": 40.635276,
+      "level": 0,
+      "type": "parking",
+      "name": "Universidade de Aveiro",
+      "description": "Universidade de Aveiro",
+      "osm_tags": {
+        "amenity": "parking"
+      }
+    },
+    {
+      "id": "POI-176510343",
+      "x": -8.6570804,
+      "y": 40.6308353,
+      "level": 0,
+      "type": "departamento",
+      "name": "Departamento de Economia, Gestão, Engenharia Industrial e Turismo",
+      "description": "Departamento de Economia, Gestão, Engenharia Industrial e Turismo",
+      "osm_tags": {
+        "building": "university"
+      }
+    },
+    {
+      "id": "POI-176510344",
+      "x": -8.6574661,
+      "y": 40.6311309,
+      "level": 0,
+      "type": "departamento",
+      "name": "Edifício Central e da Reitoria",
+      "description": "Edifício Central e da Reitoria",
+      "osm_tags": {
+        "building": "university"
+      }
+    },
+    {
+      "id": "POI-179278968",
+      "x": -8.6575055,
+      "y": 40.6298597,
+      "level": 0,
+      "type": "departamento",
+      "name": "Bar do Departamento de Engenharia Mecânica",
+      "description": "Bar do Departamento de Engenharia Mecânica",
+      "osm_tags": {
+        "building": "university"
+      }
+    },
+    {
+      "id": "POI-179278969",
+      "x": -8.6561363,
+      "y": 40.6301767,
+      "level": 0,
+      "type": "departamento",
+      "name": "Complexo de Laboratórios Tecnológicos",
+      "description": "Complexo de Laboratórios Tecnológicos",
+      "osm_tags": {
+        "building": "university"
+      }
+    },
+    {
+      "id": "POI-179278970",
+      "x": -8.6578957,
+      "y": 40.6297773,
+      "level": 0,
+      "type": "departamento",
+      "name": "Departamento de Engenharia Mecânica",
+      "description": "Departamento de Engenharia Mecânica",
+      "osm_tags": {
+        "building": "university"
+      }
+    },
+    {
+      "id": "POI-179278971",
+      "x": -8.6572657,
+      "y": 40.6292998,
+      "level": 0,
+      "type": "departamento",
+      "name": "Departamento de Geociências",
+      "description": "Departamento de Geociências",
+      "osm_tags": {
+        "building": "university"
+      }
+    },
+    {
+      "id": "POI-179278972",
+      "x": -8.657556,
+      "y": 40.6295189,
+      "level": 0,
+      "type": "departamento",
+      "name": "Departamento de Engenharia Civil",
+      "description": "Departamento de Engenharia Civil",
+      "osm_tags": {
+        "building": "university"
+      }
+    },
+    {
+      "id": "POI-179278974",
+      "x": -8.6557965,
+      "y": 40.6300268,
+      "level": 0,
+      "type": "departamento",
+      "name": "Departamento de Química da Universidade de Aveiro",
+      "description": "Departamento de Química da Universidade de Aveiro",
+      "osm_tags": {
+        "building": "university"
+      }
+    },
+    {
+      "id": "POI-179278976",
+      "x": -8.6555703,
+      "y": 40.6295218,
+      "level": 0,
+      "type": "departamento",
+      "name": "Complexo Pedagógico",
+      "description": "Complexo Pedagógico",
+      "osm_tags": {
+        "building": "university"
+      }
+    },
+    {
+      "id": "POI-179278979",
+      "x": -8.6564748,
+      "y": 40.6304345,
+      "level": 0,
+      "type": "departamento",
+      "name": "Departamento de Física",
+      "description": "Departamento de Física",
+      "osm_tags": {
+        "building": "university"
+      }
+    },
+    {
+      "id": "POI-179278980",
+      "x": -8.6567834,
+      "y": 40.6306494,
+      "level": 0,
+      "type": "departamento",
+      "name": "Complexo Interdisciplinar de Ciências Físicas Aplicadas à Nanotecnologia e à Oceanografia",
+      "description": "Complexo Interdisciplinar de Ciências Físicas Aplicadas à Nanotecnologia e à Oceanografia",
+      "osm_tags": {
+        "building": "university"
+      }
+    },
+    {
+      "id": "POI-179279842",
+      "x": -8.6601259,
+      "y": 40.6331328,
+      "level": 0,
+      "type": "departamento",
+      "name": "Instituto de Engenharia Eletrónica e Telemática de Aveiro",
+      "description": "Instituto de Engenharia Eletrónica e Telemática de Aveiro",
+      "osm_tags": {
+        "building": "university"
+      }
+    },
+    {
+      "id": "POI-181373569",
+      "x": -8.6599349,
+      "y": 40.6341507,
+      "level": 0,
+      "type": "departamento",
+      "name": "Instituto de Telecomunicações",
+      "description": "Instituto de Telecomunicações",
+      "osm_tags": {
+        "building": "university"
+      }
+    },
+    {
+      "id": "POI-240512026",
+      "x": -8.6563112,
+      "y": 40.628905,
+      "level": 0,
+      "type": "departamento",
+      "name": "Departamento de Comunicação e Arte",
+      "description": "Departamento de Comunicação e Arte",
+      "osm_tags": {
+        "building": "university"
+      }
+    },
+    {
+      "id": "POI-240515188",
+      "x": -8.6572059,
+      "y": 40.632025,
+      "level": 0,
+      "type": "poi",
+      "name": "Universidade de Aveiro - Campus de Santiago",
+      "description": "Universidade de Aveiro - Campus de Santiago",
+      "osm_tags": {
+        "amenity": "university"
+      }
+    },
+    {
+      "id": "POI-243186671",
+      "x": -8.659552,
+      "y": 40.6348018,
+      "level": 0,
+      "type": "departamento",
+      "name": "Comunicações Óticas, Comunicações Rádio e Robótica",
+      "description": "Instituto de Telecomunicações 2\nComunicações Óticas, Comunicações Rádio e Robótica",
+      "osm_tags": {
+        "building": "university"
+      }
+    },
+    {
+      "id": "POI-290560980",
+      "x": -8.6568331,
+      "y": 40.634294,
+      "level": 0,
+      "type": "parking",
+      "name": "Parking",
+      "description": "Parking",
+      "osm_tags": {
+        "amenity": "parking"
+      }
+    },
+    {
+      "id": "POI-309934962",
+      "x": -8.6565018,
+      "y": 40.6319249,
+      "level": 0,
+      "type": "parking",
+      "name": "Universidade de Aveiro",
+      "description": "Universidade de Aveiro",
+      "osm_tags": {
+        "amenity": "parking"
+      }
+    },
+    {
+      "id": "POI-421972470",
+      "x": -8.6589105,
+      "y": 40.6313876,
+      "level": 0,
+      "type": "departamento",
+      "name": "Fotossíntese",
+      "description": "Fotossíntese",
+      "osm_tags": {
+        "building": "university"
+      }
+    },
+    {
+      "id": "POI-433041923",
+      "x": -8.6553479,
+      "y": 40.632244,
+      "level": 0,
+      "type": "parking",
+      "name": "Universidade de Aveiro",
+      "description": "Universidade de Aveiro",
+      "osm_tags": {
+        "amenity": "parking"
+      }
+    },
+    {
+      "id": "POI-495734458",
+      "x": -8.6583402,
+      "y": 40.6286702,
+      "level": 0,
+      "type": "shop",
+      "name": "Rui Couto",
+      "description": "Rui Couto",
+      "osm_tags": {
+        "building": "yes",
+        "shop": "car_repair"
+      }
+    },
+    {
+      "id": "POI-506422999",
+      "x": -8.6559663,
+      "y": 40.6314166,
+      "level": 0,
+      "type": "parking",
+      "name": "Universidade de Aveiro",
+      "description": "Universidade de Aveiro",
+      "osm_tags": {
+        "amenity": "parking"
+      }
+    },
+    {
+      "id": "POI-506423000",
+      "x": -8.6550889,
+      "y": 40.6306038,
+      "level": 0,
+      "type": "parking",
+      "name": "Universidade de Aveiro",
+      "description": "Universidade de Aveiro",
+      "osm_tags": {
+        "amenity": "parking"
+      }
+    },
+    {
+      "id": "POI-506423049",
+      "x": -8.6553932,
+      "y": 40.6290324,
+      "level": 0,
+      "type": "poi",
+      "name": "Depósito de Água",
+      "description": "Depósito de Água",
+      "osm_tags": {
+        "building": "yes"
+      }
+    },
+    {
+      "id": "POI-506437295",
+      "x": -8.6569702,
+      "y": 40.6290729,
+      "level": 0,
+      "type": "departamento",
+      "name": "Complexo das Ciências da Comunicação e Imagem",
+      "description": "Complexo das Ciências da Comunicação e Imagem",
+      "osm_tags": {
+        "building": "university"
+      }
+    },
+    {
+      "id": "POI-506437297",
+      "x": -8.6599087,
+      "y": 40.6312173,
+      "level": 0,
+      "type": "library",
+      "name": "Biblioteca da Universidade de Aveiro",
+      "description": "Biblioteca da Universidade de Aveiro",
+      "osm_tags": {
+        "amenity": "library",
+        "building": "yes"
+      }
+    },
+    {
+      "id": "POI-506659686",
+      "x": -8.6582044,
+      "y": 40.629294,
+      "level": 0,
+      "type": "parking",
+      "name": "Universidade de Aveiro",
+      "description": "Universidade de Aveiro",
+      "osm_tags": {
+        "amenity": "parking"
+      }
+    },
+    {
+      "id": "POI-506659694",
+      "x": -8.6561739,
+      "y": 40.6311913,
+      "level": 0,
+      "type": "parking",
+      "name": "Universidade de Aveiro",
+      "description": "Universidade de Aveiro",
+      "osm_tags": {
+        "amenity": "parking"
+      }
+    },
+    {
+      "id": "POI-506659697",
+      "x": -8.6553468,
+      "y": 40.6305654,
+      "level": 0,
+      "type": "parking",
+      "name": "Universidade de Aveiro",
+      "description": "Universidade de Aveiro",
+      "osm_tags": {
+        "amenity": "parking"
+      }
+    },
+    {
+      "id": "POI-506659698",
+      "x": -8.6550185,
+      "y": 40.6302476,
+      "level": 0,
+      "type": "parking",
+      "name": "Universidade de Aveiro",
+      "description": "Universidade de Aveiro",
+      "osm_tags": {
+        "amenity": "parking"
+      }
+    },
+    {
+      "id": "POI-506659701",
+      "x": -8.6549176,
+      "y": 40.6309574,
+      "level": 0,
+      "type": "poi",
+      "name": "Centro de Infância Arte e Qualidade",
+      "description": "Centro de Infância Arte e Qualidade",
+      "osm_tags": {
+        "amenity": "kindergarten"
+      }
+    },
+    {
+      "id": "POI-507407976",
+      "x": -8.6572722,
+      "y": 40.6331587,
+      "level": 0,
+      "type": "departamento",
+      "name": "Seminário de Santa Joana Princesa",
+      "description": "Seminário de Santa Joana Princesa",
+      "osm_tags": {
+        "amenity": "college"
+      }
+    },
+    {
+      "id": "POI-507429300",
+      "x": -8.6541432,
+      "y": 40.6321414,
+      "level": 0,
+      "type": "departamento",
+      "name": "Pavilhão E",
+      "description": "Pavilhão E",
+      "osm_tags": {
+        "building": "school"
+      }
+    },
+    {
+      "id": "POI-507429301",
+      "x": -8.6538019,
+      "y": 40.6327212,
+      "level": 0,
+      "type": "departamento",
+      "name": "Pavilhão Principal",
+      "description": "Pavilhão Principal",
+      "osm_tags": {
+        "building": "school"
+      }
+    },
+    {
+      "id": "POI-507429302",
+      "x": -8.6549824,
+      "y": 40.6330683,
+      "level": 0,
+      "type": "departamento",
+      "name": "Pavilhão Gimnodesportivo",
+      "description": "Pavilhão Gimnodesportivo",
+      "osm_tags": {
+        "building": "school"
+      }
+    },
+    {
+      "id": "POI-541359025",
+      "x": -8.6546984,
+      "y": 40.6345754,
+      "level": 0,
+      "type": "first_aid",
+      "name": "Hospital Infante Dom Pedro",
+      "description": "Hospital Infante Dom Pedro",
+      "osm_tags": {
+        "amenity": "hospital"
+      }
+    },
+    {
+      "id": "POI-615272482",
+      "x": -8.6606677,
+      "y": 40.6286423,
+      "level": 0,
+      "type": "poi",
+      "name": "Monte Sal",
+      "description": "Monte Sal",
+      "osm_tags": {
+        "building": "yes"
+      }
+    },
+    {
+      "id": "POI-652293975",
+      "x": -8.6591607,
+      "y": 40.6305924,
+      "level": 0,
+      "type": "food",
+      "name": "Cantina de Santiago",
+      "description": "Cantina de Santiago",
+      "osm_tags": {
+        "amenity": "fast_food",
+        "building": "university"
+      }
+    },
+    {
+      "id": "POI-1177228647",
+      "x": -8.6604223,
+      "y": 40.6347708,
+      "level": 0,
+      "type": "parking",
+      "name": "Parking",
+      "description": "Parking",
+      "osm_tags": {
+        "amenity": "parking"
+      }
+    },
+    {
+      "id": "POI-1177228648",
+      "x": -8.6607484,
+      "y": 40.6342609,
+      "level": 0,
+      "type": "parking",
+      "name": "Parking",
+      "description": "Parking",
+      "osm_tags": {
+        "amenity": "parking"
+      }
+    },
+    {
+      "id": "POI-1177229958",
+      "x": -8.6613011,
+      "y": 40.6333196,
+      "level": 0,
+      "type": "parking",
+      "name": "Parking",
+      "description": "Parking",
+      "osm_tags": {
+        "amenity": "parking"
+      }
+    },
+    {
+      "id": "POI-1177229959",
+      "x": -8.6616099,
+      "y": 40.6326047,
+      "level": 0,
+      "type": "parking",
+      "name": "Parking",
+      "description": "Parking",
+      "osm_tags": {
+        "amenity": "parking"
+      }
+    },
+    {
+      "id": "POI-1177230282",
+      "x": -8.6606598,
+      "y": 40.6301412,
+      "level": 0,
+      "type": "parking",
+      "name": "Parking",
+      "description": "Parking",
+      "osm_tags": {
+        "amenity": "parking"
+      }
+    },
+    {
+      "id": "POI-1182526115",
+      "x": -8.6593212,
+      "y": 40.6339434,
+      "level": 0,
+      "type": "parking",
+      "name": "Parking",
+      "description": "Parking",
+      "osm_tags": {
+        "amenity": "parking"
+      }
+    },
+    {
+      "id": "POI-1182526116",
+      "x": -8.6592778,
+      "y": 40.6341623,
+      "level": 0,
+      "type": "parking",
+      "name": "Parking",
+      "description": "Parking",
+      "osm_tags": {
+        "amenity": "parking"
+      }
+    },
+    {
+      "id": "POI-1182526117",
+      "x": -8.6595335,
+      "y": 40.6339532,
+      "level": 0,
+      "type": "parking",
+      "name": "Parking",
+      "description": "Parking",
+      "osm_tags": {
+        "amenity": "parking"
+      }
+    },
+    {
+      "id": "POI-1182527682",
+      "x": -8.6551062,
+      "y": 40.6290142,
+      "level": 0,
+      "type": "departamento",
+      "name": "Nave desportiva da UA",
+      "description": "Nave desportiva da UA",
+      "osm_tags": {
+        "building": "sports_centre"
+      }
+    },
+    {
+      "id": "POI-1282212310",
+      "x": -8.6546604,
+      "y": 40.6310978,
+      "level": 0,
+      "type": "parking",
+      "name": "Universidade de Aveiro",
+      "description": "Universidade de Aveiro",
+      "osm_tags": {
+        "amenity": "parking"
+      }
+    },
+    {
+      "id": "POI-1282212446",
+      "x": -8.6553019,
+      "y": 40.6345388,
+      "level": 0,
+      "type": "parking",
+      "name": "Parking",
+      "description": "Parking",
+      "osm_tags": {
+        "amenity": "parking"
+      }
+    },
+    {
+      "id": "POI-1282212447",
+      "x": -8.6553853,
+      "y": 40.6346481,
+      "level": 0,
+      "type": "parking",
+      "name": "Administração",
+      "description": "Administração",
+      "osm_tags": {
+        "amenity": "parking"
+      }
+    },
+    {
+      "id": "POI-1282212448",
+      "x": -8.6554532,
+      "y": 40.63473,
+      "level": 0,
+      "type": "parking",
+      "name": "Administração",
+      "description": "Administração",
+      "osm_tags": {
+        "amenity": "parking"
+      }
+    },
+    {
+      "id": "POI-1282212452",
+      "x": -8.6552381,
+      "y": 40.6344612,
+      "level": 0,
+      "type": "parking",
+      "name": "Ambulâncias e Deficientes",
+      "description": "Ambulâncias e Deficientes",
+      "osm_tags": {
+        "amenity": "parking"
+      }
+    },
+    {
+      "id": "POI-1291142330",
+      "x": -8.6558035,
+      "y": 40.6293005,
+      "level": 0,
+      "type": "parking",
+      "name": "Bicycle Parking",
+      "description": "Bicycle Parking",
+      "osm_tags": {
+        "amenity": "bicycle_parking"
+      }
+    },
+    {
+      "id": "POI-1347114256",
+      "x": -8.6560751,
+      "y": 40.6294537,
+      "level": 0,
+      "type": "parking",
+      "name": "Bicycle Parking",
+      "description": "Bicycle Parking",
+      "osm_tags": {
+        "amenity": "bicycle_parking"
+      }
+    },
+    {
+      "id": "POI-1349880962",
+      "x": -8.6543549,
+      "y": 40.6346876,
+      "level": 0,
+      "type": "parking",
+      "name": "Ambulâncias",
+      "description": "Ambulâncias",
+      "osm_tags": {
+        "amenity": "parking"
+      }
+    },
+    {
+      "id": "POI-1349880966",
+      "x": -8.6545099,
+      "y": 40.6347935,
+      "level": 0,
+      "type": "parking",
+      "name": "Parking",
+      "description": "Parking",
+      "osm_tags": {
+        "amenity": "parking"
+      }
+    },
+    {
+      "id": "POI-1349881004",
+      "x": -8.6556682,
+      "y": 40.6347091,
+      "level": 0,
+      "type": "parking",
+      "name": "Parking",
+      "description": "Parking",
+      "osm_tags": {
+        "amenity": "parking"
+      }
+    },
+    {
+      "id": "POI-1349881005",
+      "x": -8.6556837,
+      "y": 40.6346501,
+      "level": 0,
+      "type": "parking",
+      "name": "Parking",
+      "description": "Parking",
+      "osm_tags": {
+        "amenity": "parking"
+      }
+    },
+    {
+      "id": "POI-1349881006",
+      "x": -8.6553433,
+      "y": 40.6345972,
+      "level": 0,
+      "type": "parking",
+      "name": "Parking",
+      "description": "Parking",
+      "osm_tags": {
+        "amenity": "parking"
+      }
+    },
+    {
+      "id": "POI-1349881009",
+      "x": -8.6551685,
+      "y": 40.6333767,
+      "level": 0,
+      "type": "parking",
+      "name": "Parking",
+      "description": "Parking",
+      "osm_tags": {
+        "amenity": "parking"
+      }
+    },
+    {
+      "id": "POI-1349881010",
+      "x": -8.6544634,
+      "y": 40.6335782,
+      "level": 0,
+      "type": "parking",
+      "name": "Parking",
+      "description": "Parking",
+      "osm_tags": {
+        "amenity": "parking"
+      }
+    },
+    {
+      "id": "POI-1349881016",
+      "x": -8.6546303,
+      "y": 40.6350777,
+      "level": 0,
+      "type": "parking",
+      "name": "Parque veículos ULSRA",
+      "description": "Parque de estacionamento reservado a veículos do hospital",
+      "osm_tags": {
+        "amenity": "parking"
+      }
+    },
+    {
+      "id": "POI-1349881031",
+      "x": -8.6547052,
+      "y": 40.6347009,
+      "level": 0,
+      "type": "parking",
+      "name": "Parque Doentes Fisioterapia",
+      "description": "Parque Doentes Fisioterapia",
+      "osm_tags": {
+        "amenity": "parking"
+      }
     }
   ],
   "edges": [
@@ -16078,73 +17878,2215 @@
       "accessible": true
     },
     {
-      "id": "EDGE-POI-POI-reitoria",
-      "from_id": "POI-reitoria",
-      "to_id": "4961602622",
-      "weight": 9.41,
+      "id": "EDGE-POI-1443502559-TO",
+      "from_id": "POI-1443502559",
+      "to_id": "11998958480",
+      "weight": 4.13,
       "accessible": true
     },
     {
-      "id": "EDGE-POI-POI-reitoria-REV",
-      "from_id": "4961602622",
-      "to_id": "POI-reitoria",
-      "weight": 9.41,
+      "id": "EDGE-POI-1443502559-FROM",
+      "from_id": "11998958480",
+      "to_id": "POI-1443502559",
+      "weight": 4.13,
       "accessible": true
     },
     {
-      "id": "EDGE-POI-POI-biblioteca",
-      "from_id": "POI-biblioteca",
+      "id": "EDGE-POI-1443502571-TO",
+      "from_id": "POI-1443502571",
+      "to_id": "3358903935",
+      "weight": 6.55,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1443502571-FROM",
+      "from_id": "3358903935",
+      "to_id": "POI-1443502571",
+      "weight": 6.55,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1443502592-TO",
+      "from_id": "POI-1443502592",
+      "to_id": "689479601",
+      "weight": 10.89,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1443502592-FROM",
+      "from_id": "689479601",
+      "to_id": "POI-1443502592",
+      "weight": 10.89,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1590137985-TO",
+      "from_id": "POI-1590137985",
+      "to_id": "3358903900",
+      "weight": 27.94,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1590137985-FROM",
+      "from_id": "3358903900",
+      "to_id": "POI-1590137985",
+      "weight": 27.94,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1590138005-TO",
+      "from_id": "POI-1590138005",
+      "to_id": "4217022621",
+      "weight": 9.68,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1590138005-FROM",
+      "from_id": "4217022621",
+      "to_id": "POI-1590138005",
+      "weight": 9.68,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1870236063-TO",
+      "from_id": "POI-1870236063",
+      "to_id": "1443502512",
+      "weight": 1.91,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1870236063-FROM",
+      "from_id": "1443502512",
+      "to_id": "POI-1870236063",
+      "weight": 1.91,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1870236080-TO",
+      "from_id": "POI-1870236080",
+      "to_id": "1590114487",
+      "weight": 34.52,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1870236080-FROM",
+      "from_id": "1590114487",
+      "to_id": "POI-1870236080",
+      "weight": 34.52,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1870236097-TO",
+      "from_id": "POI-1870236097",
+      "to_id": "1590114517",
+      "weight": 22.22,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1870236097-FROM",
+      "from_id": "1590114517",
+      "to_id": "POI-1870236097",
+      "weight": 22.22,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-3204861112-TO",
+      "from_id": "POI-3204861112",
+      "to_id": "5137051318",
+      "weight": 13.03,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-3204861112-FROM",
+      "from_id": "5137051318",
+      "to_id": "POI-3204861112",
+      "weight": 13.03,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-4852045624-TO",
+      "from_id": "POI-4852045624",
+      "to_id": "689479794",
+      "weight": 9.92,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-4852045624-FROM",
+      "from_id": "689479794",
+      "to_id": "POI-4852045624",
+      "weight": 9.92,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-4852045625-TO",
+      "from_id": "POI-4852045625",
+      "to_id": "1443502533",
+      "weight": 13.26,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-4852045625-FROM",
+      "from_id": "1443502533",
+      "to_id": "POI-4852045625",
+      "weight": 13.26,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-4852045626-TO",
+      "from_id": "POI-4852045626",
+      "to_id": "5137854280",
+      "weight": 0.5,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-4852045626-FROM",
+      "from_id": "5137854280",
+      "to_id": "POI-4852045626",
+      "weight": 0.5,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-4852045627-TO",
+      "from_id": "POI-4852045627",
+      "to_id": "5137051721",
+      "weight": 15.02,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-4852045627-FROM",
+      "from_id": "5137051721",
+      "to_id": "POI-4852045627",
+      "weight": 15.02,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-4852045629-TO",
+      "from_id": "POI-4852045629",
+      "to_id": "11898995037",
+      "weight": 28.49,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-4852045629-FROM",
+      "from_id": "11898995037",
+      "to_id": "POI-4852045629",
+      "weight": 28.49,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-4852045630-TO",
+      "from_id": "POI-4852045630",
+      "to_id": "11898995652",
+      "weight": 5.55,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-4852045630-FROM",
+      "from_id": "11898995652",
+      "to_id": "POI-4852045630",
+      "weight": 5.55,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-4852045631-TO",
+      "from_id": "POI-4852045631",
+      "to_id": "11898995750",
+      "weight": 2.48,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-4852045631-FROM",
+      "from_id": "11898995750",
+      "to_id": "POI-4852045631",
+      "weight": 2.48,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-4852088189-TO",
+      "from_id": "POI-4852088189",
+      "to_id": "2482439021",
+      "weight": 45.87,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-4852088189-FROM",
+      "from_id": "2482439021",
+      "to_id": "POI-4852088189",
+      "weight": 45.87,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-4852088190-TO",
+      "from_id": "POI-4852088190",
+      "to_id": "7377328369",
+      "weight": 5.68,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-4852088190-FROM",
+      "from_id": "7377328369",
+      "to_id": "POI-4852088190",
+      "weight": 5.68,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-4852088191-TO",
+      "from_id": "POI-4852088191",
+      "to_id": "5215817934",
+      "weight": 14.4,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-4852088191-FROM",
+      "from_id": "5215817934",
+      "to_id": "POI-4852088191",
+      "weight": 14.4,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-4852088192-TO",
+      "from_id": "POI-4852088192",
+      "to_id": "1443502553",
+      "weight": 19.71,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-4852088192-FROM",
+      "from_id": "1443502553",
+      "to_id": "POI-4852088192",
+      "weight": 19.71,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-4852088193-TO",
+      "from_id": "POI-4852088193",
+      "to_id": "11898995636",
+      "weight": 18.47,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-4852088193-FROM",
+      "from_id": "11898995636",
+      "to_id": "POI-4852088193",
+      "weight": 18.47,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-4961602580-TO",
+      "from_id": "POI-4961602580",
+      "to_id": "4134216825",
+      "weight": 4.61,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-4961602580-FROM",
+      "from_id": "4134216825",
+      "to_id": "POI-4961602580",
+      "weight": 4.61,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-4961602586-TO",
+      "from_id": "POI-4961602586",
+      "to_id": "9921538844",
+      "weight": 26.78,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-4961602586-FROM",
+      "from_id": "9921538844",
+      "to_id": "POI-4961602586",
+      "weight": 26.78,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-4961602591-TO",
+      "from_id": "POI-4961602591",
       "to_id": "4963498732",
-      "weight": 32.48,
+      "weight": 12.37,
       "accessible": true
     },
     {
-      "id": "EDGE-POI-POI-biblioteca-REV",
+      "id": "EDGE-POI-4961602591-FROM",
       "from_id": "4963498732",
-      "to_id": "POI-biblioteca",
-      "weight": 32.48,
+      "to_id": "POI-4961602591",
+      "weight": 12.37,
       "accessible": true
     },
     {
-      "id": "EDGE-POI-POI-deti",
-      "from_id": "POI-deti",
-      "to_id": "3596981385",
-      "weight": 3.56,
+      "id": "EDGE-POI-4966381614-TO",
+      "from_id": "POI-4966381614",
+      "to_id": "689479794",
+      "weight": 22.38,
       "accessible": true
     },
     {
-      "id": "EDGE-POI-POI-deti-REV",
-      "from_id": "3596981385",
-      "to_id": "POI-deti",
-      "weight": 3.56,
+      "id": "EDGE-POI-4966381614-FROM",
+      "from_id": "689479794",
+      "to_id": "POI-4966381614",
+      "weight": 22.38,
       "accessible": true
     },
     {
-      "id": "EDGE-POI-POI-fisica",
-      "from_id": "POI-fisica",
+      "id": "EDGE-POI-5234938568-TO",
+      "from_id": "POI-5234938568",
+      "to_id": "12487426512",
+      "weight": 2.83,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-5234938568-FROM",
+      "from_id": "12487426512",
+      "to_id": "POI-5234938568",
+      "weight": 2.83,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-5366099993-TO",
+      "from_id": "POI-5366099993",
+      "to_id": "11898995037",
+      "weight": 24.35,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-5366099993-FROM",
+      "from_id": "11898995037",
+      "to_id": "POI-5366099993",
+      "weight": 24.35,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-5366099994-TO",
+      "from_id": "POI-5366099994",
+      "to_id": "5215817934",
+      "weight": 17.63,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-5366099994-FROM",
+      "from_id": "5215817934",
+      "to_id": "POI-5366099994",
+      "weight": 17.63,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-5366100005-TO",
+      "from_id": "POI-5366100005",
+      "to_id": "11898995652",
+      "weight": 7.44,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-5366100005-FROM",
+      "from_id": "11898995652",
+      "to_id": "POI-5366100005",
+      "weight": 7.44,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-5366100006-TO",
+      "from_id": "POI-5366100006",
+      "to_id": "11898995753",
+      "weight": 4.49,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-5366100006-FROM",
+      "from_id": "11898995753",
+      "to_id": "POI-5366100006",
+      "weight": 4.49,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-5367963788-TO",
+      "from_id": "POI-5367963788",
+      "to_id": "1443502553",
+      "weight": 16.81,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-5367963788-FROM",
+      "from_id": "1443502553",
+      "to_id": "POI-5367963788",
+      "weight": 16.81,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-5367963789-TO",
+      "from_id": "POI-5367963789",
+      "to_id": "2482439021",
+      "weight": 14.36,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-5367963789-FROM",
+      "from_id": "2482439021",
+      "to_id": "POI-5367963789",
+      "weight": 14.36,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-5367963790-TO",
+      "from_id": "POI-5367963790",
+      "to_id": "5137051721",
+      "weight": 44.21,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-5367963790-FROM",
+      "from_id": "5137051721",
+      "to_id": "POI-5367963790",
+      "weight": 44.21,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-8301125095-TO",
+      "from_id": "POI-8301125095",
+      "to_id": "3358903936",
+      "weight": 12.19,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-8301125095-FROM",
+      "from_id": "3358903936",
+      "to_id": "POI-8301125095",
+      "weight": 12.19,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-8301125096-TO",
+      "from_id": "POI-8301125096",
+      "to_id": "3358903936",
+      "weight": 9.43,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-8301125096-FROM",
+      "from_id": "3358903936",
+      "to_id": "POI-8301125096",
+      "weight": 9.43,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-8301125109-TO",
+      "from_id": "POI-8301125109",
+      "to_id": "4217022620",
+      "weight": 3.11,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-8301125109-FROM",
+      "from_id": "4217022620",
+      "to_id": "POI-8301125109",
+      "weight": 3.11,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-8301125110-TO",
+      "from_id": "POI-8301125110",
+      "to_id": "1590138014",
+      "weight": 12.12,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-8301125110-FROM",
+      "from_id": "1590138014",
+      "to_id": "POI-8301125110",
+      "weight": 12.12,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-10130250538-TO",
+      "from_id": "POI-10130250538",
+      "to_id": "10981112661",
+      "weight": 4.78,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-10130250538-FROM",
+      "from_id": "10981112661",
+      "to_id": "POI-10130250538",
+      "weight": 4.78,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-10140013034-TO",
+      "from_id": "POI-10140013034",
+      "to_id": "3724696398",
+      "weight": 19.03,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-10140013034-FROM",
+      "from_id": "3724696398",
+      "to_id": "POI-10140013034",
+      "weight": 19.03,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-11051669003-TO",
+      "from_id": "POI-11051669003",
+      "to_id": "1590114554",
+      "weight": 33.49,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-11051669003-FROM",
+      "from_id": "1590114554",
+      "to_id": "POI-11051669003",
+      "weight": 33.49,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-11898983752-TO",
+      "from_id": "POI-11898983752",
+      "to_id": "12487426260",
+      "weight": 4.89,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-11898983752-FROM",
+      "from_id": "12487426260",
+      "to_id": "POI-11898983752",
+      "weight": 4.89,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-11898983757-TO",
+      "from_id": "POI-11898983757",
+      "to_id": "12487426324",
+      "weight": 11.07,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-11898983757-FROM",
+      "from_id": "12487426324",
+      "to_id": "POI-11898983757",
+      "weight": 11.07,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-11898983758-TO",
+      "from_id": "POI-11898983758",
+      "to_id": "12487426321",
+      "weight": 5.1,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-11898983758-FROM",
+      "from_id": "12487426321",
+      "to_id": "POI-11898983758",
+      "weight": 5.1,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-11898994914-TO",
+      "from_id": "POI-11898994914",
+      "to_id": "12487426316",
+      "weight": 3.91,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-11898994914-FROM",
+      "from_id": "12487426316",
+      "to_id": "POI-11898994914",
+      "weight": 3.91,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-11898995605-TO",
+      "from_id": "POI-11898995605",
+      "to_id": "11898994881",
+      "weight": 2.7,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-11898995605-FROM",
+      "from_id": "11898994881",
+      "to_id": "POI-11898995605",
+      "weight": 2.7,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-11898995782-TO",
+      "from_id": "POI-11898995782",
+      "to_id": "12487426511",
+      "weight": 3.19,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-11898995782-FROM",
+      "from_id": "12487426511",
+      "to_id": "POI-11898995782",
+      "weight": 3.19,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12153486502-TO",
+      "from_id": "POI-12153486502",
+      "to_id": "5137051743",
+      "weight": 68.2,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12153486502-FROM",
+      "from_id": "5137051743",
+      "to_id": "POI-12153486502",
+      "weight": 68.2,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12246915463-TO",
+      "from_id": "POI-12246915463",
+      "to_id": "12487426452",
+      "weight": 5.03,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12246915463-FROM",
+      "from_id": "12487426452",
+      "to_id": "POI-12246915463",
+      "weight": 5.03,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12431304534-TO",
+      "from_id": "POI-12431304534",
+      "to_id": "4963498724",
+      "weight": 17.08,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12431304534-FROM",
+      "from_id": "4963498724",
+      "to_id": "POI-12431304534",
+      "weight": 17.08,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12461161759-TO",
+      "from_id": "POI-12461161759",
+      "to_id": "4134221081",
+      "weight": 4.6,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12461161759-FROM",
+      "from_id": "4134221081",
+      "to_id": "POI-12461161759",
+      "weight": 4.6,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12461161761-TO",
+      "from_id": "POI-12461161761",
+      "to_id": "4134221081",
+      "weight": 4.33,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12461161761-FROM",
+      "from_id": "4134221081",
+      "to_id": "POI-12461161761",
+      "weight": 4.33,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12461161762-TO",
+      "from_id": "POI-12461161762",
+      "to_id": "4134221080",
+      "weight": 3.22,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12461161762-FROM",
+      "from_id": "4134221080",
+      "to_id": "POI-12461161762",
+      "weight": 3.22,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12461161763-TO",
+      "from_id": "POI-12461161763",
+      "to_id": "4134221080",
+      "weight": 3.29,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12461161763-FROM",
+      "from_id": "4134221080",
+      "to_id": "POI-12461161763",
+      "weight": 3.29,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12461161764-TO",
+      "from_id": "POI-12461161764",
+      "to_id": "4961602665",
+      "weight": 4.34,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12461161764-FROM",
+      "from_id": "4961602665",
+      "to_id": "POI-12461161764",
+      "weight": 4.34,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12480669535-TO",
+      "from_id": "POI-12480669535",
+      "to_id": "11898995785",
+      "weight": 4.65,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12480669535-FROM",
+      "from_id": "11898995785",
+      "to_id": "POI-12480669535",
+      "weight": 4.65,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12487426191-TO",
+      "from_id": "POI-12487426191",
+      "to_id": "4963498724",
+      "weight": 17.01,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12487426191-FROM",
+      "from_id": "4963498724",
+      "to_id": "POI-12487426191",
+      "weight": 17.01,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12487426192-TO",
+      "from_id": "POI-12487426192",
+      "to_id": "11898995614",
+      "weight": 3.36,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12487426192-FROM",
+      "from_id": "11898995614",
+      "to_id": "POI-12487426192",
+      "weight": 3.36,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12487426224-TO",
+      "from_id": "POI-12487426224",
+      "to_id": "12487426433",
+      "weight": 7.46,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12487426224-FROM",
+      "from_id": "12487426433",
+      "to_id": "POI-12487426224",
+      "weight": 7.46,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12487426255-TO",
+      "from_id": "POI-12487426255",
+      "to_id": "12487426245",
+      "weight": 2.35,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12487426255-FROM",
+      "from_id": "12487426245",
+      "to_id": "POI-12487426255",
+      "weight": 2.35,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12487426256-TO",
+      "from_id": "POI-12487426256",
+      "to_id": "11898995691",
+      "weight": 2.92,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12487426256-FROM",
+      "from_id": "11898995691",
+      "to_id": "POI-12487426256",
+      "weight": 2.92,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12487426283-TO",
+      "from_id": "POI-12487426283",
+      "to_id": "12487426293",
+      "weight": 6.08,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12487426283-FROM",
+      "from_id": "12487426293",
+      "to_id": "POI-12487426283",
+      "weight": 6.08,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12487426306-TO",
+      "from_id": "POI-12487426306",
+      "to_id": "11898995778",
+      "weight": 7.98,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12487426306-FROM",
+      "from_id": "11898995778",
+      "to_id": "POI-12487426306",
+      "weight": 7.98,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12487426331-TO",
+      "from_id": "POI-12487426331",
+      "to_id": "11898994881",
+      "weight": 3.34,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12487426331-FROM",
+      "from_id": "11898994881",
+      "to_id": "POI-12487426331",
+      "weight": 3.34,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12487426340-TO",
+      "from_id": "POI-12487426340",
+      "to_id": "12487426337",
+      "weight": 6.12,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12487426340-FROM",
+      "from_id": "12487426337",
+      "to_id": "POI-12487426340",
+      "weight": 6.12,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12487426341-TO",
+      "from_id": "POI-12487426341",
+      "to_id": "12487426337",
+      "weight": 3.97,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12487426341-FROM",
+      "from_id": "12487426337",
+      "to_id": "POI-12487426341",
+      "weight": 3.97,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12487426345-TO",
+      "from_id": "POI-12487426345",
+      "to_id": "12487426320",
+      "weight": 1.35,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12487426345-FROM",
+      "from_id": "12487426320",
+      "to_id": "POI-12487426345",
+      "weight": 1.35,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12487426346-TO",
+      "from_id": "POI-12487426346",
+      "to_id": "11898994895",
+      "weight": 2.43,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12487426346-FROM",
+      "from_id": "11898994895",
+      "to_id": "POI-12487426346",
+      "weight": 2.43,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12487426488-TO",
+      "from_id": "POI-12487426488",
+      "to_id": "11898995674",
+      "weight": 9.34,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12487426488-FROM",
+      "from_id": "11898995674",
+      "to_id": "POI-12487426488",
+      "weight": 9.34,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12487426513-TO",
+      "from_id": "POI-12487426513",
+      "to_id": "12487426308",
+      "weight": 2.36,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12487426513-FROM",
+      "from_id": "12487426308",
+      "to_id": "POI-12487426513",
+      "weight": 2.36,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12583176583-TO",
+      "from_id": "POI-12583176583",
+      "to_id": "1443502553",
+      "weight": 20.17,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12583176583-FROM",
+      "from_id": "1443502553",
+      "to_id": "POI-12583176583",
+      "weight": 20.17,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12714314217-TO",
+      "from_id": "POI-12714314217",
+      "to_id": "11898995753",
+      "weight": 1.45,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-12714314217-FROM",
+      "from_id": "11898995753",
+      "to_id": "POI-12714314217",
+      "weight": 1.45,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-13094842405-TO",
+      "from_id": "POI-13094842405",
+      "to_id": "4963498681",
+      "weight": 12.3,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-13094842405-FROM",
+      "from_id": "4963498681",
+      "to_id": "POI-13094842405",
+      "weight": 12.3,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-131114424-TO",
+      "from_id": "POI-131114424",
+      "to_id": "11898995053",
+      "weight": 72.1,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-131114424-FROM",
+      "from_id": "11898995053",
+      "to_id": "POI-131114424",
+      "weight": 72.1,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-131114469-TO",
+      "from_id": "POI-131114469",
+      "to_id": "12487426401",
+      "weight": 11.78,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-131114469-FROM",
+      "from_id": "12487426401",
+      "to_id": "POI-131114469",
+      "weight": 11.78,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-141793995-TO",
+      "from_id": "POI-141793995",
+      "to_id": "2482460664",
+      "weight": 23.33,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-141793995-FROM",
+      "from_id": "2482460664",
+      "to_id": "POI-141793995",
+      "weight": 23.33,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-142696009-TO",
+      "from_id": "POI-142696009",
+      "to_id": "11898995178",
+      "weight": 42.63,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-142696009-FROM",
+      "from_id": "11898995178",
+      "to_id": "POI-142696009",
+      "weight": 42.63,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-142696012-TO",
+      "from_id": "POI-142696012",
       "to_id": "11898995179",
-      "weight": 6.13,
+      "weight": 26.86,
       "accessible": true
     },
     {
-      "id": "EDGE-POI-POI-fisica-REV",
+      "id": "EDGE-POI-142696012-FROM",
       "from_id": "11898995179",
-      "to_id": "POI-fisica",
-      "weight": 6.13,
+      "to_id": "POI-142696012",
+      "weight": 26.86,
       "accessible": true
     },
     {
-      "id": "EDGE-POI-POI-cantina",
-      "from_id": "POI-cantina",
+      "id": "EDGE-POI-145459276-TO",
+      "from_id": "POI-145459276",
+      "to_id": "4961602665",
+      "weight": 43.51,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-145459276-FROM",
+      "from_id": "4961602665",
+      "to_id": "POI-145459276",
+      "weight": 43.51,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-145477045-TO",
+      "from_id": "POI-145477045",
+      "to_id": "1590114525",
+      "weight": 30.81,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-145477045-FROM",
+      "from_id": "1590114525",
+      "to_id": "POI-145477045",
+      "weight": 30.81,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-145477175-TO",
+      "from_id": "POI-145477175",
+      "to_id": "5137051722",
+      "weight": 11.77,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-145477175-FROM",
+      "from_id": "5137051722",
+      "to_id": "POI-145477175",
+      "weight": 11.77,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-145477308-TO",
+      "from_id": "POI-145477308",
+      "to_id": "1443502530",
+      "weight": 27.9,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-145477308-FROM",
+      "from_id": "1443502530",
+      "to_id": "POI-145477308",
+      "weight": 27.9,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-145478314-TO",
+      "from_id": "POI-145478314",
+      "to_id": "11998958480",
+      "weight": 28.73,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-145478314-FROM",
+      "from_id": "11998958480",
+      "to_id": "POI-145478314",
+      "weight": 28.73,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-145478316-TO",
+      "from_id": "POI-145478316",
+      "to_id": "11898995176",
+      "weight": 24.57,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-145478316-FROM",
+      "from_id": "11898995176",
+      "to_id": "POI-145478316",
+      "weight": 24.57,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-145482742-TO",
+      "from_id": "POI-145482742",
+      "to_id": "12273301932",
+      "weight": 5.59,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-145482742-FROM",
+      "from_id": "12273301932",
+      "to_id": "POI-145482742",
+      "weight": 5.59,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-145482890-TO",
+      "from_id": "POI-145482890",
+      "to_id": "3358903939",
+      "weight": 19.07,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-145482890-FROM",
+      "from_id": "3358903939",
+      "to_id": "POI-145482890",
+      "weight": 19.07,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-145482891-TO",
+      "from_id": "POI-145482891",
+      "to_id": "3596981385",
+      "weight": 5.84,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-145482891-FROM",
+      "from_id": "3596981385",
+      "to_id": "POI-145482891",
+      "weight": 5.84,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-145483194-TO",
+      "from_id": "POI-145483194",
+      "to_id": "1443502552",
+      "weight": 26.11,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-145483194-FROM",
+      "from_id": "1443502552",
+      "to_id": "POI-145483194",
+      "weight": 26.11,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-145631186-TO",
+      "from_id": "POI-145631186",
+      "to_id": "12487426374",
+      "weight": 15.28,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-145631186-FROM",
+      "from_id": "12487426374",
+      "to_id": "POI-145631186",
+      "weight": 15.28,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-145631187-TO",
+      "from_id": "POI-145631187",
+      "to_id": "12487426367",
+      "weight": 64.41,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-145631187-FROM",
+      "from_id": "12487426367",
+      "to_id": "POI-145631187",
+      "weight": 64.41,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-145631188-TO",
+      "from_id": "POI-145631188",
+      "to_id": "3358903902",
+      "weight": 9.03,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-145631188-FROM",
+      "from_id": "3358903902",
+      "to_id": "POI-145631188",
+      "weight": 9.03,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-145632684-TO",
+      "from_id": "POI-145632684",
+      "to_id": "3596981377",
+      "weight": 25.7,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-145632684-FROM",
+      "from_id": "3596981377",
+      "to_id": "POI-145632684",
+      "weight": 25.7,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-145634793-TO",
+      "from_id": "POI-145634793",
+      "to_id": "1590114554",
+      "weight": 27.5,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-145634793-FROM",
+      "from_id": "1590114554",
+      "to_id": "POI-145634793",
+      "weight": 27.5,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-145636264-TO",
+      "from_id": "POI-145636264",
+      "to_id": "4961599503",
+      "weight": 41.08,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-145636264-FROM",
+      "from_id": "4961599503",
+      "to_id": "POI-145636264",
+      "weight": 41.08,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-145636274-TO",
+      "from_id": "POI-145636274",
+      "to_id": "4961599503",
+      "weight": 22.37,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-145636274-FROM",
+      "from_id": "4961599503",
+      "to_id": "POI-145636274",
+      "weight": 22.37,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-146532290-TO",
+      "from_id": "POI-146532290",
+      "to_id": "689479794",
+      "weight": 49.1,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-146532290-FROM",
+      "from_id": "689479794",
+      "to_id": "POI-146532290",
+      "weight": 49.1,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-176510343-TO",
+      "from_id": "POI-176510343",
+      "to_id": "4961602664",
+      "weight": 40.2,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-176510343-FROM",
+      "from_id": "4961602664",
+      "to_id": "POI-176510343",
+      "weight": 40.2,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-176510344-TO",
+      "from_id": "POI-176510344",
+      "to_id": "1443502533",
+      "weight": 45.25,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-176510344-FROM",
+      "from_id": "1443502533",
+      "to_id": "POI-176510344",
+      "weight": 45.25,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-179278968-TO",
+      "from_id": "POI-179278968",
+      "to_id": "5137051316",
+      "weight": 13.91,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-179278968-FROM",
+      "from_id": "5137051316",
+      "to_id": "POI-179278968",
+      "weight": 13.91,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-179278969-TO",
+      "from_id": "POI-179278969",
+      "to_id": "4961602622",
+      "weight": 21.02,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-179278969-FROM",
+      "from_id": "4961602622",
+      "to_id": "POI-179278969",
+      "weight": 21.02,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-179278970-TO",
+      "from_id": "POI-179278970",
+      "to_id": "4134221081",
+      "weight": 42.95,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-179278970-FROM",
+      "from_id": "4134221081",
+      "to_id": "POI-179278970",
+      "weight": 42.95,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-179278971-TO",
+      "from_id": "POI-179278971",
+      "to_id": "4134221079",
+      "weight": 42.82,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-179278971-FROM",
+      "from_id": "4134221079",
+      "to_id": "POI-179278971",
+      "weight": 42.82,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-179278972-TO",
+      "from_id": "POI-179278972",
+      "to_id": "4134221077",
+      "weight": 43.0,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-179278972-FROM",
+      "from_id": "4134221077",
+      "to_id": "POI-179278972",
+      "weight": 43.0,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-179278974-TO",
+      "from_id": "POI-179278974",
+      "to_id": "5137854291",
+      "weight": 30.94,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-179278974-FROM",
+      "from_id": "5137854291",
+      "to_id": "POI-179278974",
+      "weight": 30.94,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-179278976-TO",
+      "from_id": "POI-179278976",
+      "to_id": "5137051307",
+      "weight": 23.54,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-179278976-FROM",
+      "from_id": "5137051307",
+      "to_id": "POI-179278976",
+      "weight": 23.54,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-179278979-TO",
+      "from_id": "POI-179278979",
+      "to_id": "4961410331",
+      "weight": 9.72,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-179278979-FROM",
+      "from_id": "4961410331",
+      "to_id": "POI-179278979",
+      "weight": 9.72,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-179278980-TO",
+      "from_id": "POI-179278980",
+      "to_id": "4961410328",
+      "weight": 10.9,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-179278980-FROM",
+      "from_id": "4961410328",
+      "to_id": "POI-179278980",
+      "weight": 10.9,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-179279842-TO",
+      "from_id": "POI-179279842",
+      "to_id": "2482460658",
+      "weight": 16.5,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-179279842-FROM",
+      "from_id": "2482460658",
+      "to_id": "POI-179279842",
+      "weight": 16.5,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-181373569-TO",
+      "from_id": "POI-181373569",
+      "to_id": "391284649",
+      "weight": 30.49,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-181373569-FROM",
+      "from_id": "391284649",
+      "to_id": "POI-181373569",
+      "weight": 30.49,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-240512026-TO",
+      "from_id": "POI-240512026",
+      "to_id": "5137051315",
+      "weight": 14.2,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-240512026-FROM",
+      "from_id": "5137051315",
+      "to_id": "POI-240512026",
+      "weight": 14.2,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-240515188-TO",
+      "from_id": "POI-240515188",
+      "to_id": "11898995608",
+      "weight": 22.89,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-240515188-FROM",
+      "from_id": "11898995608",
+      "to_id": "POI-240515188",
+      "weight": 22.89,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-243186671-TO",
+      "from_id": "POI-243186671",
+      "to_id": "10981112661",
+      "weight": 42.28,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-243186671-FROM",
+      "from_id": "10981112661",
+      "to_id": "POI-243186671",
+      "weight": 42.28,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-290560980-TO",
+      "from_id": "POI-290560980",
+      "to_id": "11898995650",
+      "weight": 21.42,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-290560980-FROM",
+      "from_id": "11898995650",
+      "to_id": "POI-290560980",
+      "weight": 21.42,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-309934962-TO",
+      "from_id": "POI-309934962",
+      "to_id": "11898995608",
+      "weight": 41.99,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-309934962-FROM",
+      "from_id": "11898995608",
+      "to_id": "POI-309934962",
+      "weight": 41.99,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-421972470-TO",
+      "from_id": "POI-421972470",
+      "to_id": "4217022621",
+      "weight": 13.89,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-421972470-FROM",
+      "from_id": "4217022621",
+      "to_id": "POI-421972470",
+      "weight": 13.89,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-433041923-TO",
+      "from_id": "POI-433041923",
+      "to_id": "11898995041",
+      "weight": 52.7,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-433041923-FROM",
+      "from_id": "11898995041",
+      "to_id": "POI-433041923",
+      "weight": 52.7,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-495734458-TO",
+      "from_id": "POI-495734458",
+      "to_id": "5137051743",
+      "weight": 61.74,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-495734458-FROM",
+      "from_id": "5137051743",
+      "to_id": "POI-495734458",
+      "weight": 61.74,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-506422999-TO",
+      "from_id": "POI-506422999",
+      "to_id": "4961602594",
+      "weight": 51.92,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-506422999-FROM",
+      "from_id": "4961602594",
+      "to_id": "POI-506422999",
+      "weight": 51.92,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-506423000-TO",
+      "from_id": "POI-506423000",
+      "to_id": "7377328362",
+      "weight": 23.51,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-506423000-FROM",
+      "from_id": "7377328362",
+      "to_id": "POI-506423000",
+      "weight": 23.51,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-506423049-TO",
+      "from_id": "POI-506423049",
+      "to_id": "5137854310",
+      "weight": 9.01,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-506423049-FROM",
+      "from_id": "5137854310",
+      "to_id": "POI-506423049",
+      "weight": 9.01,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-506437295-TO",
+      "from_id": "POI-506437295",
+      "to_id": "1590114534",
+      "weight": 49.22,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-506437295-FROM",
+      "from_id": "1590114534",
+      "to_id": "POI-506437295",
+      "weight": 49.22,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-506437297-TO",
+      "from_id": "POI-506437297",
+      "to_id": "3724658296",
+      "weight": 25.2,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-506437297-FROM",
+      "from_id": "3724658296",
+      "to_id": "POI-506437297",
+      "weight": 25.2,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-506659686-TO",
+      "from_id": "POI-506659686",
       "to_id": "5137051724",
-      "weight": 32.85,
+      "weight": 15.67,
       "accessible": true
     },
     {
-      "id": "EDGE-POI-POI-cantina-REV",
+      "id": "EDGE-POI-506659686-FROM",
       "from_id": "5137051724",
-      "to_id": "POI-cantina",
-      "weight": 32.85,
+      "to_id": "POI-506659686",
+      "weight": 15.67,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-506659694-TO",
+      "from_id": "POI-506659694",
+      "to_id": "4961410332",
+      "weight": 40.85,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-506659694-FROM",
+      "from_id": "4961410332",
+      "to_id": "POI-506659694",
+      "weight": 40.85,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-506659697-TO",
+      "from_id": "POI-506659697",
+      "to_id": "7377328362",
+      "weight": 20.33,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-506659697-FROM",
+      "from_id": "7377328362",
+      "to_id": "POI-506659697",
+      "weight": 20.33,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-506659698-TO",
+      "from_id": "POI-506659698",
+      "to_id": "5137854280",
+      "weight": 12.28,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-506659698-FROM",
+      "from_id": "5137854280",
+      "to_id": "POI-506659698",
+      "weight": 12.28,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-506659701-TO",
+      "from_id": "POI-506659701",
+      "to_id": "1577958767",
+      "weight": 36.0,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-506659701-FROM",
+      "from_id": "1577958767",
+      "to_id": "POI-506659701",
+      "weight": 36.0,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-507407976-TO",
+      "from_id": "POI-507407976",
+      "to_id": "11898995665",
+      "weight": 86.04,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-507407976-FROM",
+      "from_id": "11898995665",
+      "to_id": "POI-507407976",
+      "weight": 86.04,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-507429300-TO",
+      "from_id": "POI-507429300",
+      "to_id": "11898995044",
+      "weight": 26.04,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-507429300-FROM",
+      "from_id": "11898995044",
+      "to_id": "POI-507429300",
+      "weight": 26.04,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-507429301-TO",
+      "from_id": "POI-507429301",
+      "to_id": "11898995051",
+      "weight": 43.55,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-507429301-FROM",
+      "from_id": "11898995051",
+      "to_id": "POI-507429301",
+      "weight": 43.55,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-507429302-TO",
+      "from_id": "POI-507429302",
+      "to_id": "11898995042",
+      "weight": 38.71,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-507429302-FROM",
+      "from_id": "11898995042",
+      "to_id": "POI-507429302",
+      "weight": 38.71,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-541359025-TO",
+      "from_id": "POI-541359025",
+      "to_id": "12487426317",
+      "weight": 4.84,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-541359025-FROM",
+      "from_id": "12487426317",
+      "to_id": "POI-541359025",
+      "weight": 4.84,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-615272482-TO",
+      "from_id": "POI-615272482",
+      "to_id": "5818226233",
+      "weight": 65.63,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-615272482-FROM",
+      "from_id": "5818226233",
+      "to_id": "POI-615272482",
+      "weight": 65.63,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-652293975-TO",
+      "from_id": "POI-652293975",
+      "to_id": "1590114487",
+      "weight": 37.02,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-652293975-FROM",
+      "from_id": "1590114487",
+      "to_id": "POI-652293975",
+      "weight": 37.02,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1177228647-TO",
+      "from_id": "POI-1177228647",
+      "to_id": "10053972095",
+      "weight": 7.6,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1177228647-FROM",
+      "from_id": "10053972095",
+      "to_id": "POI-1177228647",
+      "weight": 7.6,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1177228648-TO",
+      "from_id": "POI-1177228648",
+      "to_id": "391284649",
+      "weight": 39.66,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1177228648-FROM",
+      "from_id": "391284649",
+      "to_id": "POI-1177228648",
+      "weight": 39.66,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1177229958-TO",
+      "from_id": "POI-1177229958",
+      "to_id": "3631881804",
+      "weight": 36.06,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1177229958-FROM",
+      "from_id": "3631881804",
+      "to_id": "POI-1177229958",
+      "weight": 36.06,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1177229959-TO",
+      "from_id": "POI-1177229959",
+      "to_id": "3631892007",
+      "weight": 59.19,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1177229959-FROM",
+      "from_id": "3631892007",
+      "to_id": "POI-1177229959",
+      "weight": 59.19,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1177230282-TO",
+      "from_id": "POI-1177230282",
+      "to_id": "3631879495",
+      "weight": 89.12,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1177230282-FROM",
+      "from_id": "3631879495",
+      "to_id": "POI-1177230282",
+      "weight": 89.12,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1182526115-TO",
+      "from_id": "POI-1182526115",
+      "to_id": "10981112633",
+      "weight": 12.74,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1182526115-FROM",
+      "from_id": "10981112633",
+      "to_id": "POI-1182526115",
+      "weight": 12.74,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1182526116-TO",
+      "from_id": "POI-1182526116",
+      "to_id": "10981112633",
+      "weight": 26.0,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1182526116-FROM",
+      "from_id": "10981112633",
+      "to_id": "POI-1182526116",
+      "weight": 26.0,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1182526117-TO",
+      "from_id": "POI-1182526117",
+      "to_id": "391284650",
+      "weight": 26.81,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1182526117-FROM",
+      "from_id": "391284650",
+      "to_id": "POI-1182526117",
+      "weight": 26.81,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1182527682-TO",
+      "from_id": "POI-1182527682",
+      "to_id": "5137854309",
+      "weight": 25.57,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1182527682-FROM",
+      "from_id": "5137854309",
+      "to_id": "POI-1182527682",
+      "weight": 25.57,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1282212310-TO",
+      "from_id": "POI-1282212310",
+      "to_id": "11898995071",
+      "weight": 37.95,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1282212310-FROM",
+      "from_id": "11898995071",
+      "to_id": "POI-1282212310",
+      "weight": 37.95,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1282212446-TO",
+      "from_id": "POI-1282212446",
+      "to_id": "11898994919",
+      "weight": 8.6,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1282212446-FROM",
+      "from_id": "11898994919",
+      "to_id": "POI-1282212446",
+      "weight": 8.6,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1282212447-TO",
+      "from_id": "POI-1282212447",
+      "to_id": "12487426478",
+      "weight": 11.79,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1282212447-FROM",
+      "from_id": "12487426478",
+      "to_id": "POI-1282212447",
+      "weight": 11.79,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1282212448-TO",
+      "from_id": "POI-1282212448",
+      "to_id": "12487426479",
+      "weight": 11.91,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1282212448-FROM",
+      "from_id": "12487426479",
+      "to_id": "POI-1282212448",
+      "weight": 11.91,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1282212452-TO",
+      "from_id": "POI-1282212452",
+      "to_id": "12487426334",
+      "weight": 7.74,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1282212452-FROM",
+      "from_id": "12487426334",
+      "to_id": "POI-1282212452",
+      "weight": 7.74,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1291142330-TO",
+      "from_id": "POI-1291142330",
+      "to_id": "5137051307",
+      "weight": 10.52,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1291142330-FROM",
+      "from_id": "5137051307",
+      "to_id": "POI-1291142330",
+      "weight": 10.52,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1347114256-TO",
+      "from_id": "POI-1347114256",
+      "to_id": "1590114481",
+      "weight": 8.96,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1347114256-FROM",
+      "from_id": "1590114481",
+      "to_id": "POI-1347114256",
+      "weight": 8.96,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1349880962-TO",
+      "from_id": "POI-1349880962",
+      "to_id": "11898995694",
+      "weight": 8.03,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1349880962-FROM",
+      "from_id": "11898995694",
+      "to_id": "POI-1349880962",
+      "weight": 8.03,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1349880966-TO",
+      "from_id": "POI-1349880966",
+      "to_id": "12487426245",
+      "weight": 7.23,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1349880966-FROM",
+      "from_id": "12487426245",
+      "to_id": "POI-1349880966",
+      "weight": 7.23,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1349881004-TO",
+      "from_id": "POI-1349881004",
+      "to_id": "12487426383",
+      "weight": 11.43,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1349881004-FROM",
+      "from_id": "12487426383",
+      "to_id": "POI-1349881004",
+      "weight": 11.43,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1349881005-TO",
+      "from_id": "POI-1349881005",
+      "to_id": "12487426382",
+      "weight": 4.91,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1349881005-FROM",
+      "from_id": "12487426382",
+      "to_id": "POI-1349881005",
+      "weight": 4.91,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1349881006-TO",
+      "from_id": "POI-1349881006",
+      "to_id": "12487426477",
+      "weight": 11.54,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1349881006-FROM",
+      "from_id": "12487426477",
+      "to_id": "POI-1349881006",
+      "weight": 11.54,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1349881009-TO",
+      "from_id": "POI-1349881009",
+      "to_id": "11898995685",
+      "weight": 12.14,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1349881009-FROM",
+      "from_id": "11898995685",
+      "to_id": "POI-1349881009",
+      "weight": 12.14,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1349881010-TO",
+      "from_id": "POI-1349881010",
+      "to_id": "12487426456",
+      "weight": 14.5,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1349881010-FROM",
+      "from_id": "12487426456",
+      "to_id": "POI-1349881010",
+      "weight": 14.5,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1349881016-TO",
+      "from_id": "POI-1349881016",
+      "to_id": "12487426245",
+      "weight": 29.23,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1349881016-FROM",
+      "from_id": "12487426245",
+      "to_id": "POI-1349881016",
+      "weight": 29.23,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1349881031-TO",
+      "from_id": "POI-1349881031",
+      "to_id": "12487426295",
+      "weight": 8.64,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-POI-1349881031-FROM",
+      "from_id": "12487426295",
+      "to_id": "POI-1349881031",
+      "weight": 8.64,
       "accessible": true
     }
   ]
