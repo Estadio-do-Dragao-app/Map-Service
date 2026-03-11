@@ -22,21 +22,37 @@ export function MapComponent() {
   const markersRef = useRef({});
   const edgeLines = useRef({});
   const [pointsForEdge, setPointsForEdge] = useState({ from: null, to: null });
-  
+
   const [nodes, setNodes] = useState([]);
   const [edges, setEdges] = useState([]);
+  const [editingNode, setEditingNode] = useState(null);
   const [showNodeForm, setShowNodeForm] = useState(false);
   const [newNodePosition, setNewNodePosition] = useState(null);
   const [formData, setFormData] = useState({ name: '', type: 'normal' });
   const [creatingEdge, setCreatingEdge] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [nodeSearchQuery, setNodeSearchQuery] = useState('');
+  const [edgeSearchQuery, setEdgeSearchQuery] = useState('');
   const [newNodeIds, setNewNodeIds] = useState(new Set());
-  const [selectedNodeFromList, setSelectedNodeFromList] = useState(null);
+  const [selectedNode, setSelectedNode] = useState(null);
   const [selectedEdgeFromList, setSelectedEdgeFromList] = useState(null);
   const [rectangleSelectMode, setRectangleSelectMode] = useState(false);
   const [selectedForDelete, setSelectedForDelete] = useState({ nodes: [], edges: [] });
+  const [editFormData, setEditFormData] = useState({
+    name: '',
+    type: 'normal',
+    level: 0,
+    description: '',
+    num_servers: null,
+    service_rate: null,
+    block: '',
+    row: null,
+    number: null,
+    x: 0,
+    y: 0,
+  });
+  const [draggedPosition, setDraggedPosition] = useState(null);
   const rectangleRef = useRef(null);
   const startCoordsRef = useRef(null);
 
@@ -56,15 +72,6 @@ export function MapComponent() {
       const nodesData = await nodesRes.json();
       const edgesData = await edgesRes.json();
 
-      console.log('========== DEBUG: NODES FROM BACKEND ==========');
-      console.log('Raw response:', nodesData);
-      console.log('Number of nodes:', nodesData.length);
-      if (nodesData.length > 0) {
-        console.log('First node:', nodesData[0]);
-        console.log('First node fields - id:', nodesData[0].id, 'x:', nodesData[0].x, 'y:', nodesData[0].y);
-      }
-      console.log('==============================================');
-
       setNodes(nodesData);
       setEdges(edgesData);
     } catch (err) {
@@ -75,23 +82,111 @@ export function MapComponent() {
     }
   };
 
-  // Create a new node
+  // Selecionar um node para ver detalhes
+  const selectNode = (node) => {
+    if (creatingEdge) return; // não interfere com criação de aresta
+    setSelectedNode(node);
+    if (editingNode) setEditingNode(null); // sai do modo edição se estiver
+  };
+
+  // Iniciar edição
+  const startEditNode = (node) => {
+    setEditingNode(node.id);
+    setEditFormData({
+      name: node.name || '',
+      type: node.type || 'normal',
+      level: node.level || 0,
+      description: node.description || '',
+      num_servers: node.num_servers || null,
+      service_rate: node.service_rate || null,
+      block: node.block || '',
+      row: node.row || null,
+      number: node.number || null,
+      x: node.x,
+      y: node.y,
+    });
+    setDraggedPosition({ lat: node.y, lng: node.x });
+    if (map.current) {
+      map.current.setView([node.y, node.x], map.current.getZoom());
+    }
+  };
+
+  // Atualizar node
+  const updateNode = async () => {
+    if (!editingNode || !draggedPosition) return;
+    try {
+      const response = await fetch(`${API_BASE}/nodes/${editingNode}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...editFormData,
+          x: draggedPosition.lng,
+          y: draggedPosition.lat,
+        }),
+      });
+      if (!response.ok) throw new Error('Failed to update node');
+      await fetchData();
+      setEditingNode(null);
+      setDraggedPosition(null);
+      setSelectedNode(null);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const cancelEdit = () => {
+    setEditingNode(null);
+    setDraggedPosition(null);
+  };
+
+  // Apagar node (usado no painel de detalhes)
+  const deleteNode = async (nodeId) => {
+    if (!confirm('Tem a certeza que pretende eliminar este node? As arestas ligadas também serão apagadas.')) return;
+    try {
+      await fetch(`${API_BASE}/nodes/${nodeId}`, { method: 'DELETE' });
+      await fetchData();
+      setSelectedNode(null);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  // Apagar edge
+  const deleteEdge = async (edgeId) => {
+    if (!confirm('Tem a certeza que pretende eliminar esta aresta?')) return;
+    try {
+      await fetch(`${API_BASE}/edges/${edgeId}`, { method: 'DELETE' });
+      await fetchData();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  // Criar node
   const createNode = async () => {
     if (!newNodePosition || !formData.name) {
       alert('Please enter a node name');
       return;
     }
 
+    const newId = `node_${Date.now()}`;
     try {
       const response = await fetch(`${API_BASE}/nodes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          id: `node_${Date.now()}`,
+          id: newId,
           name: formData.name,
-          x: newNodePosition[1],  // longitude (y in Leaflet format)
-          y: newNodePosition[0],  // latitude (x in Leaflet format)
+          x: newNodePosition[1],
+          y: newNodePosition[0],
           type: formData.type,
+          level: 0,
+          description: '',
+          num_servers: null,
+          service_rate: null,
+          block: '',
+          row: null,
+          number: null,
         }),
       });
 
@@ -103,15 +198,14 @@ export function MapComponent() {
       setShowNodeForm(false);
       setNewNodePosition(null);
       setFormData({ name: '', type: 'normal' });
-      // Track this as a new node
-      setNewNodeIds(prev => new Set([...prev, `node_${Date.now()}`]));
+      setNewNodeIds(prev => new Set([...prev, newId]));
     } catch (err) {
       setError(err.message);
       console.error('Error creating node:', err);
     }
   };
 
-  // Create an edge between two nodes
+  // Criar aresta
   const createEdge = async () => {
     if (!pointsForEdge.from || !pointsForEdge.to) {
       alert('Please select two nodes');
@@ -144,19 +238,14 @@ export function MapComponent() {
     }
   };
 
-  // Delete selected nodes and edges
+  // Bulk delete
   const deleteSelectedItems = async () => {
-    if (selectedForDelete.nodes.length === 0 && selectedForDelete.edges.length === 0) {
-      return;
-    }
+    if (selectedForDelete.nodes.length === 0 && selectedForDelete.edges.length === 0) return;
 
     try {
-      // Delete edges first
       for (const edge of selectedForDelete.edges) {
         await fetch(`${API_BASE}/edges/${edge.id}`, { method: 'DELETE' });
       }
-
-      // Delete nodes
       for (const node of selectedForDelete.nodes) {
         await fetch(`${API_BASE}/nodes/${node.id}`, { method: 'DELETE' });
       }
@@ -164,118 +253,145 @@ export function MapComponent() {
       await fetchData();
       setSelectedForDelete({ nodes: [], edges: [] });
       setRectangleSelectMode(false);
-
       if (rectangleRef.current) {
         map.current.removeLayer(rectangleRef.current);
         rectangleRef.current = null;
       }
     } catch (err) {
       setError(`Error deleting items: ${err.message}`);
-      console.error('Error deleting:', err);
     }
   };
 
-  // Draw markers and edges on map
+  // Desenhar mapa
   const updateMapView = () => {
     if (!map.current) return;
 
-    // Clear existing markers
     Object.values(markersRef.current).forEach(marker => marker.remove());
     markersRef.current = {};
-
-    // Clear existing edges
     Object.values(edgeLines.current).forEach(line => line.remove());
     edgeLines.current = {};
 
-    // Draw edges first (so they appear behind markers)
+    // Desenhar arestas
     edges.forEach(edge => {
       const fromNode = nodes.find(n => n.id === edge.from_id);
       const toNode = nodes.find(n => n.id === edge.to_id);
       const isEdgeSelected = selectedEdgeFromList === edge.id;
+      const isInDeleteSelection = selectedForDelete.edges.some(e => e.id === edge.id);
 
       if (fromNode && toNode) {
+        let color = 'var(--ifm-color-primary)';
+        if (isEdgeSelected) color = '#ff6b6b';
+        if (isInDeleteSelection) color = '#ffa500';
+
         const line = L.polyline(
           [[fromNode.y, fromNode.x], [toNode.y, toNode.x]],
           {
-            color: isEdgeSelected ? '#ff6b6b' : 'var(--ifm-color-primary)',
-            weight: isEdgeSelected ? 4 : 2,
-            opacity: isEdgeSelected ? 1 : 0.7,
+            color: color,
+            weight: isEdgeSelected || isInDeleteSelection ? 4 : 2,
+            opacity: 0.7,
           }
         ).addTo(map.current);
         edgeLines.current[edge.id] = line;
       }
     });
 
-    // Draw markers for nodes
+    // Desenhar nodes
     nodes.forEach(node => {
       const isFromNode = pointsForEdge.from === node.id;
       const isToNode = pointsForEdge.to === node.id;
       const isEdgeSelected = isFromNode || isToNode;
-      const isListSelected = selectedNodeFromList === node.id;
-      const isPartOfSelectedEdge = selectedEdgeFromList && 
-        ((edges.find(e => e.id === selectedEdgeFromList)?.from_id === node.id) || 
+      const isListSelected = selectedNode?.id === node.id;
+      const isPartOfSelectedEdge = selectedEdgeFromList &&
+        ((edges.find(e => e.id === selectedEdgeFromList)?.from_id === node.id) ||
          (edges.find(e => e.id === selectedEdgeFromList)?.to_id === node.id));
-      
       const isNewNode = newNodeIds.has(node.id);
-      const matchesSearch = searchQuery === '' || (node.name && node.name.toLowerCase().includes(searchQuery.toLowerCase()));
+      const matchesSearch = nodeSearchQuery === '' || (node.name && node.name.toLowerCase().includes(nodeSearchQuery.toLowerCase()));
+      const isInDeleteSelection = selectedForDelete.nodes.some(n => n.id === node.id);
 
-      // Different colors for new vs backend nodes
-      const baseColor = isNewNode ? '#4CAF50' : '#313b84';  // Green for new, blue for backend
-      
+      const baseColor = isNewNode ? '#4CAF50' : '#313b84';
       let fillColor = baseColor;
       let radius = 7;
-      
-      if (isListSelected) {
-        fillColor = '#ff6b6b';  // Red when selected from list
-        radius = 14;  // Bigger
+
+      if (isInDeleteSelection) {
+        fillColor = '#ffa500';
+        radius = 10;
+      } else if (isListSelected) {
+        fillColor = '#ff6b6b';
+        radius = 14;
       } else if (isPartOfSelectedEdge) {
-        fillColor = '#ff6b6b';  // Red when part of selected edge
+        fillColor = '#ff6b6b';
         radius = 12;
       } else if (isEdgeSelected) {
-        fillColor = '#ffc107';  // Gold when selected for edge
+        fillColor = '#ffc107';
         radius = 10;
       }
 
-      const marker = L.circleMarker([node.y, node.x], {
-        radius: radius,
-        fill: true,
-        fillColor: fillColor,
-        fillOpacity: matchesSearch ? 0.9 : 0.4,  // Fade out non-matching results
-        stroke: true,
-        strokeColor: '#ffffff',
-        strokeWeight: 2,
-        weight: 2,
-        color: fillColor,
-      })
-        .bindPopup(`<strong>${node.name || 'Node'}</strong><br/>ID: ${node.id}${isNewNode ? '<br/><em>(New)</em>' : ''}`)
-        .addTo(map.current);
+      let marker;
+
+      if (node.id === editingNode && draggedPosition) {
+        marker = L.marker([draggedPosition.lat, draggedPosition.lng], {
+          draggable: true,
+          icon: L.divIcon({
+            className: 'editing-marker',
+            html: '<div style="background-color: #ff6b6b; width: 24px; height: 24px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 10px rgba(255,107,107,0.5);"></div>',
+            iconSize: [24, 24],
+            iconAnchor: [12, 12],
+          })
+        }).addTo(map.current);
+
+        marker.on('drag', (e) => {
+          const pos = e.target.getLatLng();
+          setDraggedPosition({ lat: pos.lat, lng: pos.lng });
+        });
+
+        marker.on('dragend', (e) => {
+          const pos = e.target.getLatLng();
+          setDraggedPosition({ lat: pos.lat, lng: pos.lng });
+        });
+
+        marker.bindPopup(`<strong>A editar: ${node.name || node.id}</strong><br/>Arraste para mover`);
+      } else {
+        marker = L.circleMarker([node.y, node.x], {
+          radius: radius,
+          fill: true,
+          fillColor: fillColor,
+          fillOpacity: matchesSearch ? 0.9 : 0.4,
+          stroke: true,
+          strokeColor: '#ffffff',
+          weight: 2,
+          color: fillColor,
+        }).addTo(map.current);
+
+        marker.bindPopup(`
+          <strong>${node.name || 'Unnamed'}</strong><br/>
+          ID: ${node.id}<br/>
+          Tipo: ${node.type || 'normal'}<br/>
+          Coordenadas:<br/>
+          Lat: ${node.y.toFixed(6)}<br/>
+          Lng: ${node.x.toFixed(6)}<br/>
+          ${isNewNode ? '<em>Novo</em>' : ''}
+        `);
+      }
 
       marker.on('click', (e) => {
         L.DomEvent.stopPropagation(e);
-        console.log('Marker clicked. Node ID:', node.id, 'creatingEdge:', creatingEdge);
-        
-        // Always open the popup
         marker.openPopup();
-        
+
         if (creatingEdge) {
-          console.log('Current pointsForEdge:', pointsForEdge);
           if (!pointsForEdge.from) {
-            console.log('Setting from node...');
             setPointsForEdge({ ...pointsForEdge, from: node.id });
           } else if (!pointsForEdge.to && node.id !== pointsForEdge.from) {
-            console.log('Setting to node...');
             setPointsForEdge({ ...pointsForEdge, to: node.id });
           }
         } else {
-          // Allow selecting node from map
-          setSelectedNodeFromList(selectedNodeFromList === node.id ? null : node.id);
+          selectNode(node);
         }
       });
 
       markersRef.current[node.id] = marker;
     });
 
-    // Highlight temporary new node position if selecting location
+    // Marcador temporário para novo node
     if (newNodePosition) {
       L.circleMarker(newNodePosition, {
         radius: 8,
@@ -289,19 +405,18 @@ export function MapComponent() {
     }
   };
 
-  // Initialize map
+  // Inicializar mapa
   useEffect(() => {
     if (map.current) return;
 
     map.current = L.map(mapContainer.current, {
       maxBounds: AVEIRO_BOUNDS,
       maxBoundsViscosity: 1.0,
-      dragging: false,  // Disable default left-click dragging
-      touchZoom: true,  // Keep touch zoom
-      scrollWheelZoom: true,  // Keep scroll zoom
+      dragging: false,
+      touchZoom: true,
+      scrollWheelZoom: true,
     }).setView(AVEIRO_CENTER, 16);
 
-    // Disable all dragging handlers
     if (map.current.dragging) {
       map.current.dragging.disable();
     }
@@ -311,23 +426,23 @@ export function MapComponent() {
       maxZoom: 19,
     }).addTo(map.current);
 
-    // Middle mouse button for panning
     let isPanning = false;
     let panStart = null;
+    const container = map.current.getContainer();
 
-    map.current.getContainer().addEventListener('mousedown', (e) => {
-      if (e.button === 1) {  // Middle mouse button
+    container.addEventListener('mousedown', (e) => {
+      if (e.button === 1) {
         e.preventDefault();
         isPanning = true;
         panStart = { x: e.clientX, y: e.clientY };
-        map.current.getContainer().style.cursor = 'grabbing';
-      } else if (e.button === 0) {  // Left mouse button - prevent panning
+        container.style.cursor = 'grabbing';
+      } else if (e.button === 0) {
         isPanning = false;
         panStart = null;
       }
     });
 
-    map.current.getContainer().addEventListener('mousemove', (e) => {
+    container.addEventListener('mousemove', (e) => {
       if (isPanning && panStart) {
         e.preventDefault();
         const deltaX = e.clientX - panStart.x;
@@ -337,79 +452,16 @@ export function MapComponent() {
       }
     });
 
-    map.current.getContainer().addEventListener('mouseup', () => {
+    container.addEventListener('mouseup', () => {
       isPanning = false;
       panStart = null;
-      map.current.getContainer().style.cursor = 'default';
+      container.style.cursor = 'default';
     });
 
-    map.current.getContainer().addEventListener('mouseleave', () => {
+    container.addEventListener('mouseleave', () => {
       isPanning = false;
       panStart = null;
-      map.current.getContainer().style.cursor = 'default';
-    });
-
-    // Click to place new node
-    map.current.on('click', (e) => {
-      if (rectangleSelectMode) return; // Prevent other interactions during rectangle select
-      
-      console.log('Map clicked. showNodeForm:', showNodeForm, 'newNodePosition:', newNodePosition);
-      if (showNodeForm && !newNodePosition) {
-        console.log('Setting new node position...');
-        setNewNodePosition([e.latlng.lat, e.latlng.lng]);
-      }
-    });
-
-    // Rectangle select handlers
-    map.current.on('mousedown', (e) => {
-      if (!rectangleSelectMode) return;
-      startCoordsRef.current = e.latlng;
-    });
-
-    map.current.on('mousemove', (e) => {
-      if (!rectangleSelectMode || !startCoordsRef.current) return;
-
-      // Remove previous rectangle
-      if (rectangleRef.current) {
-        map.current.removeLayer(rectangleRef.current);
-      }
-
-      // Draw new rectangle
-      const bounds = L.latLngBounds(startCoordsRef.current, e.latlng);
-      rectangleRef.current = L.rectangle(bounds, {
-        color: '#ff6b6b',
-        weight: 2,
-        opacity: 0.3,
-        fill: true,
-        fillColor: '#ff6b6b',
-        fillOpacity: 0.1,
-      }).addTo(map.current);
-    });
-
-    map.current.on('mouseup', (e) => {
-      if (!rectangleSelectMode || !startCoordsRef.current) return;
-
-      const bounds = L.latLngBounds(startCoordsRef.current, e.latlng);
-
-      // Find nodes within bounds
-      const nodesInBounds = nodes.filter(node => {
-        const latLng = L.latLng(node.y, node.x);
-        return bounds.contains(latLng);
-      });
-
-      // Find edges within bounds (both nodes must be in bounds)
-      const edgesInBounds = edges.filter(edge => {
-        const fromInBounds = nodesInBounds.some(n => n.id === edge.from_id);
-        const toInBounds = nodesInBounds.some(n => n.id === edge.to_id);
-        return fromInBounds && toInBounds;
-      });
-
-      setSelectedForDelete({
-        nodes: nodesInBounds,
-        edges: edgesInBounds,
-      });
-
-      startCoordsRef.current = null;
+      container.style.cursor = 'default';
     });
 
     fetchData();
@@ -420,26 +472,76 @@ export function MapComponent() {
         map.current = null;
       }
     };
-  }, [showNodeForm, newNodePosition]);
+  }, []);
 
-  // Auto-fit map to show all nodes
+  // Listeners de eventos que dependem de estado
+  useEffect(() => {
+    if (!map.current) return;
+
+    const handleMapClick = (e) => {
+      if (rectangleSelectMode) return;
+      if (showNodeForm && !newNodePosition) {
+        setNewNodePosition([e.latlng.lat, e.latlng.lng]);
+      }
+    };
+
+    const handleMouseDown = (e) => {
+      if (!rectangleSelectMode) return;
+      startCoordsRef.current = e.latlng;
+    };
+
+    const handleMouseMove = (e) => {
+      if (!rectangleSelectMode || !startCoordsRef.current) return;
+      if (rectangleRef.current) map.current.removeLayer(rectangleRef.current);
+      const bounds = L.latLngBounds(startCoordsRef.current, e.latlng);
+      rectangleRef.current = L.rectangle(bounds, {
+        color: '#ff6b6b',
+        weight: 2,
+        opacity: 0.3,
+        fill: true,
+        fillColor: '#ff6b6b',
+        fillOpacity: 0.1,
+      }).addTo(map.current);
+    };
+
+    const handleMouseUp = (e) => {
+      if (!rectangleSelectMode || !startCoordsRef.current) return;
+      const bounds = L.latLngBounds(startCoordsRef.current, e.latlng);
+      const nodesInBounds = nodes.filter(node => {
+        const latLng = L.latLng(node.y, node.x);
+        return bounds.contains(latLng);
+      });
+      const edgesInBounds = edges.filter(edge => {
+        const fromInBounds = nodesInBounds.some(n => n.id === edge.from_id);
+        const toInBounds = nodesInBounds.some(n => n.id === edge.to_id);
+        return fromInBounds && toInBounds;
+      });
+      setSelectedForDelete({ nodes: nodesInBounds, edges: edgesInBounds });
+      startCoordsRef.current = null;
+    };
+
+    map.current.on('click', handleMapClick);
+    map.current.on('mousedown', handleMouseDown);
+    map.current.on('mousemove', handleMouseMove);
+    map.current.on('mouseup', handleMouseUp);
+
+    return () => {
+      if (map.current) {
+        map.current.off('click', handleMapClick);
+        map.current.off('mousedown', handleMouseDown);
+        map.current.off('mousemove', handleMouseMove);
+        map.current.off('mouseup', handleMouseUp);
+      }
+    };
+  }, [showNodeForm, newNodePosition, rectangleSelectMode, nodes, edges]);
+
+  // Ajustar zoom para mostrar todos os nodes
   useEffect(() => {
     if (!map.current || nodes.length === 0) return;
-
-    // Swap x,y to y,x because backend stores x=longitude, y=latitude
-    // but Leaflet expects [latitude, longitude]
     const bounds = nodes.map(node => [node.y, node.x]);
-    console.log('========== DEBUG: PLOTTING NODES ==========');
-    console.log('Total nodes to plot:', nodes.length);
-    console.log('Bounds array (should be [lat, lng]):', bounds);
-    console.log('Sample bounds[0]:', bounds[0]);
-    console.log('=========================================');
-
     if (bounds.length > 0) {
       try {
-        const featureGroup = L.featureGroup(
-          bounds.map(coord => L.marker(coord))
-        );
+        const featureGroup = L.featureGroup(bounds.map(coord => L.marker(coord)));
         map.current.fitBounds(featureGroup.getBounds(), { padding: [50, 50] });
       } catch (err) {
         console.error('Error fitting bounds:', err);
@@ -447,37 +549,50 @@ export function MapComponent() {
     }
   }, [nodes]);
 
-  // Update map view whenever edges or selections change
+  // Atualizar vista quando dados mudam
   useEffect(() => {
     if (map.current) {
       updateMapView();
     }
-  }, [edges, pointsForEdge, newNodePosition, creatingEdge, nodes, searchQuery, newNodeIds, selectedNodeFromList, selectedEdgeFromList, rectangleSelectMode, selectedForDelete]);
+  }, [nodes, edges, pointsForEdge, newNodePosition, selectedNode, selectedEdgeFromList, selectedForDelete, nodeSearchQuery, creatingEdge, editingNode, draggedPosition]);
 
   return (
     <div className="map-container">
       <div ref={mapContainer} className="map" />
-      
+
       <div className="map-sidebar">
         <h2>Map Editor</h2>
-        
+
         <div className="hint" style={{ marginBottom: '12px', padding: '8px', backgroundColor: '#1e2a5f', borderLeft: '3px solid #5562c3' }}>
           <strong>💡 Pan Map:</strong> Hold middle mouse button to move the map
         </div>
-        
+
         {error && <div className="error-message">{error}</div>}
         {loading && <div className="loading">Loading...</div>}
+
+        {/* Indicadores de modo */}
+        {creatingEdge && (
+          <div className="hint" style={{ backgroundColor: '#ffc107', color: '#000', marginBottom: '10px' }}>
+            Modo: Criar aresta. Clique em dois nós para conectar.
+          </div>
+        )}
+        {rectangleSelectMode && (
+          <div className="hint" style={{ backgroundColor: '#dc3545', color: '#fff', marginBottom: '10px' }}>
+            Modo: Seleção retangular. Arraste no mapa para selecionar.
+          </div>
+        )}
 
         {/* Node Creation */}
         <div className="control-section">
           <h3>Add Node</h3>
           {!showNodeForm ? (
-            <button 
+            <button
               className="btn-primary"
               onClick={() => {
                 setShowNodeForm(true);
                 setNewNodePosition(null);
               }}
+              disabled={creatingEdge || rectangleSelectMode}
             >
               + Add Node
             </button>
@@ -494,7 +609,7 @@ export function MapComponent() {
               </div>
               <div className="form-group">
                 <label>Type:</label>
-                <select 
+                <select
                   value={formData.type}
                   onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                 >
@@ -508,14 +623,14 @@ export function MapComponent() {
                 {newNodePosition ? `Position set: (${newNodePosition[0].toFixed(4)}, ${newNodePosition[1].toFixed(4)})` : 'Click on map to set position'}
               </p>
               <div className="button-group">
-                <button 
+                <button
                   className="btn-primary"
                   onClick={createNode}
                   disabled={!newNodePosition}
                 >
                   Create
                 </button>
-                <button 
+                <button
                   className="btn-secondary"
                   onClick={() => {
                     setShowNodeForm(false);
@@ -530,16 +645,17 @@ export function MapComponent() {
           )}
         </div>
 
-        {/* Rectangle Select */}
+        {/* Bulk Delete */}
         <div className="control-section">
           <h3>Bulk Delete</h3>
           {!rectangleSelectMode ? (
-            <button 
+            <button
               className="btn-primary"
               onClick={() => {
                 setRectangleSelectMode(true);
                 setSelectedForDelete({ nodes: [], edges: [] });
               }}
+              disabled={creatingEdge || showNodeForm}
             >
               📦 Rectangle Select
             </button>
@@ -552,14 +668,14 @@ export function MapComponent() {
                     Selected: {selectedForDelete.nodes.length} nodes, {selectedForDelete.edges.length} edges
                   </p>
                   <div className="button-group">
-                    <button 
+                    <button
                       className="btn-primary"
                       style={{ backgroundColor: '#dc3545' }}
                       onClick={deleteSelectedItems}
                     >
                       🗑️ Delete All
                     </button>
-                    <button 
+                    <button
                       className="btn-secondary"
                       onClick={() => {
                         setRectangleSelectMode(false);
@@ -575,11 +691,15 @@ export function MapComponent() {
                   </div>
                 </>
               ) : (
-                <button 
+                <button
                   className="btn-secondary"
                   onClick={() => {
                     setRectangleSelectMode(false);
                     setSelectedForDelete({ nodes: [], edges: [] });
+                    if (rectangleRef.current) {
+                      map.current.removeLayer(rectangleRef.current);
+                      rectangleRef.current = null;
+                    }
                   }}
                 >
                   Cancel
@@ -593,9 +713,10 @@ export function MapComponent() {
         <div className="control-section">
           <h3>Connect Nodes</h3>
           {!creatingEdge ? (
-            <button 
+            <button
               className="btn-primary"
               onClick={() => setCreatingEdge(true)}
+              disabled={showNodeForm || rectangleSelectMode}
             >
               + Create Edge
             </button>
@@ -609,14 +730,14 @@ export function MapComponent() {
                 <p className="selected-nodes">To: {pointsForEdge.to}</p>
               )}
               <div className="button-group">
-                <button 
+                <button
                   className="btn-primary"
                   onClick={createEdge}
                   disabled={!pointsForEdge.from || !pointsForEdge.to}
                 >
                   Create Edge
                 </button>
-                <button 
+                <button
                   className="btn-secondary"
                   onClick={() => {
                     setCreatingEdge(false);
@@ -630,29 +751,199 @@ export function MapComponent() {
           )}
         </div>
 
-        {/* Nodes List */}
+        {/* Node Details / Edit Panel */}
+        {selectedNode && !editingNode && (
+          <div className="control-section">
+            <h3>Node Details</h3>
+            <div className="form-group">
+              <label>ID:</label>
+              <div>{selectedNode.id}</div>
+            </div>
+            <div className="form-group">
+              <label>Name:</label>
+              <div>{selectedNode.name || '-'}</div>
+            </div>
+            <div className="form-group">
+              <label>Type:</label>
+              <div>{selectedNode.type}</div>
+            </div>
+            <div className="form-group">
+              <label>Level:</label>
+              <div>{selectedNode.level}</div>
+            </div>
+            <div className="form-group">
+              <label>Description:</label>
+              <div>{selectedNode.description || '-'}</div>
+            </div>
+            <div className="form-group">
+              <label>Num Servers:</label>
+              <div>{selectedNode.num_servers ?? '-'}</div>
+            </div>
+            <div className="form-group">
+              <label>Service Rate:</label>
+              <div>{selectedNode.service_rate ?? '-'}</div>
+            </div>
+            <div className="form-group">
+              <label>Block:</label>
+              <div>{selectedNode.block || '-'}</div>
+            </div>
+            <div className="form-group">
+              <label>Row:</label>
+              <div>{selectedNode.row ?? '-'}</div>
+            </div>
+            <div className="form-group">
+              <label>Number:</label>
+              <div>{selectedNode.number ?? '-'}</div>
+            </div>
+            <div className="form-group">
+              <label>Coordinates:</label>
+              <div>Lat: {selectedNode.y.toFixed(6)}, Lng: {selectedNode.x.toFixed(6)}</div>
+            </div>
+            <div className="button-group">
+              <button className="btn-primary" onClick={() => startEditNode(selectedNode)}>
+                ✏️ Edit
+              </button>
+              <button className="btn-danger" onClick={() => deleteNode(selectedNode.id)} style={{ backgroundColor: '#dc3545' }}>
+                🗑️ Delete
+              </button>
+              <button className="btn-secondary" onClick={() => setSelectedNode(null)}>
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Node Form */}
+        {editingNode && (
+          <div className="control-section">
+            <h3>Edit Node</h3>
+            <div className="form-group">
+              <label>Name:</label>
+              <input
+                type="text"
+                value={editFormData.name}
+                onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+              />
+            </div>
+            <div className="form-group">
+              <label>Type:</label>
+              <select
+                value={editFormData.type}
+                onChange={(e) => setEditFormData({ ...editFormData, type: e.target.value })}
+              >
+                <option value="normal">Normal</option>
+                <option value="corridor">Corridor</option>
+                <option value="stairs">Stairs</option>
+                <option value="exit">Exit</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Level:</label>
+              <input
+                type="number"
+                value={editFormData.level}
+                onChange={(e) => setEditFormData({ ...editFormData, level: parseInt(e.target.value) || 0 })}
+              />
+            </div>
+            <div className="form-group">
+              <label>Description:</label>
+              <input
+                type="text"
+                value={editFormData.description}
+                onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
+              />
+            </div>
+            <div className="form-group">
+              <label>Num Servers:</label>
+              <input
+                type="number"
+                value={editFormData.num_servers ?? ''}
+                onChange={(e) => setEditFormData({ ...editFormData, num_servers: e.target.value ? parseInt(e.target.value) : null })}
+              />
+            </div>
+            <div className="form-group">
+              <label>Service Rate:</label>
+              <input
+                type="number"
+                step="0.1"
+                value={editFormData.service_rate ?? ''}
+                onChange={(e) => setEditFormData({ ...editFormData, service_rate: e.target.value ? parseFloat(e.target.value) : null })}
+              />
+            </div>
+            <div className="form-group">
+              <label>Block:</label>
+              <input
+                type="text"
+                value={editFormData.block}
+                onChange={(e) => setEditFormData({ ...editFormData, block: e.target.value })}
+              />
+            </div>
+            <div className="form-group">
+              <label>Row:</label>
+              <input
+                type="number"
+                value={editFormData.row ?? ''}
+                onChange={(e) => setEditFormData({ ...editFormData, row: e.target.value ? parseInt(e.target.value) : null })}
+              />
+            </div>
+            <div className="form-group">
+              <label>Number:</label>
+              <input
+                type="number"
+                value={editFormData.number ?? ''}
+                onChange={(e) => setEditFormData({ ...editFormData, number: e.target.value ? parseInt(e.target.value) : null })}
+              />
+            </div>
+            <div className="form-group">
+              <label>Coordinates:</label>
+              <div style={{ display: 'flex', gap: '5px' }}>
+                <input
+                  type="number"
+                  step="any"
+                  placeholder="Lat"
+                  value={draggedPosition?.lat.toFixed(6) || ''}
+                  onChange={(e) => setDraggedPosition({ ...draggedPosition, lat: parseFloat(e.target.value) })}
+                />
+                <input
+                  type="number"
+                  step="any"
+                  placeholder="Lng"
+                  value={draggedPosition?.lng.toFixed(6) || ''}
+                  onChange={(e) => setDraggedPosition({ ...draggedPosition, lng: parseFloat(e.target.value) })}
+                />
+              </div>
+              <p className="hint">Drag the red marker on map to adjust position</p>
+            </div>
+            <div className="button-group">
+              <button className="btn-primary" onClick={updateNode}>Save</button>
+              <button className="btn-secondary" onClick={cancelEdit}>Cancel</button>
+            </div>
+          </div>
+        )}
+
+        {/* Nodes List com pesquisa */}
         <div className="control-section">
-          <h3>Nodes ({nodes.filter(n => searchQuery === '' || (n.name && n.name.toLowerCase().includes(searchQuery.toLowerCase()))).length}/{nodes.length})</h3>
+          <h3>Nodes ({nodes.filter(n => nodeSearchQuery === '' || (n.name && n.name.toLowerCase().includes(nodeSearchQuery.toLowerCase()))).length}/{nodes.length})</h3>
           <div className="form-group">
             <input
               type="text"
               placeholder="Search nodes..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              value={nodeSearchQuery}
+              onChange={(e) => setNodeSearchQuery(e.target.value)}
               style={{ marginBottom: '10px' }}
             />
           </div>
           <ul className="items-list">
             {nodes
-              .filter(node => searchQuery === '' || (node.name && node.name.toLowerCase().includes(searchQuery.toLowerCase())))
+              .filter(node => nodeSearchQuery === '' || (node.name && node.name.toLowerCase().includes(nodeSearchQuery.toLowerCase())))
               .map((node) => {
                 const isNewNode = newNodeIds.has(node.id);
-                const isSelected = selectedNodeFromList === node.id;
+                const isSelected = selectedNode?.id === node.id;
                 return (
-                  <li 
+                  <li
                     key={node.id}
                     className={`${pointsForEdge.from === node.id || pointsForEdge.to === node.id ? 'selected' : ''} ${isNewNode ? 'new-node' : ''} ${isSelected ? 'list-selected' : ''}`}
-                    onClick={() => setSelectedNodeFromList(selectedNodeFromList === node.id ? null : node.id)}
+                    onClick={() => selectNode(node)}
                     style={{ cursor: 'pointer' }}
                   >
                     <strong>{node.name || 'Unnamed'}</strong>
@@ -665,25 +956,64 @@ export function MapComponent() {
           </ul>
         </div>
 
-        {/* Edges List */}
+        {/* Edges List com pesquisa */}
         <div className="control-section">
-          <h3>Edges ({edges.length})</h3>
+          <h3>Edges ({edges.filter(edge => {
+            const fromNode = nodes.find(n => n.id === edge.from_id);
+            const toNode = nodes.find(n => n.id === edge.to_id);
+            const searchLower = edgeSearchQuery.toLowerCase();
+            return edgeSearchQuery === '' ||
+              edge.id.toLowerCase().includes(searchLower) ||
+              (fromNode?.name && fromNode.name.toLowerCase().includes(searchLower)) ||
+              (toNode?.name && toNode.name.toLowerCase().includes(searchLower)) ||
+              edge.from_id.toLowerCase().includes(searchLower) ||
+              edge.to_id.toLowerCase().includes(searchLower);
+          }).length}/{edges.length})</h3>
+          <div className="form-group">
+            <input
+              type="text"
+              placeholder="Search edges..."
+              value={edgeSearchQuery}
+              onChange={(e) => setEdgeSearchQuery(e.target.value)}
+              style={{ marginBottom: '10px' }}
+            />
+          </div>
           <ul className="items-list">
-            {edges.map((edge) => {
-              const fromNode = nodes.find(n => n.id === edge.from_id);
-              const toNode = nodes.find(n => n.id === edge.to_id);
-              const isSelected = selectedEdgeFromList === edge.id;
-              return (
-                <li 
-                  key={edge.id}
-                  className={isSelected ? 'list-selected' : ''}
-                  onClick={() => setSelectedEdgeFromList(selectedEdgeFromList === edge.id ? null : edge.id)}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <small>{fromNode?.name || edge.from_id} → {toNode?.name || edge.to_id}</small>
-                </li>
-              );
-            })}
+            {edges
+              .filter(edge => {
+                const fromNode = nodes.find(n => n.id === edge.from_id);
+                const toNode = nodes.find(n => n.id === edge.to_id);
+                const searchLower = edgeSearchQuery.toLowerCase();
+                return edgeSearchQuery === '' ||
+                  edge.id.toLowerCase().includes(searchLower) ||
+                  (fromNode?.name && fromNode.name.toLowerCase().includes(searchLower)) ||
+                  (toNode?.name && toNode.name.toLowerCase().includes(searchLower)) ||
+                  edge.from_id.toLowerCase().includes(searchLower) ||
+                  edge.to_id.toLowerCase().includes(searchLower);
+              })
+              .map((edge) => {
+                const fromNode = nodes.find(n => n.id === edge.from_id);
+                const toNode = nodes.find(n => n.id === edge.to_id);
+                const isSelected = selectedEdgeFromList === edge.id;
+                return (
+                  <li
+                    key={edge.id}
+                    className={isSelected ? 'list-selected' : ''}
+                    style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+                  >
+                    <span onClick={() => setSelectedEdgeFromList(selectedEdgeFromList === edge.id ? null : edge.id)}>
+                      <small>{fromNode?.name || edge.from_id} → {toNode?.name || edge.to_id}</small>
+                    </span>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); deleteEdge(edge.id); }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', marginLeft: '8px' }}
+                      title="Delete edge"
+                    >
+                      🗑️
+                    </button>
+                  </li>
+                );
+              })}
           </ul>
         </div>
       </div>
