@@ -38,6 +38,8 @@ export function MapComponent() {
   const [selectedNode, setSelectedNode] = useState(null);
   const [selectedEdgeFromList, setSelectedEdgeFromList] = useState(null);
   const [rectangleSelectMode, setRectangleSelectMode] = useState(false);
+  const [rectStart, setRectStart] = useState(null); // Primeiro ponto do retângulo
+  const [rectEnd, setRectEnd] = useState(null);     // Segundo ponto do retângulo
   const [selectedForDelete, setSelectedForDelete] = useState({ nodes: [], edges: [] });
   const [editFormData, setEditFormData] = useState({
     name: '',
@@ -54,7 +56,7 @@ export function MapComponent() {
   });
   const [draggedPosition, setDraggedPosition] = useState(null);
   const rectangleRef = useRef(null);
-  const startCoordsRef = useRef(null);
+  // Nota: já não usamos startCoordsRef para o retângulo
 
   // Fetch nodes and edges from backend
   const fetchData = async () => {
@@ -84,9 +86,9 @@ export function MapComponent() {
 
   // Selecionar um node para ver detalhes
   const selectNode = (node) => {
-    if (creatingEdge) return; // não interfere com criação de aresta
+    if (creatingEdge || rectangleSelectMode) return; // não interfere com outros modos
     setSelectedNode(node);
-    if (editingNode) setEditingNode(null); // sai do modo edição se estiver
+    if (editingNode) setEditingNode(null);
   };
 
   // Iniciar edição
@@ -139,7 +141,7 @@ export function MapComponent() {
     setDraggedPosition(null);
   };
 
-  // Apagar node (usado no painel de detalhes)
+  // Apagar node
   const deleteNode = async (nodeId) => {
     if (!confirm('Tem a certeza que pretende eliminar este node? As arestas ligadas também serão apagadas.')) return;
     try {
@@ -238,7 +240,40 @@ export function MapComponent() {
     }
   };
 
-  // Bulk delete
+  // Função para calcular os nós dentro do retângulo e atualizar selectedForDelete
+  const updateSelectedForDeleteFromRect = (start, end) => {
+    if (!start || !end || !map.current) return;
+    const bounds = L.latLngBounds(start, end);
+    const nodesInBounds = nodes.filter(node => {
+      const latLng = L.latLng(node.y, node.x);
+      return bounds.contains(latLng);
+    });
+    const edgesInBounds = edges.filter(edge => {
+      const fromInBounds = nodesInBounds.some(n => n.id === edge.from_id);
+      const toInBounds = nodesInBounds.some(n => n.id === edge.to_id);
+      return fromInBounds && toInBounds;
+    });
+    setSelectedForDelete({ nodes: nodesInBounds, edges: edgesInBounds });
+  };
+
+  // Limpar seleção retangular
+  const clearRectangleSelection = () => {
+    setRectStart(null);
+    setRectEnd(null);
+    setSelectedForDelete({ nodes: [], edges: [] });
+    if (rectangleRef.current) {
+      map.current.removeLayer(rectangleRef.current);
+      rectangleRef.current = null;
+    }
+  };
+
+  // Cancelar modo retangular
+  const cancelRectangleMode = () => {
+    setRectangleSelectMode(false);
+    clearRectangleSelection();
+  };
+
+  // Apagar itens selecionados
   const deleteSelectedItems = async () => {
     if (selectedForDelete.nodes.length === 0 && selectedForDelete.edges.length === 0) return;
 
@@ -251,12 +286,7 @@ export function MapComponent() {
       }
 
       await fetchData();
-      setSelectedForDelete({ nodes: [], edges: [] });
-      setRectangleSelectMode(false);
-      if (rectangleRef.current) {
-        map.current.removeLayer(rectangleRef.current);
-        rectangleRef.current = null;
-      }
+      cancelRectangleMode(); // limpa tudo e sai do modo
     } catch (err) {
       setError(`Error deleting items: ${err.message}`);
     }
@@ -474,66 +504,55 @@ export function MapComponent() {
     };
   }, []);
 
-  // Listeners de eventos que dependem de estado
+  // Efeito para lidar com cliques no mapa em modo de seleção retangular
   useEffect(() => {
     if (!map.current) return;
 
     const handleMapClick = (e) => {
-      if (rectangleSelectMode) return;
+      if (rectangleSelectMode) {
+        // Lógica de seleção retangular por dois cliques
+        if (!rectStart) {
+          // Primeiro clique: define o ponto inicial
+          setRectStart(e.latlng);
+          // Remove retângulo anterior se houver
+          if (rectangleRef.current) {
+            map.current.removeLayer(rectangleRef.current);
+            rectangleRef.current = null;
+          }
+        } else if (!rectEnd) {
+          // Segundo clique: define o ponto final
+          setRectEnd(e.latlng);
+          // Cria o retângulo final
+          const bounds = L.latLngBounds(rectStart, e.latlng);
+          rectangleRef.current = L.rectangle(bounds, {
+            color: '#ff6b6b',
+            weight: 2,
+            opacity: 0.5,
+            fill: true,
+            fillColor: '#ff6b6b',
+            fillOpacity: 0.2,
+          }).addTo(map.current);
+          // Atualiza os itens selecionados
+          updateSelectedForDeleteFromRect(rectStart, e.latlng);
+        }
+        // Se já temos os dois pontos, ignoramos cliques adicionais (poderíamos permitir reiniciar, mas vamos manter)
+        return;
+      }
+
+      // Outros modos...
       if (showNodeForm && !newNodePosition) {
         setNewNodePosition([e.latlng.lat, e.latlng.lng]);
       }
     };
 
-    const handleMouseDown = (e) => {
-      if (!rectangleSelectMode) return;
-      startCoordsRef.current = e.latlng;
-    };
-
-    const handleMouseMove = (e) => {
-      if (!rectangleSelectMode || !startCoordsRef.current) return;
-      if (rectangleRef.current) map.current.removeLayer(rectangleRef.current);
-      const bounds = L.latLngBounds(startCoordsRef.current, e.latlng);
-      rectangleRef.current = L.rectangle(bounds, {
-        color: '#ff6b6b',
-        weight: 2,
-        opacity: 0.3,
-        fill: true,
-        fillColor: '#ff6b6b',
-        fillOpacity: 0.1,
-      }).addTo(map.current);
-    };
-
-    const handleMouseUp = (e) => {
-      if (!rectangleSelectMode || !startCoordsRef.current) return;
-      const bounds = L.latLngBounds(startCoordsRef.current, e.latlng);
-      const nodesInBounds = nodes.filter(node => {
-        const latLng = L.latLng(node.y, node.x);
-        return bounds.contains(latLng);
-      });
-      const edgesInBounds = edges.filter(edge => {
-        const fromInBounds = nodesInBounds.some(n => n.id === edge.from_id);
-        const toInBounds = nodesInBounds.some(n => n.id === edge.to_id);
-        return fromInBounds && toInBounds;
-      });
-      setSelectedForDelete({ nodes: nodesInBounds, edges: edgesInBounds });
-      startCoordsRef.current = null;
-    };
-
     map.current.on('click', handleMapClick);
-    map.current.on('mousedown', handleMouseDown);
-    map.current.on('mousemove', handleMouseMove);
-    map.current.on('mouseup', handleMouseUp);
 
     return () => {
       if (map.current) {
         map.current.off('click', handleMapClick);
-        map.current.off('mousedown', handleMouseDown);
-        map.current.off('mousemove', handleMouseMove);
-        map.current.off('mouseup', handleMouseUp);
       }
     };
-  }, [showNodeForm, newNodePosition, rectangleSelectMode, nodes, edges]);
+  }, [rectangleSelectMode, rectStart, rectEnd, showNodeForm, newNodePosition]);
 
   // Ajustar zoom para mostrar todos os nodes
   useEffect(() => {
@@ -578,7 +597,8 @@ export function MapComponent() {
         )}
         {rectangleSelectMode && (
           <div className="hint" style={{ backgroundColor: '#dc3545', color: '#fff', marginBottom: '10px' }}>
-            Modo: Seleção retangular. Arraste no mapa para selecionar.
+            Modo: Seleção retangular. Clique em dois pontos opostos para definir o retângulo.
+            {rectStart && !rectEnd && " Primeiro ponto definido. Clique no segundo ponto."}
           </div>
         )}
 
@@ -645,7 +665,7 @@ export function MapComponent() {
           )}
         </div>
 
-        {/* Bulk Delete */}
+        {/* Bulk Delete - Rectangle Select */}
         <div className="control-section">
           <h3>Bulk Delete</h3>
           {!rectangleSelectMode ? (
@@ -653,7 +673,7 @@ export function MapComponent() {
               className="btn-primary"
               onClick={() => {
                 setRectangleSelectMode(true);
-                setSelectedForDelete({ nodes: [], edges: [] });
+                clearRectangleSelection(); // garante que começa limpo
               }}
               disabled={creatingEdge || showNodeForm}
             >
@@ -661,8 +681,11 @@ export function MapComponent() {
             </button>
           ) : (
             <>
-              <p className="hint">Drag on the map to select nodes and edges</p>
-              {selectedForDelete.nodes.length > 0 || selectedForDelete.edges.length > 0 ? (
+              <p className="hint">
+                {!rectStart && "Clique no mapa para definir o primeiro canto do retângulo."}
+                {rectStart && !rectEnd && "Clique no mapa para definir o segundo canto (oposto)."}
+              </p>
+              {rectStart && rectEnd && (
                 <>
                   <p style={{ color: '#ffc107', fontWeight: 'bold' }}>
                     Selected: {selectedForDelete.nodes.length} nodes, {selectedForDelete.edges.length} edges
@@ -677,30 +700,18 @@ export function MapComponent() {
                     </button>
                     <button
                       className="btn-secondary"
-                      onClick={() => {
-                        setRectangleSelectMode(false);
-                        setSelectedForDelete({ nodes: [], edges: [] });
-                        if (rectangleRef.current) {
-                          map.current.removeLayer(rectangleRef.current);
-                          rectangleRef.current = null;
-                        }
-                      }}
+                      onClick={cancelRectangleMode}
                     >
                       Cancel
                     </button>
                   </div>
                 </>
-              ) : (
+              )}
+              {(!rectStart || (rectStart && !rectEnd)) && (
                 <button
                   className="btn-secondary"
-                  onClick={() => {
-                    setRectangleSelectMode(false);
-                    setSelectedForDelete({ nodes: [], edges: [] });
-                    if (rectangleRef.current) {
-                      map.current.removeLayer(rectangleRef.current);
-                      rectangleRef.current = null;
-                    }
-                  }}
+                  onClick={cancelRectangleMode}
+                  style={{ marginTop: '10px' }}
                 >
                   Cancel
                 </button>
