@@ -37,6 +37,7 @@ export function MapComponent() {
   const [newNodeIds, setNewNodeIds] = useState(new Set());
   const [selectedNode, setSelectedNode] = useState(null);
   const [selectedEdgeFromList, setSelectedEdgeFromList] = useState(null);
+  const [showAllEdges, setShowAllEdges] = useState(false);
   const [rectangleSelectMode, setRectangleSelectMode] = useState(false);
   const [rectStart, setRectStart] = useState(null); // Primeiro ponto do retângulo
   const [rectEnd, setRectEnd] = useState(null);     // Segundo ponto do retângulo
@@ -88,7 +89,14 @@ export function MapComponent() {
   const selectNode = (node) => {
     if (creatingEdge || rectangleSelectMode) return; // não interfere com outros modos
     setSelectedNode(node);
+    setSelectedEdgeFromList(null); // Deselect any edge when selecting a node
     if (editingNode) setEditingNode(null);
+  };
+
+  // Selecionar uma edge
+  const selectEdge = (edgeId) => {
+    setSelectedEdgeFromList(selectedEdgeFromList === edgeId ? null : edgeId);
+    setSelectedNode(null); // Deselect any node when selecting an edge
   };
 
   // Iniciar edição
@@ -148,6 +156,12 @@ export function MapComponent() {
       await fetch(`${API_BASE}/nodes/${nodeId}`, { method: 'DELETE' });
       await fetchData();
       setSelectedNode(null);
+      // Remove from newNodeIds to ensure green marker is cleared
+      setNewNodeIds(prev => {
+        const updated = new Set(prev);
+        updated.delete(nodeId);
+        return updated;
+      });
     } catch (err) {
       setError(err.message);
     }
@@ -278,12 +292,20 @@ export function MapComponent() {
     if (selectedForDelete.nodes.length === 0 && selectedForDelete.edges.length === 0) return;
 
     try {
-      for (const edge of selectedForDelete.edges) {
-        await fetch(`${API_BASE}/edges/${edge.id}`, { method: 'DELETE' });
-      }
-      for (const node of selectedForDelete.nodes) {
-        await fetch(`${API_BASE}/nodes/${node.id}`, { method: 'DELETE' });
-      }
+      // Make all delete requests in parallel instead of sequentially
+      const deletePromises = [
+        ...selectedForDelete.edges.map(edge => fetch(`${API_BASE}/edges/${edge.id}`, { method: 'DELETE' })),
+        ...selectedForDelete.nodes.map(node => fetch(`${API_BASE}/nodes/${node.id}`, { method: 'DELETE' })),
+      ];
+      
+      await Promise.all(deletePromises);
+      
+      // Clear the deleted node IDs from newNodeIds
+      setNewNodeIds(prev => {
+        const updated = new Set(prev);
+        selectedForDelete.nodes.forEach(node => updated.delete(node.id));
+        return updated;
+      });
 
       await fetchData();
       cancelRectangleMode(); // limpa tudo e sai do modo
@@ -310,17 +332,34 @@ export function MapComponent() {
 
       if (fromNode && toNode) {
         let color = 'var(--ifm-color-primary)';
-        if (isEdgeSelected) color = '#ff6b6b';
-        if (isInDeleteSelection) color = '#ffa500';
+        let weight = 2;
+        
+        if (isInDeleteSelection) {
+          color = '#ffa500';
+          weight = 4;
+        } else if (isEdgeSelected) {
+          color = '#ff6b6b';
+          weight = 4;
+        } else if (showAllEdges) {
+          color = '#4CAF50';
+          weight = 3;
+        }
 
         const line = L.polyline(
           [[fromNode.y, fromNode.x], [toNode.y, toNode.x]],
           {
             color: color,
-            weight: isEdgeSelected || isInDeleteSelection ? 4 : 2,
+            weight: weight,
             opacity: 0.7,
           }
         ).addTo(map.current);
+
+        // Add click handler to delete edge
+        line.on('click', (e) => {
+          L.DomEvent.stopPropagation(e);
+          deleteEdge(edge.id);
+        });
+
         edgeLines.current[edge.id] = line;
       }
     });
@@ -573,7 +612,7 @@ export function MapComponent() {
     if (map.current) {
       updateMapView();
     }
-  }, [nodes, edges, pointsForEdge, newNodePosition, selectedNode, selectedEdgeFromList, selectedForDelete, nodeSearchQuery, creatingEdge, editingNode, draggedPosition]);
+  }, [nodes, edges, pointsForEdge, newNodePosition, selectedNode, selectedEdgeFromList, selectedForDelete, nodeSearchQuery, creatingEdge, editingNode, draggedPosition, showAllEdges]);
 
   return (
     <div className="map-container">
@@ -584,6 +623,10 @@ export function MapComponent() {
 
         <div className="hint" style={{ marginBottom: '12px', padding: '8px', backgroundColor: '#1e2a5f', borderLeft: '3px solid #5562c3' }}>
           <strong>💡 Pan Map:</strong> Hold middle mouse button to move the map
+        </div>
+
+        <div className="hint" style={{ marginBottom: '12px', padding: '8px', backgroundColor: '#1e2a5f', borderLeft: '3px solid #4CAF50' }}>
+          <strong>🗑️ Delete Edge:</strong> Click an edge on the map to delete it
         </div>
 
         {error && <div className="error-message">{error}</div>}
@@ -989,6 +1032,13 @@ export function MapComponent() {
               style={{ marginBottom: '10px' }}
             />
           </div>
+          <button
+            className={`btn-primary ${showAllEdges ? 'btn-active' : ''}`}
+            onClick={() => setShowAllEdges(!showAllEdges)}
+            style={{ marginBottom: '10px', width: '100%', backgroundColor: showAllEdges ? '#4CAF50' : '' }}
+          >
+            {showAllEdges ? '✓ Show All Edges' : '📊 Show All Edges'}
+          </button>
           <ul className="items-list">
             {edges
               .filter(edge => {
@@ -1010,14 +1060,15 @@ export function MapComponent() {
                   <li
                     key={edge.id}
                     className={isSelected ? 'list-selected' : ''}
-                    style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+                    style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flex: 1 }}
+                    onClick={() => selectEdge(edge.id)}
                   >
-                    <span onClick={() => setSelectedEdgeFromList(selectedEdgeFromList === edge.id ? null : edge.id)}>
+                    <span style={{ flex: 1, minWidth: 0 }}>
                       <small>{fromNode?.name || edge.from_id} → {toNode?.name || edge.to_id}</small>
                     </span>
                     <button
                       onClick={(e) => { e.stopPropagation(); deleteEdge(edge.id); }}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', marginLeft: '8px' }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', marginLeft: '8px', flexShrink: 0 }}
                       title="Delete edge"
                     >
                       🗑️
