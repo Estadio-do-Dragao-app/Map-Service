@@ -16,6 +16,7 @@ class NodeCreate(BaseModel):
     block: Optional[str] = None
     row: Optional[int] = None
     number: Optional[int] = None
+    door_id: Optional[str] = None
 
 
 class NodeResponse(BaseModel):
@@ -31,6 +32,7 @@ class NodeResponse(BaseModel):
     block: Optional[str]
     row: Optional[int]
     number: Optional[int]
+    door_id: Optional[str]
 
 
 class NodeUpdate(BaseModel):
@@ -45,6 +47,7 @@ class NodeUpdate(BaseModel):
     block: Optional[str] = None
     row: Optional[int] = None
     number: Optional[int] = None
+    door_id: Optional[str] = None
 
 
 # ================== EDGE SCHEMAS ==================

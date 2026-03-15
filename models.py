@@ -94,6 +94,9 @@ class Node(Base):
     row = Column(Integer, nullable=True)     # Row number (1 = closest to corridor)
     number = Column(Integer, nullable=True)  # Seat number within row
     
+    # Door reference (for building nodes): points to the actual entry point node
+    door_id = Column(String, ForeignKey("nodes.id"), nullable=True)
+    
     # Relationships
     edges_from = relationship("Edge", foreign_keys="Edge.from_id", back_populates="from_node", cascade=CASCADE_ALL_DELETE_ORPHAN)
     edges_to = relationship("Edge", foreign_keys="Edge.to_id", back_populates="to_node", cascade=CASCADE_ALL_DELETE_ORPHAN)
@@ -233,6 +236,7 @@ class NodeBase(BaseModel):
     block: Optional[str] = None
     row: Optional[int] = None
     number: Optional[int] = None
+    door_id: Optional[str] = None
 
 class NodeCreate(BaseModel):
     id: str
@@ -247,6 +251,7 @@ class NodeCreate(BaseModel):
     block: Optional[str] = None
     row: Optional[int] = None
     number: Optional[int] = None
+    door_id: Optional[str] = None
 
 class NodeUpdate(BaseModel):
     name: Optional[str] = None
@@ -260,6 +265,7 @@ class NodeUpdate(BaseModel):
     block: Optional[str] = None
     row: Optional[int] = None
     number: Optional[int] = None
+    door_id: Optional[str] = None
 
 class NodeResponse(BaseModel):
     id: str
@@ -274,6 +280,7 @@ class NodeResponse(BaseModel):
     block: Optional[str]
     row: Optional[int]
     number: Optional[int]
+    door_id: Optional[str]
     
     class Config:
         from_attributes = True

@@ -21,6 +21,7 @@ export function MapComponent() {
   const map = useRef(null);
   const markersRef = useRef({});
   const edgeLines = useRef({});
+  const tempNodeMarkerRef = useRef(null); // Track temporary green marker
   const [pointsForEdge, setPointsForEdge] = useState({ from: null, to: null });
 
   const [nodes, setNodes] = useState([]);
@@ -28,7 +29,7 @@ export function MapComponent() {
   const [editingNode, setEditingNode] = useState(null);
   const [showNodeForm, setShowNodeForm] = useState(false);
   const [newNodePosition, setNewNodePosition] = useState(null);
-  const [formData, setFormData] = useState({ name: '', type: 'normal' });
+  const [formData, setFormData] = useState({ name: '', type: 'normal', door_id: null });
   const [creatingEdge, setCreatingEdge] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -38,6 +39,7 @@ export function MapComponent() {
   const [selectedNode, setSelectedNode] = useState(null);
   const [selectedEdgeFromList, setSelectedEdgeFromList] = useState(null);
   const [showAllEdges, setShowAllEdges] = useState(false);
+  const [selectingDoor, setSelectingDoor] = useState(false);
   const [rectangleSelectMode, setRectangleSelectMode] = useState(false);
   const [rectStart, setRectStart] = useState(null); // Primeiro ponto do retângulo
   const [rectEnd, setRectEnd] = useState(null);     // Segundo ponto do retângulo
@@ -54,6 +56,7 @@ export function MapComponent() {
     number: null,
     x: 0,
     y: 0,
+    door_id: null,
   });
   const [draggedPosition, setDraggedPosition] = useState(null);
   const rectangleRef = useRef(null);
@@ -87,7 +90,26 @@ export function MapComponent() {
 
   // Selecionar um node para ver detalhes
   const selectNode = (node) => {
+    // If in door selection mode and editing, set the door instead
+    if (selectingDoor && editingNode) {
+      setEditFormData({ ...editFormData, door_id: node.id });
+      setSelectingDoor(false);
+      return;
+    }
+    
     if (creatingEdge || rectangleSelectMode) return; // não interfere com outros modos
+    
+    // If this node has a door_id, select the door node instead
+    if (node.door_id) {
+      const doorNode = nodes.find(n => n.id === node.door_id);
+      if (doorNode) {
+        setSelectedNode(doorNode);
+        setSelectedEdgeFromList(null);
+        if (editingNode) setEditingNode(null);
+        return;
+      }
+    }
+    
     setSelectedNode(node);
     setSelectedEdgeFromList(null); // Deselect any edge when selecting a node
     if (editingNode) setEditingNode(null);
@@ -114,6 +136,7 @@ export function MapComponent() {
       number: node.number || null,
       x: node.x,
       y: node.y,
+      door_id: node.door_id || null,
     });
     setDraggedPosition({ lat: node.y, lng: node.x });
     if (map.current) {
@@ -132,6 +155,7 @@ export function MapComponent() {
           ...editFormData,
           x: draggedPosition.lng,
           y: draggedPosition.lat,
+          door_id: editFormData.door_id || null,
         }),
       });
       if (!response.ok) throw new Error('Failed to update node');
@@ -203,6 +227,7 @@ export function MapComponent() {
           block: '',
           row: null,
           number: null,
+          door_id: formData.door_id || null,
         }),
       });
 
@@ -213,8 +238,13 @@ export function MapComponent() {
       await fetchData();
       setShowNodeForm(false);
       setNewNodePosition(null);
-      setFormData({ name: '', type: 'normal' });
+      setFormData({ name: '', type: 'normal', door_id: null });
       setNewNodeIds(prev => new Set([...prev, newId]));
+      // Clear temporary marker
+      if (tempNodeMarkerRef.current) {
+        map.current.removeLayer(tempNodeMarkerRef.current);
+        tempNodeMarkerRef.current = null;
+      }
     } catch (err) {
       setError(err.message);
       console.error('Error creating node:', err);
@@ -376,12 +406,16 @@ export function MapComponent() {
       const isNewNode = newNodeIds.has(node.id);
       const matchesSearch = nodeSearchQuery === '' || (node.name && node.name.toLowerCase().includes(nodeSearchQuery.toLowerCase()));
       const isInDeleteSelection = selectedForDelete.nodes.some(n => n.id === node.id);
+      const isSelectingDoor = selectingDoor && editingNode;
 
       const baseColor = isNewNode ? '#4CAF50' : '#313b84';
       let fillColor = baseColor;
       let radius = 7;
 
-      if (isInDeleteSelection) {
+      if (isSelectingDoor) {
+        fillColor = '#9c27b0';
+        radius = 9;
+      } else if (isInDeleteSelection) {
         fillColor = '#ffa500';
         radius = 10;
       } else if (isListSelected) {
@@ -461,8 +495,14 @@ export function MapComponent() {
     });
 
     // Marcador temporário para novo node
+    // Remove old temporary marker if it exists
+    if (tempNodeMarkerRef.current) {
+      map.current.removeLayer(tempNodeMarkerRef.current);
+      tempNodeMarkerRef.current = null;
+    }
+    
     if (newNodePosition) {
-      L.circleMarker(newNodePosition, {
+      const marker = L.circleMarker(newNodePosition, {
         radius: 8,
         fill: true,
         fillColor: '#4CAF50',
@@ -471,6 +511,7 @@ export function MapComponent() {
         strokeColor: '#ffffff',
         weight: 2,
       }).addTo(map.current);
+      tempNodeMarkerRef.current = marker;
     }
   };
 
@@ -612,7 +653,7 @@ export function MapComponent() {
     if (map.current) {
       updateMapView();
     }
-  }, [nodes, edges, pointsForEdge, newNodePosition, selectedNode, selectedEdgeFromList, selectedForDelete, nodeSearchQuery, creatingEdge, editingNode, draggedPosition, showAllEdges]);
+  }, [nodes, edges, pointsForEdge, newNodePosition, selectedNode, selectedEdgeFromList, selectedForDelete, nodeSearchQuery, creatingEdge, editingNode, draggedPosition, showAllEdges, selectingDoor]);
 
   return (
     <div className="map-container">
@@ -636,6 +677,11 @@ export function MapComponent() {
         {creatingEdge && (
           <div className="hint" style={{ backgroundColor: '#ffc107', color: '#000', marginBottom: '10px' }}>
             Modo: Criar aresta. Clique em dois nós para conectar.
+          </div>
+        )}
+        {selectingDoor && (
+          <div className="hint" style={{ backgroundColor: '#9c27b0', color: '#fff', marginBottom: '10px' }}>
+            Modo: Selecionar porta. Clique num nó no mapa para defini-lo como porta.
           </div>
         )}
         {rectangleSelectMode && (
@@ -682,6 +728,20 @@ export function MapComponent() {
                   <option value="exit">Exit</option>
                 </select>
               </div>
+              <div className="form-group">
+                <label>Door Node (optional):</label>
+                <select
+                  value={formData.door_id || ''}
+                  onChange={(e) => setFormData({ ...formData, door_id: e.target.value || null })}
+                >
+                  <option value="">None</option>
+                  {nodes.map(node => (
+                    <option key={node.id} value={node.id}>
+                      {node.name || node.id}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <p className="hint">
                 {newNodePosition ? `Position set: (${newNodePosition[0].toFixed(4)}, ${newNodePosition[1].toFixed(4)})` : 'Click on map to set position'}
               </p>
@@ -698,7 +758,12 @@ export function MapComponent() {
                   onClick={() => {
                     setShowNodeForm(false);
                     setNewNodePosition(null);
-                    setFormData({ name: '', type: 'normal' });
+                    setFormData({ name: '', type: 'normal', door_id: null });
+                    // Clear temporary marker
+                    if (tempNodeMarkerRef.current) {
+                      map.current.removeLayer(tempNodeMarkerRef.current);
+                      tempNodeMarkerRef.current = null;
+                    }
                   }}
                 >
                   Cancel
@@ -850,6 +915,20 @@ export function MapComponent() {
               <div>{selectedNode.number ?? '-'}</div>
             </div>
             <div className="form-group">
+              <label>Door Node:</label>
+              <div>
+                {selectedNode.door_id ? (
+                  <>
+                    {nodes.find(n => n.id === selectedNode.door_id)?.name || selectedNode.door_id}
+                    <br />
+                    <small style={{ color: '#999' }}>{selectedNode.door_id}</small>
+                  </>
+                ) : (
+                  '-'
+                )}
+              </div>
+            </div>
+            <div className="form-group">
               <label>Coordinates:</label>
               <div>Lat: {selectedNode.y.toFixed(6)}, Lng: {selectedNode.x.toFixed(6)}</div>
             </div>
@@ -890,6 +969,45 @@ export function MapComponent() {
                 <option value="stairs">Stairs</option>
                 <option value="exit">Exit</option>
               </select>
+            </div>
+            <div className="form-group">
+              <label>Door Node (optional):</label>
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                <select
+                  value={editFormData.door_id || ''}
+                  onChange={(e) => setEditFormData({ ...editFormData, door_id: e.target.value || null })}
+                  style={{ 
+                    flex: 1,
+                    minWidth: '180px',
+                    padding: '6px'
+                  }}
+                >
+                  <option value="">None</option>
+                  {nodes.map(node => (
+                    <option key={node.id} value={node.id}>
+                      {node.name || node.id}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  className={`btn-secondary ${selectingDoor ? 'btn-active' : ''}`}
+                  onClick={() => setSelectingDoor(!selectingDoor)}
+                  style={{ backgroundColor: selectingDoor ? '#4CAF50' : '', minWidth: '120px' }}
+                  title="Click nodes on map to set as door"
+                >
+                  {selectingDoor ? '✓ Click' : '🎯 Click'}
+                </button>
+              </div>
+              {selectingDoor && (
+                <div style={{ padding: '8px', backgroundColor: '#2a4a8a', borderRadius: '4px', marginBottom: '8px' }}>
+                  <small style={{ color: '#4CAF50' }}>Click a node on the map to set it as the door</small>
+                </div>
+              )}
+              {editFormData.door_id && (
+                <div style={{ padding: '6px', backgroundColor: '#1a3a6a', borderRadius: '4px', fontSize: '12px' }}>
+                  <strong>Selected:</strong> {nodes.find(n => n.id === editFormData.door_id)?.name || editFormData.door_id}
+                </div>
+              )}
             </div>
             <div className="form-group">
               <label>Level:</label>

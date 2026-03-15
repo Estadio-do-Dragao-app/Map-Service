@@ -107,7 +107,7 @@ async def update_node(node_id: str, data: NodeUpdate):
     Atualiza um node existente.
     """
     try:
-        return await call_map_service("PUT", f"/nodes/{node_id}", json=data.model_dump())
+        return await call_map_service("PUT", f"/nodes/{node_id}", json=data.model_dump(exclude_none=True))
     except httpx.ConnectError:
         raise HTTPException(status_code=503, detail="Map-Service não está acessível")
     except httpx.HTTPStatusError as e:

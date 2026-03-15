@@ -612,6 +612,20 @@ def update_node(node_id: str, data: NodeUpdate, db: Session = Depends(get_db)):
         node.level = data.level
     if data.type is not None:
         node.type = data.type
+    if data.description is not None:
+        node.description = data.description
+    if data.num_servers is not None:
+        node.num_servers = data.num_servers
+    if data.service_rate is not None:
+        node.service_rate = data.service_rate
+    if data.block is not None:
+        node.block = data.block
+    if data.row is not None:
+        node.row = data.row
+    if data.number is not None:
+        node.number = data.number
+    if data.door_id is not None:
+        node.door_id = data.door_id
     
     try:
         db.commit()
