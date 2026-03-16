@@ -1,0 +1,145 @@
+{
+  "name": "Estádio do Dragão",
+  "id": "dragao",
+  "city": "Porto",
+  "country": "Portugal",
+  "capacity": 50033,
+  "opened": 2003,
+  "architect": "Manuel Salgado",
+  
+  "dimensions": {
+    "center_x": 500,
+    "center_y": 400,
+    "outer_perimeter_x": 420,
+    "outer_perimeter_y": 340,
+    "corridors": {
+      "outer_x": 400,
+      "outer_y": 320,
+      "mid_x": 360,
+      "mid_y": 280,
+      "inner_x": 320,
+      "inner_y": 240
+    }
+  },
+  
+  "navigation": {
+    "corridor_points": 72,
+    "seats_per_row": 40,
+    "aisle_positions": [0, 13, 26, 39]
+  },
+
+  "stands": {
+    "Norte": {
+      "angle_start": 45,
+      "angle_end": 135,
+      "tiers": 1,
+      "rows_per_tier": [35],
+      "sponsor": "Coca-Cola",
+      "ultra_group": "Colectivo Ultras 95",
+      "gates": [21, 22, 23]
+    },
+    "Sul": {
+      "angle_start": 225,
+      "angle_end": 315,
+      "tiers": 1,
+      "rows_per_tier": [35],
+      "sponsor": "Super Bock",
+      "ultra_group": "Super Dragões",
+      "gates": [7, 8, 9]
+    },
+    "Este": {
+      "angle_start": 315,
+      "angle_end": 405,
+      "tiers": 2,
+      "rows_per_tier": [20, 15],
+      "sponsor": "tmn",
+      "has_vip_boxes": true,
+      "away_fans": true,
+      "gates": [10, 11, 12, 13, 17, 18]
+    },
+    "Oeste": {
+      "angle_start": 135,
+      "angle_end": 225,
+      "tiers": 2,
+      "rows_per_tier": [20, 15],
+      "sponsor": "meo",
+      "has_vip_boxes": true,
+      "has_tunnel": true,
+      "gates": [3, 4, 5, 6, 24, 25, 26, 27]
+    }
+  },
+
+  "level_connectors": {
+    "stairs": {
+      "positions": [9, 18, 27, 36, 45, 54, 63, 72],
+      "weight_up": 15.0,
+      "weight_down": 10.0,
+      "accessible": false,
+      "offset_x": 15,
+      "offset_y": 15
+    },
+    "ramps": {
+      "positions": [12, 30, 48, 66],
+      "weight_up": 20.0,
+      "weight_down": 15.0,
+      "accessible": true,
+      "offset_x": 20,
+      "offset_y": 20
+    }
+  },
+
+  "pois": {
+    "restrooms": {
+      "per_stand": 2,
+      "per_level": true,
+      "num_servers": 8,
+      "service_rate": 0.5
+    },
+    "food_bars": {
+      "per_stand": 3,
+      "level": 0,
+      "num_servers": 6,
+      "service_rate": 0.4
+    },
+    "emergency_exits": {
+      "per_stand": 2,
+      "level": 0
+    },
+    "first_aid": {
+      "positions": [
+        {"stand": "Norte", "angle": 90},
+        {"stand": "Sul", "angle": 270},
+        {"stand": "Este", "angle": 0},
+        {"stand": "Oeste", "angle": 180}
+      ],
+      "num_servers": 3,
+      "service_rate": 0.2
+    },
+    "stores": {
+      "positions": [60, 240],
+      "level": 0,
+      "num_servers": 4,
+      "service_rate": 0.5
+    },
+    "information": {
+      "positions": [90, 180, 270],
+      "level": 0,
+      "num_servers": 2,
+      "service_rate": 0.6
+    }
+  },
+
+  "edge_weights": {
+    "corridor_along": 5.0,
+    "corridor_radial": 8.0,
+    "corridor_diagonal": 9.0,
+    "gate_connection": 3.0,
+    "poi_connection": 2.0,
+    "stair_access": 2.0,
+    "ramp_access": 2.0,
+    "aisle_horizontal": 3.0,
+    "aisle_vertical": 1.5,
+    "seat_to_aisle_base": 0.5,
+    "seat_to_aisle_per_distance": 0.5
+  }
+}

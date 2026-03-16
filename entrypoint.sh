@@ -1,0 +1,70 @@
+#!/bin/bash
+# NÃO usar set -e aqui porque queremos capturar exit codes específicos
+
+echo "Checking database..."
+
+# Wait for database to be ready
+python -c "
+from database import SessionLocal, init_db
+from models import Node
+import time
+
+max_retries = 30
+for i in range(max_retries):
+    try:
+        init_db()
+        db = SessionLocal()
+        count = db.query(Node).count()
+        db.close()
+        print(f'Database ready. Found {count} nodes.')
+        if count == 0:
+            print('Database is empty. Loading data...')
+            exit(1)  # Signal to load data
+        else:
+            print('Database already has data.')
+            exit(0)  # Signal no need to load
+    except Exception as e:
+        print(f'Waiting for database... ({i+1}/{max_retries})')
+        time.sleep(1)
+print('Database connection failed!')
+exit(2)
+"
+
+# Check the exit code
+DB_STATUS=$?
+
+if [[ $DB_STATUS -eq 1 ]]; then
+    MAP_MODE=${MAP_MODE:-outdoor}
+    echo "MAP_MODE=$MAP_MODE"
+
+    if [[ "$MAP_MODE" == "outdoor" ]]; then
+        echo "Generating UA outdoor data from OSM..."
+        python generate_ua.py
+
+        echo "Loading data into database..."
+        python load_instituto.py output/ua_graph.json --clear
+    else
+        echo "Loading indoor data into database..."
+        # Indoor mode: usa dados pré-gerados (sem Overpass)
+        if [[ -f "output/ua_graph.json" ]]; then
+            python load_instituto.py output/ua_graph.json --clear
+        else
+            echo "WARNING: output/ua_graph.json not found! Run generate_ua.py manually first."
+            exit 1
+        fi
+    fi
+
+    # Verificar se carregou corretamente
+    if [[ $? -ne 0 ]]; then
+        echo "ERROR: Failed to load data!" >&2
+        exit 1
+    fi
+    echo "Data loaded successfully!"
+elif [[ $DB_STATUS -eq 2 ]]; then
+    echo "ERROR: Database connection failed!" >&2
+    exit 1
+fi
+
+echo "Starting API server..."
+exec uvicorn ApiHandler:app --host 0.0.0.0 --port 8000
+

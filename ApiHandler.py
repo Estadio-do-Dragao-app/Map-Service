@@ -1,20 +1,40 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Query
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from typing import List, Optional
 from database import get_db, init_db
 from models import (
-    Node, Edge, Closure, Tile, POI, Seat, Gate,
+    Node, Edge, Closure, Tile, EmergencyRoute,
     NodeCreate, NodeUpdate, NodeResponse,
     EdgeCreate, EdgeUpdate, EdgeResponse,
     ClosureCreate, ClosureResponse,
     TileCreate, TileUpdate, TileResponse,
-    POICreate, POIUpdate, POIResponse,
-    SeatCreate, SeatUpdate, SeatResponse,
-    GateCreate, GateUpdate, GateResponse
+    EmergencyRouteResponse
 )
 from grid_name import GridManager
+import hashlib
+import math
+import time
+import json as json_module
+import urllib.request
+import urllib.parse
 
 app = FastAPI(title="Smart Stadium Map Backend")
+
+# Add CORS middleware (allows Flutter web app to make requests)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, specify exact origins
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Add GZip compression for large responses (reduces ~2MB GeoJSON to ~300KB)
+app.add_middleware(GZipMiddleware, minimum_size=500)
 
 # ================== STARTUP ==================
 
@@ -28,7 +48,9 @@ def startup():
 def serialize_node(n: Node) -> dict:
     return {
         "id": n.id,
+        "name": n.name,
         "type": n.type,
+        "description": n.description,
         "x": n.x,
         "y": n.y,
         "level": n.level,
@@ -52,7 +74,7 @@ def serialize_closure(c: Closure) -> dict:
 
 # ================== MAP ==================
 
-@app.get("/api/map")
+@app.get("/map")
 def get_map(db: Session = Depends(get_db)):
     """Get complete map with nodes, edges, and closures."""
     nodes = db.query(Node).all()
@@ -65,14 +87,487 @@ def get_map(db: Session = Depends(get_db)):
         "closures": [serialize_closure(c) for c in closures]
     }
 
+@app.get("/map/visualization")
+def get_map_visualization(level: int = None, db: Session = Depends(get_db)):
+    """Get map data optimized for frontend visualization with grouped nodes by type."""
+    query = db.query(Node)
+    
+    if level is not None:
+        query = query.filter(Node.level == level)
+    
+    nodes = query.all()
+    
+    # Group nodes by type for easier frontend rendering
+    grouped_nodes = {
+        "navigation": [],
+        "gates": [],
+        "pois": [],
+        "seats": [],
+        "stairs": []
+    }
+    
+    for node in nodes:
+        node_data = {
+            "id": node.id,
+            "x": node.x,
+            "y": node.y,
+            "level": node.level,
+            "name": node.name,
+            "description": node.description
+        }
+        
+        if node.type in ["corridor", "normal"]:
+            grouped_nodes["navigation"].append(node_data)
+        elif node.type == "gate":
+            grouped_nodes["gates"].append({
+                **node_data,
+                "num_servers": node.num_servers,
+                "service_rate": node.service_rate
+            })
+        elif node.type == "stairs":
+            grouped_nodes["stairs"].append(node_data)
+        elif node.type == "seat":
+            grouped_nodes["seats"].append({
+                **node_data,
+                "block": node.block,
+                "row": node.row,
+                "number": node.number
+            })
+        else:
+            # POIs: restroom, food, bar, emergency_exit, first_aid, information, merchandise
+            grouped_nodes["pois"].append({
+                **node_data,
+                "type": node.type,
+                "num_servers": node.num_servers,
+                "service_rate": node.service_rate
+            })
+    
+    # Get edges for the selected level(s)
+    if level is not None:
+        edges = db.query(Edge).join(Node, Edge.from_id == Node.id).filter(Node.level == level).all()
+    else:
+        edges = db.query(Edge).all()
+    
+    return {
+        "level": level if level is not None else "all",
+        "nodes": grouped_nodes,
+        "edges": [serialize_edge(e) for e in edges],
+        "stats": {
+            "navigation": len(grouped_nodes["navigation"]),
+            "gates": len(grouped_nodes["gates"]),
+            "pois": len(grouped_nodes["pois"]),
+            "seats": len(grouped_nodes["seats"]),
+            "stairs": len(grouped_nodes["stairs"]),
+            "total": len(nodes)
+        }
+    }
+
+@app.get("/seats/{seat_id}", response_model=NodeResponse)
+def get_seat(seat_id: str, db: Session = Depends(get_db)):
+    """Get a specific seat by ID."""
+    seat = db.query(Node).filter(Node.id == seat_id).first()
+    if not seat:
+        raise HTTPException(status_code=404, detail="Seat not found")
+    return seat
+
+@app.get("/map/preview", response_class=HTMLResponse)
+def preview_map(level: int = 0, db: Session = Depends(get_db)):
+    """Visual preview of nodes on a 2D canvas with improved UI."""
+    nodes = db.query(Node).filter(Node.level == level).all()
+    edges = db.query(Edge).join(Node, Edge.from_id == Node.id).filter(Node.level == level).all()
+    
+    # Count by type
+    counts = {
+        'corridor': sum(1 for n in nodes if n.type == 'corridor'),
+        'row_aisle': sum(1 for n in nodes if n.type == 'row_aisle'),
+        'gate': sum(1 for n in nodes if n.type == 'gate'),
+        'stairs': sum(1 for n in nodes if n.type in ['stairs', 'ramp']),
+        'poi': sum(1 for n in nodes if n.type in ['restroom', 'food', 'bar', 'emergency_exit', 'first_aid', 'information', 'merchandise']),
+        'seat': sum(1 for n in nodes if n.type == 'seat'),
+    }
+    
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Estádio do Dragão - Nível {level}</title>
+        <style>
+            * {{ box-sizing: border-box; }}
+            body {{
+                margin: 0;
+                padding: 20px;
+                background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+                color: #e0e0e0;
+                font-family: 'Segoe UI', Arial, sans-serif;
+                min-height: 100vh;
+            }}
+            h1 {{
+                margin: 0 0 15px 0;
+                background: linear-gradient(90deg, #00d4ff, #5c7cfa);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                font-size: 1.8em;
+            }}
+            .container {{
+                max-width: 1500px;
+                margin: 0 auto;
+            }}
+            .controls {{
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+                align-items: center;
+                padding: 15px;
+                background: rgba(255,255,255,0.05);
+                border-radius: 12px;
+                margin-bottom: 20px;
+                backdrop-filter: blur(10px);
+            }}
+            .btn-group {{
+                display: flex;
+                gap: 5px;
+            }}
+            .btn {{
+                padding: 10px 20px;
+                background: linear-gradient(180deg, #3d5af1 0%, #2541b2 100%);
+                color: white;
+                border: none;
+                border-radius: 8px;
+                cursor: pointer;
+                font-weight: 500;
+                transition: all 0.2s;
+            }}
+            .btn:hover {{
+                transform: translateY(-2px);
+                box-shadow: 0 4px 15px rgba(61, 90, 241, 0.4);
+            }}
+            .btn.active {{
+                background: linear-gradient(180deg, #00d4ff 0%, #0099cc 100%);
+            }}
+            .checkbox-group {{
+                display: flex;
+                flex-wrap: wrap;
+                gap: 15px;
+                margin-left: 20px;
+            }}
+            .checkbox-label {{
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                cursor: pointer;
+            }}
+            .checkbox-label input {{
+                width: 18px;
+                height: 18px;
+                accent-color: #00d4ff;
+            }}
+            .canvas-container {{
+                position: relative;
+                background: rgba(0,0,0,0.3);
+                border-radius: 12px;
+                padding: 10px;
+                overflow: hidden;
+            }}
+            canvas {{
+                background: radial-gradient(circle at center, #1e2a3a 0%, #0d1117 100%);
+                border-radius: 8px;
+                display: block;
+            }}
+            .zoom-controls {{
+                position: absolute;
+                top: 20px;
+                right: 20px;
+                display: flex;
+                flex-direction: column;
+                gap: 5px;
+            }}
+            .zoom-btn {{
+                width: 36px;
+                height: 36px;
+                background: rgba(0,0,0,0.7);
+                border: 1px solid #444;
+                border-radius: 8px;
+                color: white;
+                font-size: 18px;
+                cursor: pointer;
+            }}
+            .zoom-btn:hover {{ background: rgba(61, 90, 241, 0.5); }}
+            .info-panel {{
+                margin-top: 15px;
+                padding: 15px;
+                background: rgba(255,255,255,0.05);
+                border-radius: 12px;
+                backdrop-filter: blur(10px);
+            }}
+            .legend {{
+                display: flex;
+                flex-wrap: wrap;
+                gap: 20px;
+                margin-top: 10px;
+            }}
+            .legend-item {{
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }}
+            .legend-color {{
+                width: 16px;
+                height: 16px;
+                border-radius: 50%;
+                border: 2px solid rgba(255,255,255,0.2);
+            }}
+            #nodeInfo {{
+                font-size: 14px;
+                color: #888;
+            }}
+            #nodeInfo strong {{
+                color: #00d4ff;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>Estadio do Dragao - Nivel {level}</h1>
+            
+            <div class="controls">
+                <div class="btn-group">
+                    <button class="btn {'active' if level == 0 else ''}" onclick="window.location.href='/map/preview?level=0'">Piso 0</button>
+                    <button class="btn {'active' if level == 1 else ''}" onclick="window.location.href='/map/preview?level=1'">Piso 1</button>
+                </div>
+                
+                <div class="checkbox-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="showEdges" checked onchange="draw()">
+                        <span>Edges</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="showCorridors" checked onchange="draw()">
+                        <span>Corredores</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="showAisles" checked onchange="draw()">
+                        <span>Aisles</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="showPOIs" checked onchange="draw()">
+                        <span>POIs</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="showSeats" onchange="draw()">
+                        <span>Seats</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="showLabels" onchange="draw()">
+                        <span>Labels</span>
+                    </label>
+                </div>
+            </div>
+            
+            <div class="canvas-container">
+                <canvas id="canvas" width="1400" height="900"></canvas>
+                <div class="zoom-controls">
+                    <button class="zoom-btn" onclick="zoomIn()">+</button>
+                    <button class="zoom-btn" onclick="zoomOut()">−</button>
+                    <button class="zoom-btn" onclick="resetZoom()">⟲</button>
+                </div>
+            </div>
+            
+            <div class="info-panel">
+                <div id="nodeInfo">Passa o rato sobre os nodes para ver detalhes</div>
+                <div class="legend">
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #4ade80;"></div>
+                        <span>Corredores ({counts['corridor']})</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #fbbf24;"></div>
+                        <span>Row Aisles ({counts['row_aisle']})</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #60a5fa;"></div>
+                        <span>Portões ({counts['gate']})</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #f97316;"></div>
+                        <span>Escadas/Rampas ({counts['stairs']})</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #ec4899;"></div>
+                        <span>POIs ({counts['poi']})</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #a855f7;"></div>
+                        <span>Seats ({counts['seat']})</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <script>
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            const nodes = {str([{
+                "id": n.id,
+                "x": n.x,
+                "y": n.y,
+                "level": n.level,
+                "type": n.type,
+                "name": n.name,
+                "num_servers": n.num_servers,
+                "block": n.block,
+                "row": n.row,
+                "number": n.number
+            } for n in nodes]).replace("'", '"').replace("None", "null")};
+            const edges = {str([{"from": e.from_id, "to": e.to_id} for e in edges]).replace("'", '"')};
+            
+            let scale = 1.3;
+            let offsetX = 50;
+            let offsetY = 30;
+            
+            function getNodeColor(type) {{
+                const colors = {{
+                    'corridor': '#4ade80',
+                    'row_aisle': '#fbbf24',
+                    'gate': '#60a5fa',
+                    'stairs': '#f97316',
+                    'ramp': '#f97316',
+                    'seat': '#a855f7',
+                    'emergency_exit': '#ef4444',
+                    'restroom': '#06b6d4',
+                    'food': '#f97316',
+                    'bar': '#8b5cf6',
+                    'first_aid': '#22c55e',
+                    'information': '#3b82f6',
+                    'merchandise': '#ec4899'
+                }};
+                return colors[type] || '#ec4899';
+            }}
+            
+            function screenX(x) {{ return x * scale + offsetX; }}
+            function screenY(y) {{ return y * scale + offsetY; }}
+            
+            function zoomIn() {{ scale *= 1.2; draw(); }}
+            function zoomOut() {{ scale /= 1.2; draw(); }}
+            function resetZoom() {{ scale = 1.3; offsetX = 50; offsetY = 30; draw(); }}
+            
+            function draw() {{
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                const showEdges = document.getElementById('showEdges').checked;
+                const showCorridors = document.getElementById('showCorridors').checked;
+                const showAisles = document.getElementById('showAisles').checked;
+                const showPOIs = document.getElementById('showPOIs').checked;
+                const showSeats = document.getElementById('showSeats').checked;
+                const showLabels = document.getElementById('showLabels').checked;
+                
+                // Draw edges
+                if (showEdges) {{
+                    ctx.strokeStyle = 'rgba(100, 100, 100, 0.3)';
+                    ctx.lineWidth = 0.5;
+                    edges.forEach(edge => {{
+                        const fromNode = nodes.find(n => n.id === edge.from);
+                        const toNode = nodes.find(n => n.id === edge.to);
+                        if (fromNode && toNode) {{
+                            ctx.beginPath();
+                            ctx.moveTo(screenX(fromNode.x), screenY(fromNode.y));
+                            ctx.lineTo(screenX(toNode.x), screenY(toNode.y));
+                            ctx.stroke();
+                        }}
+                    }});
+                }}
+                
+                // Draw nodes
+                nodes.forEach(node => {{
+                    if (node.type === 'seat' && !showSeats) return;
+                    if (node.type === 'corridor' && !showCorridors) return;
+                    if (node.type === 'row_aisle' && !showAisles) return;
+                    if (['restroom', 'food', 'bar', 'emergency_exit', 'first_aid', 'information', 'merchandise', 'gate', 'stairs', 'ramp'].includes(node.type) && !showPOIs) return;
+                    
+                    const x = screenX(node.x);
+                    const y = screenY(node.y);
+                    
+                    let radius = 4;
+                    if (node.type === 'seat') radius = 2;
+                    else if (node.type === 'gate') radius = 10;
+                    else if (node.type === 'row_aisle') radius = 3;
+                    else if (['stairs', 'ramp', 'emergency_exit'].includes(node.type)) radius = 8;
+                    
+                    ctx.fillStyle = getNodeColor(node.type);
+                    ctx.beginPath();
+                    ctx.arc(x, y, radius, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    // Draw labels for POIs
+                    if (showLabels && ['gate', 'stairs', 'ramp', 'emergency_exit', 'first_aid', 'restroom', 'food', 'bar'].includes(node.type)) {{
+                        ctx.fillStyle = '#fff';
+                        ctx.font = '10px Arial';
+                        ctx.fillText(node.name || node.id, x + 12, y + 3);
+                    }}
+                }});
+            }}
+            
+            canvas.addEventListener('mousemove', (e) => {{
+                const rect = canvas.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+                
+                let hoveredNode = null;
+                for (let node of nodes) {{
+                    const x = screenX(node.x);
+                    const y = screenY(node.y);
+                    const radius = node.type === 'seat' ? 4 : 10;
+                    
+                    if (Math.sqrt((mouseX - x)**2 + (mouseY - y)**2) < radius) {{
+                        hoveredNode = node;
+                        break;
+                    }}
+                }}
+                
+                const infoDiv = document.getElementById('nodeInfo');
+                if (hoveredNode) {{
+                    let info = `<strong>${{hoveredNode.id}}</strong> - ${{hoveredNode.type}}`;
+                    if (hoveredNode.name) info += ` | ${{hoveredNode.name}}`;
+                    info += ` | (${{hoveredNode.x.toFixed(0)}}, ${{hoveredNode.y.toFixed(0)}})`;
+                    if (hoveredNode.block) info += ` | ${{hoveredNode.block}} R${{hoveredNode.row}} S${{hoveredNode.number}}`;
+                    infoDiv.innerHTML = info;
+                }} else {{
+                    infoDiv.innerHTML = 'Passa o rato sobre os nodes para ver detalhes';
+                }}
+            }});
+            
+            // Pan with mouse drag
+            let isDragging = false;
+            let lastX, lastY;
+            canvas.addEventListener('mousedown', (e) => {{ isDragging = true; lastX = e.clientX; lastY = e.clientY; }});
+            canvas.addEventListener('mouseup', () => {{ isDragging = false; }});
+            canvas.addEventListener('mouseleave', () => {{ isDragging = false; }});
+            canvas.addEventListener('mousemove', (e) => {{
+                if (isDragging) {{
+                    offsetX += e.clientX - lastX;
+                    offsetY += e.clientY - lastY;
+                    lastX = e.clientX;
+                    lastY = e.clientY;
+                    draw();
+                }}
+            }});
+            
+            draw();
+        </script>
+    </body>
+    </html>
+    """
+    
+    return html_content
+
 # ================== NODES ==================
 
-@app.get("/api/nodes", response_model=List[NodeResponse])
+@app.get("/nodes", response_model=List[NodeResponse])
 def get_nodes(db: Session = Depends(get_db)):
     """Get all nodes."""
     return db.query(Node).all()
 
-@app.get("/api/nodes/{node_id}", response_model=NodeResponse)
+@app.get("/nodes/{node_id}", response_model=NodeResponse)
 def get_node(node_id: str, db: Session = Depends(get_db)):
     """Get a specific node by ID."""
     node = db.query(Node).filter(Node.id == node_id).first()
@@ -80,37 +575,15 @@ def get_node(node_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Node not found")
     return node
 
-# @app.post("/api/nodes", response_model=NodeResponse, status_code=201)
-# def add_node(data: NodeCreate, db: Session = Depends(get_db)):
-#     """Create a new node."""
-#     existing = db.query(Node).filter(Node.id == data.id).first()
-#     if existing:
-#         raise HTTPException(status_code=400, detail="Node already exists")
-    
-#     node = Node(
-#         id=data.id,
-#         x=data.x,
-#         y=data.y,
-#         level=data.level,
-#         type=data.type
-#     )
-#     db.add(node)
-#     try:
-#         db.commit()
-#         db.refresh(node)
-#     except Exception as e:
-#         db.rollback()
-#         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-    
-#     return node
-
-@app.put("/api/nodes/{node_id}", response_model=NodeResponse)
+@app.put("/nodes/{node_id}", response_model=NodeResponse)
 def update_node(node_id: str, data: NodeUpdate, db: Session = Depends(get_db)):
     """Update an existing node."""
     node = db.query(Node).filter(Node.id == node_id).first()
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
     
+    if data.name is not None:
+        node.name = data.name
     if data.x is not None:
         node.x = data.x
     if data.y is not None:
@@ -129,30 +602,14 @@ def update_node(node_id: str, data: NodeUpdate, db: Session = Depends(get_db)):
     
     return node
 
-# @app.delete("/api/nodes/{node_id}")
-# def delete_node(node_id: str, db: Session = Depends(get_db)):
-#     """Delete a node. Will also delete related edges and closures due to CASCADE."""
-#     node = db.query(Node).filter(Node.id == node_id).first()
-#     if not node:
-#         raise HTTPException(status_code=404, detail="Node not found")
-    
-#     try:
-#         db.delete(node)
-#         db.commit()
-#     except Exception as e:
-#         db.rollback()
-#         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-    
-#     return {"deleted": node_id}
-
 # ================== EDGES ==================
 
-@app.get("/api/edges", response_model=List[EdgeResponse])
+@app.get("/edges", response_model=List[EdgeResponse])
 def get_edges(db: Session = Depends(get_db)):
     """Get all edges."""
     return db.query(Edge).all()
 
-@app.get("/api/edges/{edge_id}", response_model=EdgeResponse)
+@app.get("/edges/{edge_id}", response_model=EdgeResponse)
 def get_edge(edge_id: str, db: Session = Depends(get_db)):
     """Get a specific edge by ID."""
     edge = db.query(Edge).filter(Edge.id == edge_id).first()
@@ -160,39 +617,7 @@ def get_edge(edge_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Edge not found")
     return edge
 
-# @app.post("/api/edges", response_model=EdgeResponse, status_code=201)
-# def add_edge(data: EdgeCreate, db: Session = Depends(get_db)):
-#     """Create a new edge."""
-#     existing = db.query(Edge).filter(Edge.id == data.id).first()
-#     if existing:
-#         raise HTTPException(status_code=400, detail="Edge already exists")
-    
-#     # Validate that both nodes exist
-#     from_node = db.query(Node).filter(Node.id == data.from_id).first()
-#     to_node = db.query(Node).filter(Node.id == data.to_id).first()
-    
-#     if not from_node:
-#         raise HTTPException(status_code=400, detail=f"from_id node '{data.from_id}' does not exist")
-#     if not to_node:
-#         raise HTTPException(status_code=400, detail=f"to_id node '{data.to_id}' does not exist")
-    
-#     edge = Edge(
-#         id=data.id,
-#         from_id=data.from_id,
-#         to_id=data.to_id,
-#         weight=data.weight
-#     )
-#     db.add(edge)
-#     try:
-#         db.commit()
-#         db.refresh(edge)
-#     except Exception as e:
-#         db.rollback()
-#         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-    
-#     return edge
-
-@app.put("/api/edges/{edge_id}", response_model=EdgeResponse)
+@app.put("/edges/{edge_id}", response_model=EdgeResponse)
 def update_edge(edge_id: str, data: EdgeUpdate, db: Session = Depends(get_db)):
     """Update an existing edge."""
     edge = db.query(Edge).filter(Edge.id == edge_id).first()
@@ -201,6 +626,8 @@ def update_edge(edge_id: str, data: EdgeUpdate, db: Session = Depends(get_db)):
     
     if data.weight is not None:
         edge.weight = data.weight
+    if data.accessible is not None:
+        edge.accessible = data.accessible
     
     try:
         db.commit()
@@ -211,30 +638,14 @@ def update_edge(edge_id: str, data: EdgeUpdate, db: Session = Depends(get_db)):
     
     return edge
 
-# @app.delete("/api/edges/{edge_id}")
-# def delete_edge(edge_id: str, db: Session = Depends(get_db)):
-#     """Delete an edge."""
-#     edge = db.query(Edge).filter(Edge.id == edge_id).first()
-#     if not edge:
-#         raise HTTPException(status_code=404, detail="Edge not found")
-    
-#     try:
-#         db.delete(edge)
-#         db.commit()
-#     except Exception as e:
-#         db.rollback()
-#         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-    
-#     return {"deleted": edge_id}
-
 # ================== CLOSURES ==================
 
-@app.get("/api/closures", response_model=List[ClosureResponse])
+@app.get("/closures", response_model=List[ClosureResponse])
 def get_closures(db: Session = Depends(get_db)):
     """Get all closures."""
     return db.query(Closure).all()
 
-@app.get("/api/closures/{closure_id}", response_model=ClosureResponse)
+@app.get("/closures/{closure_id}", response_model=ClosureResponse)
 def get_closure(closure_id: str, db: Session = Depends(get_db)):
     """Get a specific closure by ID."""
     closure = db.query(Closure).filter(Closure.id == closure_id).first()
@@ -242,7 +653,7 @@ def get_closure(closure_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Closure not found")
     return closure
 
-@app.post("/api/closures", response_model=ClosureResponse, status_code=201)
+@app.post("/closures", response_model=ClosureResponse, status_code=201)
 def add_closure(data: ClosureCreate, db: Session = Depends(get_db)):
     """Create a new closure."""
     existing = db.query(Closure).filter(Closure.id == data.id).first()
@@ -279,7 +690,7 @@ def add_closure(data: ClosureCreate, db: Session = Depends(get_db)):
     
     return closure
 
-@app.delete("/api/closures/{closure_id}")
+@app.delete("/closures/{closure_id}")
 def delete_closure(closure_id: str, db: Session = Depends(get_db)):
     """Delete a closure."""
     closure = db.query(Closure).filter(Closure.id == closure_id).first()
@@ -357,6 +768,37 @@ def rebuild_grid(db: Session = Depends(get_db)):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Grid rebuild failed: {str(e)}")
+
+@app.post("/maps/grid/tiles/nodes")
+def get_nodes_from_tiles(tile_ids: List[str], db: Session = Depends(get_db)):
+    """
+    Resolve tile IDs to node IDs for emergency closures.
+    
+    Given a list of tile IDs (e.g., ["tile_180_80_0", "tile_179_85_0"]),
+    returns all node IDs contained within those tiles.
+    """
+    if not tile_ids:
+        return {"node_ids": [], "tile_count": 0}
+    
+    tiles = db.query(Tile).filter(Tile.id.in_(tile_ids)).all()
+    
+    all_node_ids = set()
+    for tile in tiles:
+        if tile.node_id:
+            node_ids = [nid.strip() for nid in tile.node_id.split(',') if nid.strip()]
+            all_node_ids.update(node_ids)
+        if tile.poi_id:
+            poi_ids = [pid.strip() for pid in tile.poi_id.split(',') if pid.strip()]
+            all_node_ids.update(poi_ids)
+        if tile.gate_id:
+            gate_ids = [gid.strip() for gid in tile.gate_id.split(',') if gid.strip()]
+            all_node_ids.update(gate_ids)
+    
+    return {
+        "node_ids": list(all_node_ids),
+        "tile_count": len(tiles),
+        "tiles_found": [t.id for t in tiles]
+    }
     
 @app.get("/maps/grid/stats")
 def get_grid_stats(db: Session = Depends(get_db)):
@@ -394,62 +836,228 @@ def get_grid_stats(db: Session = Depends(get_db)):
         }
     }
 # ================== POIs ==================
+# Now handled via Node endpoints with type filtering
 
-@app.get("/api/pois", response_model=List[POIResponse])
+@app.get("/pois", response_model=List[NodeResponse])
 def get_pois(db: Session = Depends(get_db)):
-    """Get all POIs."""
-    return db.query(POI).all()
+    """Get all POI nodes (restroom, food, emergency_exit, etc)."""
+    poi_types = [
+        'poi', 'restroom', 'entrance', 'food', 'shop', 'bar',
+        'emergency_exit', 'first_aid', 'information', 'merchandise'
+    ]
+    pois = db.query(Node).filter(Node.type.in_(poi_types)).all()
+    return pois
 
-@app.get("/api/pois/{poi_id}", response_model=POIResponse)
+# ================== OSM POIs (Dynamic) ==================
+
+# In-memory cache for OSM POI queries
+_osm_poi_cache: dict = {"data": None, "timestamp": 0}
+_OSM_CACHE_TTL = 3600  # 1 hour
+
+# UA Santiago Campus bounding box
+_UA_BBOX = "40.628,-8.662,40.635,-8.654"
+
+_OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+_OVERPASS_POI_QUERY = f"""
+[out:json];
+(
+  node["amenity"]({_UA_BBOX});
+  node["shop"]({_UA_BBOX});
+  node["tourism"]({_UA_BBOX});
+  way["amenity"]["name"]({_UA_BBOX});
+  way["building"]["name"]({_UA_BBOX});
+  way["shop"]["name"]({_UA_BBOX});
+);
+out center;
+"""
+
+# Separate query for entrance nodes
+_OVERPASS_ENTRANCE_QUERY = f"""
+[out:json];
+node["entrance"]({_UA_BBOX});
+out;
+"""
+
+def _osm_tag_to_type(tags: dict) -> str:
+    """Map OSM tags to internal POI type."""
+    amenity = tags.get("amenity", "")
+    shop = tags.get("shop", "")
+    tourism = tags.get("tourism", "")
+    if amenity in ("restaurant", "cafe", "fast_food", "food_court", "canteen"):
+        return "food"
+    if amenity == "bar" or amenity == "pub":
+        return "bar"
+    if amenity == "toilets":
+        return "wc"
+    if amenity == "library":
+        return "library"
+    if amenity == "parking":
+        return "parking"
+    if amenity in ("pharmacy", "hospital", "clinic", "first_aid"):
+        return "first_aid"
+    if amenity == "university" or amenity == "school" or amenity == "college":
+        return "poi"
+    if shop:
+        return "shop"
+    if tourism:
+        return "poi"
+    return "poi"
+
+
+def _haversine(lon1, lat1, lon2, lat2):
+    """Distance in meters between two GPS points."""
+    lon1, lat1, lon2, lat2 = map(math.radians, [lon1, lat1, lon2, lat2])
+    dlon = lon2 - lon1
+    dlat = lat2 - lat1
+    a = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
+    return 6371000 * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+
+@app.get("/pois/osm")
+def get_osm_pois(db: Session = Depends(get_db)):
+    """
+    Fetch POIs dynamically from OpenStreetMap Overpass API.
+    Results are cached in memory for 1 hour.
+    Each POI is snapped to the nearest walkable node in the DB graph.
+    Response format matches /pois for Flutter compatibility.
+    """
+    global _osm_poi_cache
+
+    now = time.time()
+    if _osm_poi_cache["data"] is not None and (now - _osm_poi_cache["timestamp"]) < _OSM_CACHE_TTL:
+        return _osm_poi_cache["data"]
+
+    try:
+        # Fetch from Overpass API
+        data = urllib.parse.urlencode({"data": _OVERPASS_POI_QUERY}).encode("utf-8")
+        req = urllib.request.Request(_OVERPASS_URL, data=data)
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            osm_data = json_module.loads(resp.read().decode("utf-8"))
+    except Exception as e:
+        # If Overpass fails, return cached data if available, otherwise empty
+        import traceback
+        print(f"[OSM POIs] Main query failed: {e}")
+        traceback.print_exc()
+        if _osm_poi_cache["data"]:
+            return _osm_poi_cache["data"]
+        # return empty list instead of crashing app
+        return {"pois": [], "total": 0, "source": "openstreetmap", "error": str(e)}
+
+    # Also fetch entrance nodes for building entrance snapping
+    entrance_nodes = []
+    try:
+        ent_data = urllib.parse.urlencode({"data": _OVERPASS_ENTRANCE_QUERY}).encode("utf-8")
+        ent_req = urllib.request.Request(_OVERPASS_URL, data=ent_data)
+        with urllib.request.urlopen(ent_req, timeout=15) as ent_resp:
+            ent_json = json_module.loads(ent_resp.read().decode("utf-8"))
+            entrance_nodes = [e for e in ent_json.get("elements", []) if e["type"] == "node"]
+            print(f"[OSM POIs] Fetched {len(entrance_nodes)} entrance nodes")
+    except Exception as e:
+        print(f"[OSM POIs] Could not fetch entrances: {e} (using building centers)")
+
+    # Load walkable nodes from DB for snapping
+    walkable_nodes = db.query(Node).filter(Node.type == "normal").all()
+
+    pois = []
+    seen_names = set()  # deduplicate by name
+
+    for el in osm_data.get("elements", []):
+        tags = el.get("tags", {})
+        name = tags.get("name") or tags.get("alt_name") or tags.get("short_name")
+        if not name:
+            continue
+
+        # Deduplicate (same building can appear as node + way)
+        if name.lower() in seen_names:
+            continue
+        seen_names.add(name.lower())
+
+        # Get coordinates — prefer entrance if available
+        if el["type"] == "node":
+            lon, lat = el["lon"], el["lat"]
+        elif el["type"] == "way" and "center" in el:
+            # For buildings: check if we have an entrance node nearby
+            center_lon, center_lat = el["center"]["lon"], el["center"]["lat"]
+            lon, lat = center_lon, center_lat
+
+            # Look for entrance nodes within 50m of building center
+            best_entrance_dist = float("inf")
+            for ent in entrance_nodes:
+                ent_dist = _haversine(center_lon, center_lat, ent["lon"], ent["lat"])
+                if ent_dist < 50 and ent_dist < best_entrance_dist:
+                    best_entrance_dist = ent_dist
+                    lon, lat = ent["lon"], ent["lat"]  # Use entrance coords for snap
+        else:
+            continue
+
+        # Find nearest walkable node (within 100m)
+        nearest_id = None
+        min_dist = float("inf")
+        for wn in walkable_nodes:
+            d = _haversine(lon, lat, wn.x, wn.y)
+            if d < min_dist:
+                min_dist = d
+                nearest_id = wn.id
+
+        if nearest_id is None or min_dist > 100:
+            continue
+
+        poi_type = _osm_tag_to_type(tags)
+        description = tags.get("description", name)
+
+        pois.append({
+            "id": f"OSM-{el['id']}",
+            "name": name,
+            "type": poi_type,
+            "description": description,
+            "x": lon,
+            "y": lat,
+            "level": 0,
+            "nearest_node_id": nearest_id,
+            "distance_to_node_m": round(min_dist, 1),
+        })
+
+    result = {
+        "pois": pois,
+        "total": len(pois),
+        "source": "openstreetmap",
+        "cached_at": now,
+    }
+
+    _osm_poi_cache = {"data": result, "timestamp": now}
+    print(f"[OSM POIs] Fetched {len(pois)} POIs from Overpass API")
+
+    return result
+
+@app.get("/pois/{poi_id}", response_model=NodeResponse)
 def get_poi(poi_id: str, db: Session = Depends(get_db)):
-    """Get a specific POI by ID."""
-    poi = db.query(POI).filter(POI.id == poi_id).first()
+    """Get a specific POI node by ID."""
+    poi = db.query(Node).filter(Node.id == poi_id).first()
     if not poi:
         raise HTTPException(status_code=404, detail="POI not found")
     return poi
 
-# @app.post("/api/pois", response_model=POIResponse, status_code=201)
-# def add_poi(data: POICreate, db: Session = Depends(get_db)):
-#     """Create a new POI."""
-#     existing = db.query(POI).filter(POI.id == data.id).first()
-#     if existing:
-#         raise HTTPException(status_code=400, detail="POI already exists")
-    
-#     poi = POI(
-#         id=data.id,
-#         name=data.name,
-#         category=data.category,
-#         x=data.x,
-#         y=data.y,
-#         level=data.level
-#     )
-#     db.add(poi)
-#     try:
-#         db.commit()
-#         db.refresh(poi)
-#     except Exception as e:
-#         db.rollback()
-#         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-    
-#     return poi
-
-@app.put("/api/pois/{poi_id}", response_model=POIResponse)
-def update_poi(poi_id: str, data: POIUpdate, db: Session = Depends(get_db)):
-    """Update an existing POI."""
-    poi = db.query(POI).filter(POI.id == poi_id).first()
+@app.put("/pois/{poi_id}", response_model=NodeResponse)
+def update_poi(poi_id: str, data: NodeUpdate, db: Session = Depends(get_db)):
+    """Update an existing POI node."""
+    poi = db.query(Node).filter(Node.id == poi_id).first()
     if not poi:
         raise HTTPException(status_code=404, detail="POI not found")
     
     if data.name is not None:
         poi.name = data.name
-    if data.category is not None:
-        poi.category = data.category
+    if data.type is not None:
+        poi.type = data.type
     if data.x is not None:
         poi.x = data.x
     if data.y is not None:
         poi.y = data.y
     if data.level is not None:
         poi.level = data.level
+    if data.num_servers is not None:
+        poi.num_servers = data.num_servers
+    if data.service_rate is not None:
+        poi.service_rate = data.service_rate
     
     try:
         db.commit()
@@ -460,67 +1068,83 @@ def update_poi(poi_id: str, data: POIUpdate, db: Session = Depends(get_db)):
     
     return poi
 
-# @app.delete("/api/pois/{poi_id}")
-# def delete_poi(poi_id: str, db: Session = Depends(get_db)):
-#     """Delete a POI."""
-#     poi = db.query(POI).filter(POI.id == poi_id).first()
-#     if not poi:
-#         raise HTTPException(status_code=404, detail="POI not found")
-    
-#     try:
-#         db.delete(poi)
-#         db.commit()
-#     except Exception as e:
-#         db.rollback()
-#         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-    
-#     return {"deleted": poi_id}
+
+from pydantic import BaseModel as PydanticBaseModel
+
+class POICreate(PydanticBaseModel):
+    name: str
+    type: str = "poi"
+    x: float
+    y: float
+    level: int = 0
+    description: Optional[str] = None
+
+
+@app.post("/pois", response_model=NodeResponse, status_code=201)
+def create_poi(data: POICreate, db: Session = Depends(get_db)):
+    """
+    Create a custom POI (e.g. for events).
+    Auto-generates an ID and links to nearest walkable node.
+    """
+    import uuid
+    poi_id = f"CUSTOM-{uuid.uuid4().hex[:8]}"
+
+    new_poi = Node(
+        id=poi_id,
+        name=data.name,
+        type=data.type,
+        x=data.x,
+        y=data.y,
+        level=data.level,
+        description=data.description or data.name,
+    )
+
+    try:
+        db.add(new_poi)
+        db.commit()
+        db.refresh(new_poi)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+    print(f"[POI] Created custom POI '{data.name}' ({poi_id}) at ({data.x}, {data.y})")
+    return new_poi
+
+
+@app.delete("/pois/{poi_id}")
+def delete_poi(poi_id: str, db: Session = Depends(get_db)):
+    """Delete a custom POI."""
+    poi = db.query(Node).filter(Node.id == poi_id).first()
+    if not poi:
+        raise HTTPException(status_code=404, detail="POI not found")
+    db.delete(poi)
+    db.commit()
+    return {"status": "deleted", "id": poi_id}
+
 
 # ================== SEATS ==================
+# Now handled via Node endpoints with type='seat'
 
-@app.get("/api/seats", response_model=List[SeatResponse])
-def get_seats(db: Session = Depends(get_db)):
-    """Get all seats."""
-    return db.query(Seat).all()
+@app.get("/seats", response_model=List[NodeResponse])
+def get_seats(block: Optional[str] = None, db: Session = Depends(get_db)):
+    """Get all seat nodes, optionally filtered by block."""
+    query = db.query(Node).filter(Node.type == 'seat')
+    if block:
+        query = query.filter(Node.block == block)
+    return query.all()
 
-@app.get("/api/seats/{seat_id}", response_model=SeatResponse)
+@app.get("/seats/{seat_id}", response_model=NodeResponse)
 def get_seat(seat_id: str, db: Session = Depends(get_db)):
-    """Get a specific seat by ID."""
-    seat = db.query(Seat).filter(Seat.id == seat_id).first()
+    """Get a specific seat node by ID."""
+    seat = db.query(Node).filter(Node.id == seat_id).first()
     if not seat:
         raise HTTPException(status_code=404, detail="Seat not found")
     return seat
 
-# @app.post("/api/seats", response_model=SeatResponse, status_code=201)
-# def add_seat(data: SeatCreate, db: Session = Depends(get_db)):
-#     """Create a new seat."""
-#     existing = db.query(Seat).filter(Seat.id == data.id).first()
-#     if existing:
-#         raise HTTPException(status_code=400, detail="Seat already exists")
-    
-#     seat = Seat(
-#         id=data.id,
-#         block=data.block,
-#         row=data.row,
-#         number=data.number,
-#         x=data.x,
-#         y=data.y,
-#         level=data.level
-#     )
-#     db.add(seat)
-#     try:
-#         db.commit()
-#         db.refresh(seat)
-#     except Exception as e:
-#         db.rollback()
-#         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-    
-#     return seat
-
-@app.put("/api/seats/{seat_id}", response_model=SeatResponse)
-def update_seat(seat_id: str, data: SeatUpdate, db: Session = Depends(get_db)):
-    """Update an existing seat."""
-    seat = db.query(Seat).filter(Seat.id == seat_id).first()
+@app.put("/seats/{seat_id}", response_model=NodeResponse)
+def update_seat(seat_id: str, data: NodeUpdate, db: Session = Depends(get_db)):
+    """Update an existing seat node."""
+    seat = db.query(Node).filter(Node.id == seat_id).first()
     if not seat:
         raise HTTPException(status_code=404, detail="Seat not found")
     
@@ -546,76 +1170,41 @@ def update_seat(seat_id: str, data: SeatUpdate, db: Session = Depends(get_db)):
     
     return seat
 
-# @app.delete("/api/seats/{seat_id}")
-# def delete_seat(seat_id: str, db: Session = Depends(get_db)):
-#     """Delete a seat."""
-#     seat = db.query(Seat).filter(Seat.id == seat_id).first()
-#     if not seat:
-#         raise HTTPException(status_code=404, detail="Seat not found")
-    
-#     try:
-#         db.delete(seat)
-#         db.commit()
-#     except Exception as e:
-#         db.rollback()
-#         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-    
-#     return {"deleted": seat_id}
-
 # ================== GATES ==================
+# Now handled via Node endpoints with type='gate'
 
-@app.get("/api/gates", response_model=List[GateResponse])
+@app.get("/gates", response_model=List[NodeResponse])
 def get_gates(db: Session = Depends(get_db)):
-    """Get all gates."""
-    return db.query(Gate).all()
+    """Get all gate nodes."""
+    return db.query(Node).filter(Node.type == 'gate').all()
 
-@app.get("/api/gates/{gate_id}", response_model=GateResponse)
+@app.get("/gates/{gate_id}", response_model=NodeResponse)
 def get_gate(gate_id: str, db: Session = Depends(get_db)):
-    """Get a specific gate by ID."""
-    gate = db.query(Gate).filter(Gate.id == gate_id).first()
+    """Get a specific gate node by ID."""
+    gate = db.query(Node).filter(Node.id == gate_id).first()
     if not gate:
         raise HTTPException(status_code=404, detail="Gate not found")
     return gate
 
-# @app.post("/api/gates", response_model=GateResponse, status_code=201)
-# def add_gate(data: GateCreate, db: Session = Depends(get_db)):
-#     """Create a new gate."""
-#     existing = db.query(Gate).filter(Gate.id == data.id).first()
-#     if existing:
-#         raise HTTPException(status_code=400, detail="Gate already exists")
-    
-#     gate = Gate(
-#         id=data.id,
-#         gate_number=data.gate_number,
-#         x=data.x,
-#         y=data.y,
-#         level=data.level
-#     )
-#     db.add(gate)
-#     try:
-#         db.commit()
-#         db.refresh(gate)
-#     except Exception as e:
-#         db.rollback()
-#         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-    
-#     return gate
-
-@app.put("/api/gates/{gate_id}", response_model=GateResponse)
-def update_gate(gate_id: str, data: GateUpdate, db: Session = Depends(get_db)):
-    """Update an existing gate."""
-    gate = db.query(Gate).filter(Gate.id == gate_id).first()
+@app.put("/gates/{gate_id}", response_model=NodeResponse)
+def update_gate(gate_id: str, data: NodeUpdate, db: Session = Depends(get_db)):
+    """Update an existing gate node."""
+    gate = db.query(Node).filter(Node.id == gate_id).first()
     if not gate:
         raise HTTPException(status_code=404, detail="Gate not found")
     
-    if data.gate_number is not None:
-        gate.gate_number = data.gate_number
+    if data.name is not None:
+        gate.name = data.name
     if data.x is not None:
         gate.x = data.x
     if data.y is not None:
         gate.y = data.y
     if data.level is not None:
         gate.level = data.level
+    if data.num_servers is not None:
+        gate.num_servers = data.num_servers
+    if data.service_rate is not None:
+        gate.service_rate = data.service_rate
     
     try:
         db.commit()
@@ -626,21 +1215,383 @@ def update_gate(gate_id: str, data: GateUpdate, db: Session = Depends(get_db)):
     
     return gate
 
-# @app.delete("/api/gates/{gate_id}")
-# def delete_gate(gate_id: str, db: Session = Depends(get_db)):
-#     """Delete a gate."""
-#     gate = db.query(Gate).filter(Gate.id == gate_id).first()
-#     if not gate:
-#         raise HTTPException(status_code=404, detail="Gate not found")
+# ================== GEOJSON ENDPOINTS ==================
+
+def _create_node_feature(node: Node) -> dict:
+    """Helper function to convert a Node to a GeoJSON Feature."""
+    feature = {
+        "type": "Feature",
+        "id": node.id,
+        "geometry": {
+            "type": "Point",
+            "coordinates": [node.x, node.y]
+        },
+        "properties": {
+            "id": node.id,
+            "name": node.name,
+            "type": node.type,
+            "level": node.level,
+            "description": node.description,
+        }
+    }
+    # Add optional properties only if present
+    if node.num_servers is not None:
+        feature["properties"]["num_servers"] = node.num_servers
+    if node.service_rate is not None:
+        feature["properties"]["service_rate"] = node.service_rate
+    if node.block is not None:
+        feature["properties"]["block"] = node.block
+    if node.row is not None:
+        feature["properties"]["row"] = node.row
+    if node.number is not None:
+        feature["properties"]["number"] = node.number
+    return feature
+
+
+def _create_edge_features(db: Session, nodes: list, node_map: dict, level: Optional[int]) -> list:
+    """Helper function to create GeoJSON features for edges."""
+    features = []
+    edge_query = db.query(Edge)
+    if level is not None:
+        level_node_ids = [n.id for n in nodes]
+        edge_query = edge_query.filter(Edge.from_id.in_(level_node_ids))
     
-#     try:
-#         db.delete(gate)
-#         db.commit()
-#     except Exception as e:
-#         db.rollback()
-#         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    for e in edge_query.all():
+        from_node = node_map.get(e.from_id)
+        to_node = node_map.get(e.to_id)
+        
+        if from_node and to_node:
+            features.append({
+                "type": "Feature",
+                "id": e.id,
+                "geometry": {
+                    "type": "LineString",
+                    "coordinates": [
+                        [from_node.x, from_node.y],
+                        [to_node.x, to_node.y]
+                    ]
+                },
+                "properties": {
+                    "id": e.id,
+                    "type": "edge",
+                    "weight": e.weight,
+                    "from_id": e.from_id,
+                    "to_id": e.to_id
+                }
+            })
+    return features
+
+
+def _calculate_bounds(nodes: list) -> Optional[dict]:
+    """Helper function to calculate map bounds from nodes."""
+    if not nodes:
+        return None
+    xs = [n.x for n in nodes]
+    ys = [n.y for n in nodes]
+    return {
+        "min_x": min(xs),
+        "max_x": max(xs),
+        "min_y": min(ys),
+        "max_y": max(ys)
+    }
+
+
+@app.get("/map/geojson")
+def get_map_geojson(
+    level: Optional[int] = Query(None, description="Filter by floor level (0, 1, 2)"),
+    types: Optional[str] = Query(None, description="Comma-separated node types: gate,poi,stairs,corridor,seat"),
+    include_edges: bool = Query(True, description="Include edges as LineStrings"),
+    include_seats: bool = Query(False, description="Include seat nodes (warning: many!)"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get map data in GeoJSON format for frontend visualization.
     
-#     return {"deleted": gate_id}
+    Returns a FeatureCollection with:
+    - Points for nodes (gates, POIs, stairs, etc.)
+    - LineStrings for edges (connections between nodes)
+    
+    Optimizations:
+    - Filter by level to reduce payload
+    - Exclude seats by default (there are thousands)
+    - Response is GZip compressed automatically
+    - ETag header for HTTP caching
+    """
+    # Build query with filters
+    query = db.query(Node)
+    
+    if level is not None:
+        query = query.filter(Node.level == level)
+    
+    if types:
+        type_list = [t.strip() for t in types.split(',')]
+        query = query.filter(Node.type.in_(type_list))
+    
+    if not include_seats:
+        query = query.filter(Node.type != 'seat')
+    
+    nodes = query.all()
+    
+    # Convert nodes to GeoJSON features
+    features = []
+    node_map = {}
+    
+    for n in nodes:
+        node_map[n.id] = n
+        features.append(_create_node_feature(n))
+    
+    # Add edges as LineStrings
+    if include_edges:
+        features.extend(_create_edge_features(db, nodes, node_map, level))
+    
+    # Calculate bounds for viewport
+    bounds = _calculate_bounds(nodes)
+    
+    result = {
+        "type": "FeatureCollection",
+        "features": features,
+        "metadata": {
+            "level": level if level is not None else "all",
+            "total_nodes": len([f for f in features if f["geometry"]["type"] == "Point"]),
+            "total_edges": len([f for f in features if f["geometry"]["type"] == "LineString"]),
+            "bounds": bounds
+        }
+    }
+    
+    # Generate ETag for HTTP caching (MD5 is safe here - used only for cache fingerprinting, not security)
+    # nosemgrep: python.lang.security.insecure-hash-function-md5.insecure-hash-function-md5
+    etag = hashlib.md5(f"{len(features)}:{level}:{types}".encode()).hexdigest()[:16]
+    
+    return JSONResponse(
+        content=result,
+        headers={
+            "ETag": f'"{etag}"',
+            "Cache-Control": "public, max-age=300"
+        }
+    )
+
+
+@app.get("/map/geojson/level/{level}")
+def get_level_geojson(level: int, db: Session = Depends(get_db)):
+    """
+    Shortcut endpoint to get GeoJSON for a specific floor level.
+    Excludes seats for performance.
+    """
+    return get_map_geojson(level=level, types=None, include_edges=True, include_seats=False, db=db)
+
+
+@app.get("/map/bounds")
+def get_map_bounds(db: Session = Depends(get_db)):
+    """
+    Get map boundaries and metadata for initial viewport configuration.
+    
+    Returns:
+    - bounds: min/max coordinates
+    - center: calculated center point  
+    - levels: available floor levels
+    """
+    result = db.query(
+        func.min(Node.x).label('min_x'),
+        func.max(Node.x).label('max_x'),
+        func.min(Node.y).label('min_y'),
+        func.max(Node.y).label('max_y')
+    ).first()
+    
+    # Get distinct levels
+    levels = [row[0] for row in db.query(Node.level).distinct().order_by(Node.level).all()]
+    
+    return {
+        "bounds": {
+            "min_x": result.min_x,
+            "max_x": result.max_x,
+            "min_y": result.min_y,
+            "max_y": result.max_y
+        },
+        "center": {
+            "x": (result.min_x + result.max_x) / 2,
+            "y": (result.min_y + result.max_y) / 2
+        },
+        "levels": levels
+    }
+
+
+@app.get("/map/geojson/pois")
+def get_pois_geojson(level: Optional[int] = None, db: Session = Depends(get_db)):
+    """
+    Get only POI nodes in GeoJSON format (optimized for markers layer).
+    
+    Includes: gates, restrooms, food, bars, stairs, ramps, emergency exits, 
+    first aid, information, and merchandise.
+    """
+    poi_types = [
+        'gate', 'restroom', 'food', 'bar', 'stairs', 'ramp',
+        'emergency_exit', 'first_aid', 'information', 'merchandise'
+    ]
+    return get_map_geojson(
+        level=level, 
+        types=','.join(poi_types), 
+        include_edges=False,
+        include_seats=False,
+        db=db
+    )
+
+# ================== EMERGENCY ROUTES ==================
+
+@app.get("/emergency-routes", response_model=List[EmergencyRouteResponse])
+def list_emergency_routes(db: Session = Depends(get_db)):
+    """
+    List all predefined emergency evacuation routes.
+    
+    Returns a list of routes with their IDs, names, and exit points.
+    Use the route ID to get the full path in GeoJSON format.
+    """
+    routes = db.query(EmergencyRoute).all()
+    return routes
+
+
+@app.get("/emergency-routes/nearest")
+def get_nearest_emergency_route(
+    x: float = Query(..., description="Current X coordinate"),
+    y: float = Query(..., description="Current Y coordinate"),
+    level: int = Query(0, description="Current floor level"),
+    db: Session = Depends(get_db)
+):
+    """
+    Find the nearest emergency evacuation route based on current position.
+    
+    Returns the closest route's start point and distance to it.
+    """
+    routes = db.query(EmergencyRoute).all()
+    
+    if not routes:
+        raise HTTPException(status_code=404, detail="No emergency routes defined")
+    
+    # Get all start nodes (first node of each route)
+    nearest_route = None
+    min_distance = float('inf')
+    nearest_start_node = None
+    
+    for route in routes:
+        if not route.node_ids or len(route.node_ids) == 0:
+            continue
+            
+        start_node_id = route.node_ids[0]
+        start_node = db.query(Node).filter(Node.id == start_node_id).first()
+        
+        if not start_node:
+            continue
+        
+        # Calculate Euclidean distance
+        distance = math.sqrt((x - start_node.x) ** 2 + (y - start_node.y) ** 2)
+        
+        # Prefer routes on the same level
+        if start_node.level != level:
+            distance += 100  # Penalty for level change
+        
+        if distance < min_distance:
+            min_distance = distance
+            nearest_route = route
+            nearest_start_node = start_node
+    
+    if not nearest_route:
+        raise HTTPException(status_code=404, detail="No valid emergency routes found")
+    
+    return {
+        "route_id": nearest_route.id,
+        "route_name": nearest_route.name,
+        "exit_id": nearest_route.exit_id,
+        "start_node": {
+            "id": nearest_start_node.id,
+            "x": nearest_start_node.x,
+            "y": nearest_start_node.y,
+            "level": nearest_start_node.level
+        },
+        "distance_to_start": round(min_distance, 2),
+        "num_waypoints": len(nearest_route.node_ids)
+    }
+
+
+@app.get("/emergency-routes/{route_id}")
+def get_emergency_route_geojson(route_id: str, db: Session = Depends(get_db)):
+    """
+    Get a specific emergency route in GeoJSON format.
+    
+    Returns the complete evacuation path as a LineString with all waypoints.
+    """
+    route = db.query(EmergencyRoute).filter(EmergencyRoute.id == route_id).first()
+    
+    if not route:
+        raise HTTPException(status_code=404, detail=f"Emergency route '{route_id}' not found")
+    
+    # Get all nodes in the path
+    path_nodes = {n.id: n for n in db.query(Node).filter(Node.id.in_(route.node_ids)).all()}
+    
+    # Build route coordinates
+    coordinates = []
+    waypoint_features = []
+    
+    for idx, node_id in enumerate(route.node_ids):
+        node = path_nodes.get(node_id)
+        if node:
+            coordinates.append([node.x, node.y])
+            
+            # Add waypoint marker
+            if idx == 0:
+                role = "start"
+            elif idx == len(route.node_ids) - 1:
+                role = "exit"
+            else:
+                role = "waypoint"
+            waypoint_features.append({
+                "type": "Feature",
+                "id": f"wp_{node_id}",
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [node.x, node.y]
+                },
+                "properties": {
+                    "id": node_id,
+                    "name": node.name,
+                    "type": node.type,
+                    "level": node.level,
+                    "role": role,
+                    "order": idx
+                }
+            })
+    
+    features = [
+        # The route line
+        {
+            "type": "Feature",
+            "id": f"route_{route_id}",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": coordinates
+            },
+            "properties": {
+                "type": "emergency_route",
+                "route_id": route.id,
+                "route_name": route.name,
+                "exit_id": route.exit_id,
+                "num_waypoints": len(route.node_ids)
+            }
+        }
+    ] + waypoint_features
+    
+    return {
+        "type": "FeatureCollection",
+        "features": features,
+        "metadata": {
+            "route_id": route.id,
+            "route_name": route.name,
+            "description": route.description,
+            "exit_id": route.exit_id,
+            "node_ids": route.node_ids,
+            "num_waypoints": len(route.node_ids)
+        }
+    }
+
+# ================== RESET ==================
 
 # ================== HEALTH CHECK ==================
 
@@ -652,7 +1603,7 @@ def health_check():
 
 # ================== DATA MANAGEMENT ==================
 
-@app.post("/api/reset")
+@app.post("/reset")
 def reset_data(db: Session = Depends(get_db)):
     """Reset database to initial state with sample data."""
     from load_data_db import clear_all_data, load_sample_data
@@ -673,5 +1624,5 @@ def reset_data(db: Session = Depends(get_db)):
             "tiles_created": tile_count
         }
     except Exception as e:
-        print(f"❌ Reset failed: {str(e)}")
+        print(f"Reset failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Reset failed: {str(e)}")

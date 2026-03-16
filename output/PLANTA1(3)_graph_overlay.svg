@@ -1,0 +1,476 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="458.91339" height="464.86154" viewBox="0 0 458.91339 464.86154" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    .edge { stroke: #888; stroke-width: 0.8; opacity: 0.5; }
+    .node-corridor { fill: #2196F3; }
+    .node-restroom { fill: #9C27B0; }
+    .node-bar { fill: #FF9800; }
+    .node-stairs { fill: #4CAF50; }
+    .node-gate { fill: #00BCD4; }
+    .node-emergency_exit { fill: #F44336; }
+    .node-normal { fill: #607D8B; }
+    .node-door { fill: #FFEB3B; }
+    .label { font-size: 3px; fill: #333; font-family: Arial; }
+  </style>
+  <!-- Background: semi-transparent white -->
+  <rect width="100%" height="100%" fill="white" opacity="0.8"/>
+  <!-- Edges -->
+  <line x1="101.9507515" y1="140.76532" x2="111.02075149999999" y2="134.51032" class="edge"/>
+  <line x1="111.02075149999999" y1="134.51032" x2="101.9507515" y2="140.76532" class="edge"/>
+  <line x1="101.9507515" y1="155.14532" x2="111.0207515" y2="161.40032" class="edge"/>
+  <line x1="111.0207515" y1="161.40032" x2="101.9507515" y2="155.14532" class="edge"/>
+  <line x1="185.94075" y1="328.03032" x2="223.14575000000002" y2="309.93532000000005" class="edge"/>
+  <line x1="223.14575000000002" y1="309.93532000000005" x2="185.94075" y2="328.03032" class="edge"/>
+  <line x1="273.23575000000005" y1="326.42532" x2="276.76575" y2="307.87532" class="edge"/>
+  <line x1="276.76575" y1="307.87532" x2="273.23575000000005" y2="326.42532" class="edge"/>
+  <line x1="294.18075" y1="325.15532" x2="300.60575" y2="306.95532000000003" class="edge"/>
+  <line x1="300.60575" y1="306.95532000000003" x2="294.18075" y2="325.15532" class="edge"/>
+  <line x1="335.65075" y1="320.03532" x2="327.77575" y2="305.75532" class="edge"/>
+  <line x1="327.77575" y1="305.75532" x2="335.65075" y2="320.03532" class="edge"/>
+  <line x1="335.69075" y1="246.56532" x2="315.49075" y2="261.10532" class="edge"/>
+  <line x1="315.49075" y1="261.10532" x2="335.69075" y2="246.56532" class="edge"/>
+  <line x1="335.69075" y1="204.67032" x2="315.49075" y2="218.42532" class="edge"/>
+  <line x1="315.49075" y1="218.42532" x2="335.69075" y2="204.67032" class="edge"/>
+  <line x1="274.72075" y1="98.7453175" x2="274.72075" y2="107.0003175" class="edge"/>
+  <line x1="274.72075" y1="107.0003175" x2="274.72075" y2="98.7453175" class="edge"/>
+  <line x1="335.69075" y1="185.28032000000002" x2="303.95574999999997" y2="159.64532" class="edge"/>
+  <line x1="303.95574999999997" y1="159.64532" x2="335.69075" y2="185.28032000000002" class="edge"/>
+  <line x1="210.18075" y1="368.41032" x2="245.41098499999998" y2="407.14531999999997" class="edge"/>
+  <line x1="245.41098499999998" y1="407.14531999999997" x2="210.18075" y2="368.41032" class="edge"/>
+  <line x1="63.320754" y1="276.08532" x2="41.185754" y2="270.82532000000003" class="edge"/>
+  <line x1="41.185754" y1="270.82532000000003" x2="63.320754" y2="276.08532" class="edge"/>
+  <line x1="65.560754" y1="226.07532" x2="42.080754" y2="237.76032000000004" class="edge"/>
+  <line x1="42.080754" y1="237.76032000000004" x2="65.560754" y2="226.07532" class="edge"/>
+  <line x1="66.26075399999999" y1="210.66032" x2="42.820754" y2="197.50531999999998" class="edge"/>
+  <line x1="42.820754" y1="197.50531999999998" x2="66.26075399999999" y2="210.66032" class="edge"/>
+  <line x1="69.32575399999999" y1="142.28532" x2="43.965754" y2="155.60532" class="edge"/>
+  <line x1="43.965754" y1="155.60532" x2="69.32575399999999" y2="142.28532" class="edge"/>
+  <line x1="70.030754" y1="126.87031999999999" x2="44.599346" y2="115.271929" class="edge"/>
+  <line x1="44.599346" y1="115.271929" x2="70.030754" y2="126.87031999999999" class="edge"/>
+  <line x1="371.95575" y1="316.82032" x2="406.31575" y2="377.79032" class="edge"/>
+  <line x1="406.31575" y1="377.79032" x2="371.95575" y2="316.82032" class="edge"/>
+  <line x1="194.54575" y1="368.41032" x2="151.99075000000002" y2="406.67532000000006" class="edge"/>
+  <line x1="151.99075000000002" y1="406.67532000000006" x2="194.54575" y2="368.41032" class="edge"/>
+  <line x1="88.245753" y1="65.590319" x2="55.725753499999996" y2="41.8353185" class="edge"/>
+  <line x1="55.725753499999996" y1="41.8353185" x2="88.245753" y2="65.590319" class="edge"/>
+  <line x1="390.02575" y1="263.04532" x2="381.30575" y2="269.42492500000003" class="edge"/>
+  <line x1="381.30575" y1="269.42492500000003" x2="390.02575" y2="263.04532" class="edge"/>
+  <line x1="132.66075" y1="66.84531899999999" x2="119.5107505" y2="43.0553185" class="edge"/>
+  <line x1="119.5107505" y1="43.0553185" x2="132.66075" y2="66.84531899999999" class="edge"/>
+  <line x1="216.45075" y1="63.815318999999995" x2="203.30075" y2="41.54531849999999" class="edge"/>
+  <line x1="203.30075" y1="41.54531849999999" x2="216.45075" y2="63.815318999999995" class="edge"/>
+  <line x1="66.74075400000001" y1="311.29031999999995" x2="40.520754" y2="305.42031999999995" class="edge"/>
+  <line x1="40.520754" y1="305.42031999999995" x2="66.74075400000001" y2="311.29031999999995" class="edge"/>
+  <line x1="231.91075" y1="63.415319" x2="244.72575" y2="41.215318499999995" class="edge"/>
+  <line x1="244.72575" y1="41.215318499999995" x2="231.91075" y2="63.415319" class="edge"/>
+  <line x1="272.87075" y1="61.93531900000001" x2="275.77575" y2="40.4753185" class="edge"/>
+  <line x1="275.77575" y1="40.4753185" x2="272.87075" y2="61.93531900000001" class="edge"/>
+  <line x1="402.53075" y1="251.16532" x2="421.98606" y2="259.922525" class="edge"/>
+  <line x1="421.98606" y1="259.922525" x2="402.53075" y2="251.16532" class="edge"/>
+  <line x1="390.63575000000003" y1="87.365317" x2="412.91575" y2="49.03531649999999" class="edge"/>
+  <line x1="412.91575" y1="49.03531649999999" x2="390.63575000000003" y2="87.365317" class="edge"/>
+  <line x1="219.70075" y1="112.02532" x2="175.3945" y2="133.70031749999998" class="edge"/>
+  <line x1="175.3945" y1="133.70031749999998" x2="219.70075" y2="112.02532" class="edge"/>
+  <line x1="297.09575" y1="368.41032" x2="328.50087499999995" y2="407.24032" class="edge"/>
+  <line x1="328.50087499999995" y1="407.24032" x2="297.09575" y2="368.41032" class="edge"/>
+  <line x1="371.95575" y1="246.16032" x2="406.31575" y2="175.2003175" class="edge"/>
+  <line x1="406.31575" y1="175.2003175" x2="371.95575" y2="246.16032" class="edge"/>
+  <line x1="252.83575000000002" y1="98.4303175" x2="244.71075000000002" y2="133.6727225" class="edge"/>
+  <line x1="244.71075000000002" y1="133.6727225" x2="252.83575000000002" y2="98.4303175" class="edge"/>
+  <line x1="319.74575" y1="98.1203175" x2="320.37037499999997" y2="108.31766250000001" class="edge"/>
+  <line x1="320.37037499999997" y1="108.31766250000001" x2="319.74575" y2="98.1203175" class="edge"/>
+  <line x1="101.9507515" y1="140.76532" x2="101.9507515" y2="155.14532" class="edge"/>
+  <line x1="101.9507515" y1="155.14532" x2="101.9507515" y2="140.76532" class="edge"/>
+  <line x1="273.23575000000005" y1="326.42532" x2="294.18075" y2="325.15532" class="edge"/>
+  <line x1="294.18075" y1="325.15532" x2="273.23575000000005" y2="326.42532" class="edge"/>
+  <line x1="273.23575000000005" y1="326.42532" x2="255.18" y2="348.7" class="edge"/>
+  <line x1="255.18" y1="348.7" x2="273.23575000000005" y2="326.42532" class="edge"/>
+  <line x1="335.69075" y1="246.56532" x2="353.98" y2="237.14" class="edge"/>
+  <line x1="353.98" y1="237.14" x2="335.69075" y2="246.56532" class="edge"/>
+  <line x1="335.69075" y1="246.56532" x2="353.98" y2="257.14" class="edge"/>
+  <line x1="353.98" y1="257.14" x2="335.69075" y2="246.56532" class="edge"/>
+  <line x1="335.69075" y1="204.67032" x2="335.69075" y2="185.28032000000002" class="edge"/>
+  <line x1="335.69075" y1="185.28032000000002" x2="335.69075" y2="204.67032" class="edge"/>
+  <line x1="335.69075" y1="204.67032" x2="353.98" y2="197.14" class="edge"/>
+  <line x1="353.98" y1="197.14" x2="335.69075" y2="204.67032" class="edge"/>
+  <line x1="335.69075" y1="204.67032" x2="353.98" y2="217.14" class="edge"/>
+  <line x1="353.98" y1="217.14" x2="335.69075" y2="204.67032" class="edge"/>
+  <line x1="274.72075" y1="98.7453175" x2="252.83575000000002" y2="98.4303175" class="edge"/>
+  <line x1="252.83575000000002" y1="98.4303175" x2="274.72075" y2="98.7453175" class="edge"/>
+  <line x1="335.69075" y1="185.28032000000002" x2="353.98" y2="177.14" class="edge"/>
+  <line x1="353.98" y1="177.14" x2="335.69075" y2="185.28032000000002" class="edge"/>
+  <line x1="335.69075" y1="185.28032000000002" x2="353.98" y2="197.14" class="edge"/>
+  <line x1="353.98" y1="197.14" x2="335.69075" y2="185.28032000000002" class="edge"/>
+  <line x1="210.18075" y1="368.41032" x2="194.54575" y2="368.41032" class="edge"/>
+  <line x1="194.54575" y1="368.41032" x2="210.18075" y2="368.41032" class="edge"/>
+  <line x1="210.18075" y1="368.41032" x2="215.18" y2="348.7" class="edge"/>
+  <line x1="215.18" y1="348.7" x2="210.18075" y2="368.41032" class="edge"/>
+  <line x1="63.320754" y1="276.08532" x2="84.03" y2="259.47" class="edge"/>
+  <line x1="84.03" y1="259.47" x2="63.320754" y2="276.08532" class="edge"/>
+  <line x1="65.560754" y1="226.07532" x2="66.26075399999999" y2="210.66032" class="edge"/>
+  <line x1="66.26075399999999" y1="210.66032" x2="65.560754" y2="226.07532" class="edge"/>
+  <line x1="65.560754" y1="226.07532" x2="84.03" y2="219.47" class="edge"/>
+  <line x1="84.03" y1="219.47" x2="65.560754" y2="226.07532" class="edge"/>
+  <line x1="65.560754" y1="226.07532" x2="84.03" y2="239.47" class="edge"/>
+  <line x1="84.03" y1="239.47" x2="65.560754" y2="226.07532" class="edge"/>
+  <line x1="66.26075399999999" y1="210.66032" x2="84.03" y2="199.47" class="edge"/>
+  <line x1="84.03" y1="199.47" x2="66.26075399999999" y2="210.66032" class="edge"/>
+  <line x1="66.26075399999999" y1="210.66032" x2="84.03" y2="219.47" class="edge"/>
+  <line x1="84.03" y1="219.47" x2="66.26075399999999" y2="210.66032" class="edge"/>
+  <line x1="69.32575399999999" y1="142.28532" x2="70.030754" y2="126.87031999999999" class="edge"/>
+  <line x1="70.030754" y1="126.87031999999999" x2="69.32575399999999" y2="142.28532" class="edge"/>
+  <line x1="194.54575" y1="368.41032" x2="215.18" y2="348.7" class="edge"/>
+  <line x1="215.18" y1="348.7" x2="194.54575" y2="368.41032" class="edge"/>
+  <line x1="390.02575" y1="263.04532" x2="402.53075" y2="251.16532" class="edge"/>
+  <line x1="402.53075" y1="251.16532" x2="390.02575" y2="263.04532" class="edge"/>
+  <line x1="390.02575" y1="263.04532" x2="371.95575" y2="246.16032" class="edge"/>
+  <line x1="371.95575" y1="246.16032" x2="390.02575" y2="263.04532" class="edge"/>
+  <line x1="132.66075" y1="66.84531899999999" x2="153.34" y2="81.9" class="edge"/>
+  <line x1="153.34" y1="81.9" x2="132.66075" y2="66.84531899999999" class="edge"/>
+  <line x1="216.45075" y1="63.815318999999995" x2="231.91075" y2="63.415319" class="edge"/>
+  <line x1="231.91075" y1="63.415319" x2="216.45075" y2="63.815318999999995" class="edge"/>
+  <line x1="371.95575" y1="246.16032" x2="353.98" y2="237.14" class="edge"/>
+  <line x1="353.98" y1="237.14" x2="371.95575" y2="246.16032" class="edge"/>
+  <line x1="371.95575" y1="246.16032" x2="353.98" y2="257.14" class="edge"/>
+  <line x1="353.98" y1="257.14" x2="371.95575" y2="246.16032" class="edge"/>
+  <line x1="319.74575" y1="98.1203175" x2="320.74" y2="94.68" class="edge"/>
+  <line x1="320.74" y1="94.68" x2="319.74575" y2="98.1203175" class="edge"/>
+  <line x1="319.74575" y1="98.1203175" x2="320.74" y2="114.68" class="edge"/>
+  <line x1="320.74" y1="114.68" x2="319.74575" y2="98.1203175" class="edge"/>
+  <line x1="431.92" y1="4.01" x2="451.92" y2="4.01" class="edge"/>
+  <line x1="451.92" y1="4.01" x2="431.92" y2="4.01" class="edge"/>
+  <line x1="431.92" y1="4.01" x2="456.25" y2="6.52" class="edge"/>
+  <line x1="456.25" y1="6.52" x2="431.92" y2="4.01" class="edge"/>
+  <line x1="451.92" y1="4.01" x2="456.25" y2="6.52" class="edge"/>
+  <line x1="456.25" y1="6.52" x2="451.92" y2="4.01" class="edge"/>
+  <line x1="451.92" y1="4.01" x2="456.25" y2="26.52" class="edge"/>
+  <line x1="456.25" y1="26.52" x2="451.92" y2="4.01" class="edge"/>
+  <line x1="153.34" y1="81.9" x2="173.34" y2="81.9" class="edge"/>
+  <line x1="173.34" y1="81.9" x2="153.34" y2="81.9" class="edge"/>
+  <line x1="215.18" y1="348.7" x2="235.18" y2="348.7" class="edge"/>
+  <line x1="235.18" y1="348.7" x2="215.18" y2="348.7" class="edge"/>
+  <line x1="235.18" y1="348.7" x2="255.18" y2="348.7" class="edge"/>
+  <line x1="255.18" y1="348.7" x2="235.18" y2="348.7" class="edge"/>
+  <line x1="102.56" y1="364.19" x2="122.56" y2="364.19" class="edge"/>
+  <line x1="122.56" y1="364.19" x2="102.56" y2="364.19" class="edge"/>
+  <line x1="122.56" y1="364.19" x2="142.56" y2="364.19" class="edge"/>
+  <line x1="142.56" y1="364.19" x2="122.56" y2="364.19" class="edge"/>
+  <line x1="142.56" y1="364.19" x2="162.56" y2="364.19" class="edge"/>
+  <line x1="162.56" y1="364.19" x2="142.56" y2="364.19" class="edge"/>
+  <line x1="10.27" y1="339.93" x2="10.27" y2="359.93" class="edge"/>
+  <line x1="10.27" y1="359.93" x2="10.27" y2="339.93" class="edge"/>
+  <line x1="10.27" y1="359.93" x2="10.27" y2="379.93" class="edge"/>
+  <line x1="10.27" y1="379.93" x2="10.27" y2="359.93" class="edge"/>
+  <line x1="10.27" y1="379.93" x2="10.27" y2="399.93" class="edge"/>
+  <line x1="10.27" y1="399.93" x2="10.27" y2="379.93" class="edge"/>
+  <line x1="10.27" y1="399.93" x2="10.27" y2="419.93" class="edge"/>
+  <line x1="10.27" y1="419.93" x2="10.27" y2="399.93" class="edge"/>
+  <line x1="84.03" y1="179.47" x2="84.03" y2="199.47" class="edge"/>
+  <line x1="84.03" y1="199.47" x2="84.03" y2="179.47" class="edge"/>
+  <line x1="84.03" y1="199.47" x2="84.03" y2="219.47" class="edge"/>
+  <line x1="84.03" y1="219.47" x2="84.03" y2="199.47" class="edge"/>
+  <line x1="84.03" y1="219.47" x2="84.03" y2="239.47" class="edge"/>
+  <line x1="84.03" y1="239.47" x2="84.03" y2="219.47" class="edge"/>
+  <line x1="84.03" y1="239.47" x2="84.03" y2="259.47" class="edge"/>
+  <line x1="84.03" y1="259.47" x2="84.03" y2="239.47" class="edge"/>
+  <line x1="320.74" y1="94.68" x2="320.74" y2="114.68" class="edge"/>
+  <line x1="320.74" y1="114.68" x2="320.74" y2="94.68" class="edge"/>
+  <line x1="353.98" y1="137.14" x2="353.98" y2="157.14" class="edge"/>
+  <line x1="353.98" y1="157.14" x2="353.98" y2="137.14" class="edge"/>
+  <line x1="353.98" y1="157.14" x2="353.98" y2="177.14" class="edge"/>
+  <line x1="353.98" y1="177.14" x2="353.98" y2="157.14" class="edge"/>
+  <line x1="353.98" y1="177.14" x2="353.98" y2="197.14" class="edge"/>
+  <line x1="353.98" y1="197.14" x2="353.98" y2="177.14" class="edge"/>
+  <line x1="353.98" y1="197.14" x2="353.98" y2="217.14" class="edge"/>
+  <line x1="353.98" y1="217.14" x2="353.98" y2="197.14" class="edge"/>
+  <line x1="353.98" y1="217.14" x2="353.98" y2="237.14" class="edge"/>
+  <line x1="353.98" y1="237.14" x2="353.98" y2="217.14" class="edge"/>
+  <line x1="353.98" y1="237.14" x2="353.98" y2="257.14" class="edge"/>
+  <line x1="353.98" y1="257.14" x2="353.98" y2="237.14" class="edge"/>
+  <line x1="353.98" y1="257.14" x2="353.98" y2="277.14" class="edge"/>
+  <line x1="353.98" y1="277.14" x2="353.98" y2="257.14" class="edge"/>
+  <line x1="456.25" y1="6.52" x2="456.25" y2="26.52" class="edge"/>
+  <line x1="456.25" y1="26.52" x2="456.25" y2="6.52" class="edge"/>
+  <line x1="101.9507515" y1="140.76532" x2="101.9507515" y2="140.76532" class="edge"/>
+  <line x1="101.9507515" y1="140.76532" x2="69.32575399999999" y2="142.28532" class="edge"/>
+  <line x1="69.32575399999999" y1="142.28532" x2="101.9507515" y2="140.76532" class="edge"/>
+  <line x1="101.9507515" y1="155.14532" x2="101.9507515" y2="155.14532" class="edge"/>
+  <line x1="101.9507515" y1="155.14532" x2="84.03" y2="179.47" class="edge"/>
+  <line x1="84.03" y1="179.47" x2="101.9507515" y2="155.14532" class="edge"/>
+  <line x1="185.94075" y1="328.03032" x2="185.94075" y2="328.03032" class="edge"/>
+  <line x1="185.94075" y1="328.03032" x2="215.18" y2="348.7" class="edge"/>
+  <line x1="215.18" y1="348.7" x2="185.94075" y2="328.03032" class="edge"/>
+  <line x1="273.23575000000005" y1="326.42532" x2="273.23575000000005" y2="326.42532" class="edge"/>
+  <line x1="294.18075" y1="325.15532" x2="294.18075" y2="325.15532" class="edge"/>
+  <line x1="294.18075" y1="325.15532" x2="335.65075" y2="320.03532" class="edge"/>
+  <line x1="335.65075" y1="320.03532" x2="294.18075" y2="325.15532" class="edge"/>
+  <line x1="335.65075" y1="320.03532" x2="335.65075" y2="320.03532" class="edge"/>
+  <line x1="335.65075" y1="320.03532" x2="371.95575" y2="316.82032" class="edge"/>
+  <line x1="371.95575" y1="316.82032" x2="335.65075" y2="320.03532" class="edge"/>
+  <line x1="335.69075" y1="246.56532" x2="335.69075" y2="246.56532" class="edge"/>
+  <line x1="335.69075" y1="204.67032" x2="335.69075" y2="204.67032" class="edge"/>
+  <line x1="274.72075" y1="98.7453175" x2="274.72075" y2="98.7453175" class="edge"/>
+  <line x1="274.72075" y1="98.7453175" x2="272.87075" y2="61.93531900000001" class="edge"/>
+  <line x1="272.87075" y1="61.93531900000001" x2="274.72075" y2="98.7453175" class="edge"/>
+  <line x1="335.69075" y1="185.28032000000002" x2="335.69075" y2="185.28032000000002" class="edge"/>
+  <line x1="210.18075" y1="368.41032" x2="210.18075" y2="368.41032" class="edge"/>
+  <line x1="63.320754" y1="276.08532" x2="63.320754" y2="276.08532" class="edge"/>
+  <line x1="63.320754" y1="276.08532" x2="66.74075400000001" y2="311.29031999999995" class="edge"/>
+  <line x1="66.74075400000001" y1="311.29031999999995" x2="63.320754" y2="276.08532" class="edge"/>
+  <line x1="65.560754" y1="226.07532" x2="65.560754" y2="226.07532" class="edge"/>
+  <line x1="66.26075399999999" y1="210.66032" x2="66.26075399999999" y2="210.66032" class="edge"/>
+  <line x1="69.32575399999999" y1="142.28532" x2="69.32575399999999" y2="142.28532" class="edge"/>
+  <line x1="70.030754" y1="126.87031999999999" x2="70.030754" y2="126.87031999999999" class="edge"/>
+  <line x1="70.030754" y1="126.87031999999999" x2="101.9507515" y2="140.76532" class="edge"/>
+  <line x1="101.9507515" y1="140.76532" x2="70.030754" y2="126.87031999999999" class="edge"/>
+  <line x1="371.95575" y1="316.82032" x2="371.95575" y2="316.82032" class="edge"/>
+  <line x1="371.95575" y1="316.82032" x2="353.98" y2="277.14" class="edge"/>
+  <line x1="353.98" y1="277.14" x2="371.95575" y2="316.82032" class="edge"/>
+  <line x1="194.54575" y1="368.41032" x2="194.54575" y2="368.41032" class="edge"/>
+  <line x1="88.245753" y1="65.590319" x2="88.245753" y2="65.590319" class="edge"/>
+  <line x1="88.245753" y1="65.590319" x2="132.66075" y2="66.84531899999999" class="edge"/>
+  <line x1="132.66075" y1="66.84531899999999" x2="88.245753" y2="65.590319" class="edge"/>
+  <line x1="390.02575" y1="263.04532" x2="390.02575" y2="263.04532" class="edge"/>
+  <line x1="132.66075" y1="66.84531899999999" x2="132.66075" y2="66.84531899999999" class="edge"/>
+  <line x1="132.66075" y1="66.84531899999999" x2="173.34" y2="81.9" class="edge"/>
+  <line x1="173.34" y1="81.9" x2="132.66075" y2="66.84531899999999" class="edge"/>
+  <line x1="216.45075" y1="63.815318999999995" x2="216.45075" y2="63.815318999999995" class="edge"/>
+  <line x1="216.45075" y1="63.815318999999995" x2="173.34" y2="81.9" class="edge"/>
+  <line x1="173.34" y1="81.9" x2="216.45075" y2="63.815318999999995" class="edge"/>
+  <line x1="66.74075400000001" y1="311.29031999999995" x2="66.74075400000001" y2="311.29031999999995" class="edge"/>
+  <line x1="231.91075" y1="63.415319" x2="231.91075" y2="63.415319" class="edge"/>
+  <line x1="231.91075" y1="63.415319" x2="252.83575000000002" y2="98.4303175" class="edge"/>
+  <line x1="252.83575000000002" y1="98.4303175" x2="231.91075" y2="63.415319" class="edge"/>
+  <line x1="272.87075" y1="61.93531900000001" x2="272.87075" y2="61.93531900000001" class="edge"/>
+  <line x1="272.87075" y1="61.93531900000001" x2="231.91075" y2="63.415319" class="edge"/>
+  <line x1="231.91075" y1="63.415319" x2="272.87075" y2="61.93531900000001" class="edge"/>
+  <line x1="402.53075" y1="251.16532" x2="402.53075" y2="251.16532" class="edge"/>
+  <line x1="402.53075" y1="251.16532" x2="371.95575" y2="246.16032" class="edge"/>
+  <line x1="371.95575" y1="246.16032" x2="402.53075" y2="251.16532" class="edge"/>
+  <line x1="390.63575000000003" y1="87.365317" x2="390.63575000000003" y2="87.365317" class="edge"/>
+  <line x1="219.70075" y1="112.02532" x2="219.70075" y2="112.02532" class="edge"/>
+  <line x1="219.70075" y1="112.02532" x2="252.83575000000002" y2="98.4303175" class="edge"/>
+  <line x1="252.83575000000002" y1="98.4303175" x2="219.70075" y2="112.02532" class="edge"/>
+  <line x1="297.09575" y1="368.41032" x2="297.09575" y2="368.41032" class="edge"/>
+  <line x1="297.09575" y1="368.41032" x2="294.18075" y2="325.15532" class="edge"/>
+  <line x1="294.18075" y1="325.15532" x2="297.09575" y2="368.41032" class="edge"/>
+  <line x1="371.95575" y1="246.16032" x2="371.95575" y2="246.16032" class="edge"/>
+  <line x1="252.83575000000002" y1="98.4303175" x2="252.83575000000002" y2="98.4303175" class="edge"/>
+  <line x1="319.74575" y1="98.1203175" x2="319.74575" y2="98.1203175" class="edge"/>
+  <line x1="298.17075" y1="107.7503175" x2="320.74" y2="114.68" class="edge"/>
+  <line x1="320.74" y1="114.68" x2="298.17075" y2="107.7503175" class="edge"/>
+  <line x1="422.22575" y1="293.69032" x2="390.02575" y2="263.04532" class="edge"/>
+  <line x1="390.02575" y1="263.04532" x2="422.22575" y2="293.69032" class="edge"/>
+  <line x1="42.23575355" y1="79.755317" x2="88.245753" y2="65.590319" class="edge"/>
+  <line x1="88.245753" y1="65.590319" x2="42.23575355" y2="79.755317" class="edge"/>
+  <line x1="148.12075" y1="66.445319" x2="132.66075" y2="66.84531899999999" class="edge"/>
+  <line x1="132.66075" y1="66.84531899999999" x2="148.12075" y2="66.445319" class="edge"/>
+  <line x1="381.30575" y1="293.55598499999996" x2="371.95575" y2="316.82032" class="edge"/>
+  <line x1="371.95575" y1="316.82032" x2="381.30575" y2="293.55598499999996" class="edge"/>
+  <line x1="219.70075" y1="112.02532" x2="219.70075" y2="112.02532" class="edge"/>
+  <line x1="219.70075" y1="112.02532" x2="219.70075" y2="112.02532" class="edge"/>
+  <line x1="138.0057515" y1="246.28032000000002" x2="84.03" y2="239.47" class="edge"/>
+  <line x1="84.03" y1="239.47" x2="138.0057515" y2="246.28032000000002" class="edge"/>
+  <line x1="54.850754" y1="425.31532" x2="10.27" y2="419.93" class="edge"/>
+  <line x1="10.27" y1="419.93" x2="54.850754" y2="425.31532" class="edge"/>
+  <line x1="327.74075" y1="40.845319" x2="320.74" y2="94.68" class="edge"/>
+  <line x1="320.74" y1="94.68" x2="327.74075" y2="40.845319" class="edge"/>
+  <line x1="95.0757515" y1="294.26032" x2="66.74075400000001" y2="311.29031999999995" class="edge"/>
+  <line x1="66.74075400000001" y1="311.29031999999995" x2="95.0757515" y2="294.26032" class="edge"/>
+  <line x1="138.0057515" y1="246.28032000000002" x2="185.94075" y2="328.03032" class="edge"/>
+  <line x1="185.94075" y1="328.03032" x2="138.0057515" y2="246.28032000000002" class="edge"/>
+  <line x1="42.23575355" y1="79.755317" x2="44.599346" y2="115.271929" class="edge"/>
+  <line x1="44.599346" y1="115.271929" x2="42.23575355" y2="79.755317" class="edge"/>
+  <line x1="298.17075" y1="107.7503175" x2="274.72075" y2="107.0003175" class="edge"/>
+  <line x1="274.72075" y1="107.0003175" x2="298.17075" y2="107.7503175" class="edge"/>
+  <line x1="10.27" y1="339.93" x2="40.520754" y2="305.42031999999995" class="edge"/>
+  <line x1="40.520754" y1="305.42031999999995" x2="10.27" y2="339.93" class="edge"/>
+  <line x1="431.92" y1="4.01" x2="327.74075" y2="40.845319" class="edge"/>
+  <line x1="327.74075" y1="40.845319" x2="431.92" y2="4.01" class="edge"/>
+  <line x1="162.56" y1="364.19" x2="194.54575" y2="368.41032" class="edge"/>
+  <line x1="194.54575" y1="368.41032" x2="162.56" y2="364.19" class="edge"/>
+  <line x1="412.91575" y1="49.03531649999999" x2="456.25" y2="26.52" class="edge"/>
+  <line x1="456.25" y1="26.52" x2="412.91575" y2="49.03531649999999" class="edge"/>
+  <!-- Nodes -->
+  <circle cx="111.02075149999999" cy="134.51032" r="3.0" class="node-restroom"><title>POI-wc1.07: wc1.07</title></circle>
+  <text x="114.02075149999999" y="135.51032" class="label">wc1.07</text>
+  <circle cx="101.9507515" cy="140.76532" r="1.5" class="node-door"><title>DOOR-door1.07: Porta door1.07</title></circle>
+  <text x="104.9507515" y="141.76532" class="label">Porta door1.07</text>
+  <circle cx="111.0207515" cy="161.40032" r="3.0" class="node-restroom"><title>POI-wc1.06: wc1.06</title></circle>
+  <text x="114.0207515" y="162.40032" class="label">wc1.06</text>
+  <circle cx="101.9507515" cy="155.14532" r="1.5" class="node-door"><title>DOOR-door1.06: Porta door1.06</title></circle>
+  <text x="104.9507515" y="156.14532" class="label">Porta door1.06</text>
+  <circle cx="223.14575000000002" cy="309.93532000000005" r="3.0" class="node-bar"><title>POI-bar1.37: bar1.37</title></circle>
+  <text x="226.14575000000002" y="310.93532000000005" class="label">bar1.37</text>
+  <circle cx="185.94075" cy="328.03032" r="1.5" class="node-door"><title>DOOR-door1.37: Porta door1.37</title></circle>
+  <text x="188.94075" y="329.03032" class="label">Porta door1.37</text>
+  <circle cx="276.76575" cy="307.87532" r="3.0" class="node-normal"><title>POI-room1.34: room1.34</title></circle>
+  <text x="279.76575" y="308.87532" class="label">room1.34</text>
+  <circle cx="273.23575000000005" cy="326.42532" r="1.5" class="node-door"><title>DOOR-door1.34: Porta door1.34</title></circle>
+  <text x="276.23575000000005" y="327.42532" class="label">Porta door1.34</text>
+  <circle cx="300.60575" cy="306.95532000000003" r="3.0" class="node-restroom"><title>POI-wc1.33: wc1.33</title></circle>
+  <text x="303.60575" y="307.95532000000003" class="label">wc1.33</text>
+  <circle cx="294.18075" cy="325.15532" r="1.5" class="node-door"><title>DOOR-door1.33: Porta door1.33</title></circle>
+  <text x="297.18075" y="326.15532" class="label">Porta door1.33</text>
+  <circle cx="327.77575" cy="305.75532" r="3.0" class="node-restroom"><title>POI-wc1.28: wc1.28</title></circle>
+  <text x="330.77575" y="306.75532" class="label">wc1.28</text>
+  <circle cx="335.65075" cy="320.03532" r="1.5" class="node-door"><title>DOOR-door1.28: Porta door1.28</title></circle>
+  <text x="338.65075" y="321.03532" class="label">Porta door1.28</text>
+  <circle cx="315.49075" cy="261.10532" r="3.0" class="node-normal"><title>POI-room1.24: room1.24</title></circle>
+  <text x="318.49075" y="262.10532" class="label">room1.24</text>
+  <circle cx="335.69075" cy="246.56532" r="1.5" class="node-door"><title>DOOR-door1.24: Porta door1.24</title></circle>
+  <text x="338.69075" y="247.56532" class="label">Porta door1.24</text>
+  <circle cx="315.49075" cy="218.42532" r="3.0" class="node-normal"><title>POI-room1.23: room1.23</title></circle>
+  <text x="318.49075" y="219.42532" class="label">room1.23</text>
+  <circle cx="335.69075" cy="204.67032" r="1.5" class="node-door"><title>DOOR-door1.23: Porta door1.23</title></circle>
+  <text x="338.69075" y="205.67032" class="label">Porta door1.23</text>
+  <circle cx="298.17075" cy="107.7503175" r="3.0" class="node-stairs"><title>POI-elevator: elevator</title></circle>
+  <text x="301.17075" y="108.7503175" class="label">elevator</text>
+  <circle cx="274.72075" cy="107.0003175" r="3.0" class="node-normal"><title>POI-room1.19: room1.19</title></circle>
+  <text x="277.72075" y="108.0003175" class="label">room1.19</text>
+  <circle cx="274.72075" cy="98.7453175" r="1.5" class="node-door"><title>DOOR-door1.19: Porta door1.19</title></circle>
+  <text x="277.72075" y="99.7453175" class="label">Porta door1.19</text>
+  <circle cx="303.95574999999997" cy="159.64532" r="3.0" class="node-normal"><title>POI-room1.22: room1.22</title></circle>
+  <text x="306.95574999999997" y="160.64532" class="label">room1.22</text>
+  <circle cx="335.69075" cy="185.28032000000002" r="1.5" class="node-door"><title>DOOR-door1.22: Porta door1.22</title></circle>
+  <text x="338.69075" y="186.28032000000002" class="label">Porta door1.22</text>
+  <circle cx="422.22575" cy="293.69032" r="3.0" class="node-normal"><title>POI-room1.31: room1.31</title></circle>
+  <text x="425.22575" y="294.69032" class="label">room1.31</text>
+  <circle cx="245.41098499999998" cy="407.14531999999997" r="3.0" class="node-normal"><title>POI-room1.35: room1.35</title></circle>
+  <text x="248.41098499999998" y="408.14531999999997" class="label">room1.35</text>
+  <circle cx="210.18075" cy="368.41032" r="1.5" class="node-door"><title>DOOR-door1.35: Porta door1.35</title></circle>
+  <text x="213.18075" y="369.41032" class="label">Porta door1.35</text>
+  <circle cx="41.185754" cy="270.82532000000003" r="3.0" class="node-normal"><title>POI-room1.03: room1.03</title></circle>
+  <text x="44.185754" y="271.82532000000003" class="label">room1.03</text>
+  <circle cx="63.320754" cy="276.08532" r="1.5" class="node-door"><title>DOOR-door1.03: Porta door1.03</title></circle>
+  <text x="66.320754" y="277.08532" class="label">Porta door1.03</text>
+  <circle cx="42.080754" cy="237.76032000000004" r="3.0" class="node-normal"><title>POI-room1.04: room1.04</title></circle>
+  <text x="45.080754" y="238.76032000000004" class="label">room1.04</text>
+  <circle cx="65.560754" cy="226.07532" r="1.5" class="node-door"><title>DOOR-door1.04: Porta door1.04</title></circle>
+  <text x="68.560754" y="227.07532" class="label">Porta door1.04</text>
+  <circle cx="42.820754" cy="197.50531999999998" r="3.0" class="node-normal"><title>POI-room1.05: room1.05</title></circle>
+  <text x="45.820754" y="198.50531999999998" class="label">room1.05</text>
+  <circle cx="66.26075399999999" cy="210.66032" r="1.5" class="node-door"><title>DOOR-door1.05: Porta door1.05</title></circle>
+  <text x="69.26075399999999" y="211.66032" class="label">Porta door1.05</text>
+  <circle cx="43.965754" cy="155.60532" r="3.0" class="node-normal"><title>POI-room1.08: room1.08</title></circle>
+  <text x="46.965754" y="156.60532" class="label">room1.08</text>
+  <circle cx="69.32575399999999" cy="142.28532" r="1.5" class="node-door"><title>DOOR-door1.08: Porta door1.08</title></circle>
+  <text x="72.32575399999999" y="143.28532" class="label">Porta door1.08</text>
+  <circle cx="44.599346" cy="115.271929" r="3.0" class="node-normal"><title>POI-room1.09: room1.09</title></circle>
+  <text x="47.599346" y="116.271929" class="label">room1.09</text>
+  <circle cx="70.030754" cy="126.87031999999999" r="1.5" class="node-door"><title>DOOR-door1.09: Porta door1.09</title></circle>
+  <text x="73.030754" y="127.87031999999999" class="label">Porta door1.09</text>
+  <circle cx="42.23575355" cy="79.755317" r="3.0" class="node-normal"><title>POI-room3: room3</title></circle>
+  <text x="45.23575355" y="80.755317" class="label">room3</text>
+  <circle cx="148.12075" cy="66.445319" r="3.0" class="node-normal"><title>POI-room1.14: room1.14</title></circle>
+  <text x="151.12075" y="67.445319" class="label">room1.14</text>
+  <circle cx="406.31575" cy="377.79032" r="3.0" class="node-normal"><title>POI-room1.29: room1.29</title></circle>
+  <text x="409.31575" y="378.79032" class="label">room1.29</text>
+  <circle cx="371.95575" cy="316.82032" r="1.5" class="node-door"><title>DOOR-door1.29: Porta door1.29</title></circle>
+  <text x="374.95575" y="317.82032" class="label">Porta door1.29</text>
+  <circle cx="151.99075000000002" cy="406.67532000000006" r="3.0" class="node-normal"><title>POI-room1.36: room1.36</title></circle>
+  <text x="154.99075000000002" y="407.67532000000006" class="label">room1.36</text>
+  <circle cx="194.54575" cy="368.41032" r="1.5" class="node-door"><title>DOOR-door1.36: Porta door1.36</title></circle>
+  <text x="197.54575" y="369.41032" class="label">Porta door1.36</text>
+  <circle cx="55.725753499999996" cy="41.8353185" r="3.0" class="node-normal"><title>POI-room1.10: room1.10</title></circle>
+  <text x="58.725753499999996" y="42.8353185" class="label">room1.10</text>
+  <circle cx="88.245753" cy="65.590319" r="1.5" class="node-door"><title>DOOR-door1.10: Porta door1.10</title></circle>
+  <text x="91.245753" y="66.590319" class="label">Porta door1.10</text>
+  <circle cx="381.30575" cy="293.55598499999996" r="3.0" class="node-normal"><title>POI-room1.30: room1.30</title></circle>
+  <text x="384.30575" y="294.55598499999996" class="label">room1.30</text>
+  <circle cx="381.30575" cy="269.42492500000003" r="3.0" class="node-normal"><title>POI-room1.26: room1.26</title></circle>
+  <text x="384.30575" y="270.42492500000003" class="label">room1.26</text>
+  <circle cx="390.02575" cy="263.04532" r="1.5" class="node-door"><title>DOOR-door1.26: Porta door1.26</title></circle>
+  <text x="393.02575" y="264.04532" class="label">Porta door1.26</text>
+  <circle cx="119.5107505" cy="43.0553185" r="3.0" class="node-normal"><title>POI-room1.13: room1.13</title></circle>
+  <text x="122.5107505" y="44.0553185" class="label">room1.13</text>
+  <circle cx="132.66075" cy="66.84531899999999" r="1.5" class="node-door"><title>DOOR-door1.13: Porta door1.13</title></circle>
+  <text x="135.66075" y="67.84531899999999" class="label">Porta door1.13</text>
+  <circle cx="203.30075" cy="41.54531849999999" r="3.0" class="node-normal"><title>POI-room1.15: room1.15</title></circle>
+  <text x="206.30075" y="42.54531849999999" class="label">room1.15</text>
+  <circle cx="216.45075" cy="63.815318999999995" r="1.5" class="node-door"><title>DOOR-door1.15: Porta door1.15</title></circle>
+  <text x="219.45075" y="64.81531899999999" class="label">Porta door1.15</text>
+  <circle cx="40.520754" cy="305.42031999999995" r="3.0" class="node-normal"><title>POI-room1.00/1.01: room1.00/1.01</title></circle>
+  <text x="43.520754" y="306.42031999999995" class="label">room1.00/1.01</text>
+  <circle cx="66.74075400000001" cy="311.29031999999995" r="1.5" class="node-door"><title>DOOR-door1.01: Porta door1.01</title></circle>
+  <text x="69.74075400000001" y="312.29031999999995" class="label">Porta door1.01</text>
+  <circle cx="244.72575" cy="41.215318499999995" r="3.0" class="node-normal"><title>POI-room1.16: room1.16</title></circle>
+  <text x="247.72575" y="42.215318499999995" class="label">room1.16</text>
+  <circle cx="231.91075" cy="63.415319" r="1.5" class="node-door"><title>DOOR-door1.16: Porta door1.16</title></circle>
+  <text x="234.91075" y="64.415319" class="label">Porta door1.16</text>
+  <circle cx="275.77575" cy="40.4753185" r="3.0" class="node-normal"><title>POI-room1.18: room1.18</title></circle>
+  <text x="278.77575" y="41.4753185" class="label">room1.18</text>
+  <circle cx="272.87075" cy="61.93531900000001" r="1.5" class="node-door"><title>DOOR-door1.18: Porta door1.18</title></circle>
+  <text x="275.87075" y="62.93531900000001" class="label">Porta door1.18</text>
+  <circle cx="421.98606" cy="259.922525" r="3.0" class="node-normal"><title>POI-room1.27: room1.27</title></circle>
+  <text x="424.98606" y="260.922525" class="label">room1.27</text>
+  <circle cx="402.53075" cy="251.16532" r="1.5" class="node-door"><title>DOOR-door1.27: Porta door1.27</title></circle>
+  <text x="405.53075" y="252.16532" class="label">Porta door1.27</text>
+  <circle cx="412.91575" cy="49.03531649999999" r="3.0" class="node-normal"><title>POI-room1.25B: room1.25B</title></circle>
+  <text x="415.91575" y="50.03531649999999" class="label">room1.25B</text>
+  <circle cx="390.63575000000003" cy="87.365317" r="1.5" class="node-door"><title>DOOR-door1.25B: Porta door1.25B</title></circle>
+  <text x="393.63575000000003" y="88.365317" class="label">Porta door1.25B</text>
+  <circle cx="175.3945" cy="133.70031749999998" r="3.0" class="node-normal"><title>POI-room1.11/1.12: room1.11/1.12</title></circle>
+  <text x="178.3945" y="134.70031749999998" class="label">room1.11/1.12</text>
+  <circle cx="219.70075" cy="112.02532" r="1.5" class="node-door"><title>DOOR-enter1.17: Porta enter1.17</title></circle>
+  <text x="222.70075" y="113.02532" class="label">Porta enter1.17</text>
+  <circle cx="219.70075" cy="112.02532" r="3.0" class="node-gate"><title>POI-enter1.17: enter1.17</title></circle>
+  <text x="222.70075" y="113.02532" class="label">enter1.17</text>
+  <circle cx="328.50087499999995" cy="407.24032" r="3.0" class="node-normal"><title>POI-room1.32: room1.32</title></circle>
+  <text x="331.50087499999995" y="408.24032" class="label">room1.32</text>
+  <circle cx="297.09575" cy="368.41032" r="1.5" class="node-door"><title>DOOR-door1.32: Porta door1.32</title></circle>
+  <text x="300.09575" y="369.41032" class="label">Porta door1.32</text>
+  <circle cx="406.31575" cy="175.2003175" r="3.0" class="node-normal"><title>POI-room1.21/1.25: room1.21/1.25</title></circle>
+  <text x="409.31575" y="176.2003175" class="label">room1.21/1.25</text>
+  <circle cx="371.95575" cy="246.16032" r="1.5" class="node-door"><title>DOOR-door1.25: Porta door1.25</title></circle>
+  <text x="374.95575" y="247.16032" class="label">Porta door1.25</text>
+  <circle cx="138.0057515" cy="246.28032000000002" r="3.0" class="node-normal"><title>POI-room1.02: room1.02</title></circle>
+  <text x="141.0057515" y="247.28032000000002" class="label">room1.02</text>
+  <circle cx="244.71075000000002" cy="133.6727225" r="3.0" class="node-normal"><title>POI-room1.17: room1.17</title></circle>
+  <text x="247.71075000000002" y="134.6727225" class="label">room1.17</text>
+  <circle cx="252.83575000000002" cy="98.4303175" r="1.5" class="node-door"><title>DOOR-door1.17: Porta door1.17</title></circle>
+  <text x="255.83575000000002" y="99.4303175" class="label">Porta door1.17</text>
+  <circle cx="320.37037499999997" cy="108.31766250000001" r="3.0" class="node-normal"><title>POI-room1.20: room1.20</title></circle>
+  <text x="323.37037499999997" y="109.31766250000001" class="label">room1.20</text>
+  <circle cx="319.74575" cy="98.1203175" r="1.5" class="node-door"><title>DOOR-door1.20: Porta door1.20</title></circle>
+  <text x="322.74575" y="99.1203175" class="label">Porta door1.20</text>
+  <circle cx="54.850754" cy="425.31532" r="3.0" class="node-emergency_exit"><title>POI-exit1: exit1</title></circle>
+  <text x="57.850754" y="426.31532" class="label">exit1</text>
+  <circle cx="327.74075" cy="40.845319" r="3.0" class="node-emergency_exit"><title>POI-exit2: exit2</title></circle>
+  <text x="330.74075" y="41.845319" class="label">exit2</text>
+  <circle cx="95.0757515" cy="294.26032" r="3.0" class="node-gate"><title>POI-enter1.02: enter1.02</title></circle>
+  <text x="98.0757515" y="295.26032" class="label">enter1.02</text>
+  <circle cx="431.92" cy="4.01" r="2.0" class="node-corridor"><title>COR-H0: Corredor H0</title></circle>
+  <circle cx="451.92" cy="4.01" r="2.0" class="node-corridor"><title>COR-H1: Corredor H1</title></circle>
+  <circle cx="153.34" cy="81.9" r="2.0" class="node-corridor"><title>COR-H2: Corredor H2</title></circle>
+  <circle cx="173.34" cy="81.9" r="2.0" class="node-corridor"><title>COR-H3: Corredor H3</title></circle>
+  <circle cx="215.18" cy="348.7" r="2.0" class="node-corridor"><title>COR-H4: Corredor H4</title></circle>
+  <circle cx="235.18" cy="348.7" r="2.0" class="node-corridor"><title>COR-H5: Corredor H5</title></circle>
+  <circle cx="255.18" cy="348.7" r="2.0" class="node-corridor"><title>COR-H6: Corredor H6</title></circle>
+  <circle cx="102.56" cy="364.19" r="2.0" class="node-corridor"><title>COR-H7: Corredor H7</title></circle>
+  <circle cx="122.56" cy="364.19" r="2.0" class="node-corridor"><title>COR-H8: Corredor H8</title></circle>
+  <circle cx="142.56" cy="364.19" r="2.0" class="node-corridor"><title>COR-H9: Corredor H9</title></circle>
+  <circle cx="162.56" cy="364.19" r="2.0" class="node-corridor"><title>COR-H10: Corredor H10</title></circle>
+  <circle cx="10.27" cy="339.93" r="2.0" class="node-corridor"><title>COR-V11: Corredor V11</title></circle>
+  <circle cx="10.27" cy="359.93" r="2.0" class="node-corridor"><title>COR-V12: Corredor V12</title></circle>
+  <circle cx="10.27" cy="379.93" r="2.0" class="node-corridor"><title>COR-V13: Corredor V13</title></circle>
+  <circle cx="10.27" cy="399.93" r="2.0" class="node-corridor"><title>COR-V14: Corredor V14</title></circle>
+  <circle cx="10.27" cy="419.93" r="2.0" class="node-corridor"><title>COR-V15: Corredor V15</title></circle>
+  <circle cx="84.03" cy="179.47" r="2.0" class="node-corridor"><title>COR-V16: Corredor V16</title></circle>
+  <circle cx="84.03" cy="199.47" r="2.0" class="node-corridor"><title>COR-V17: Corredor V17</title></circle>
+  <circle cx="84.03" cy="219.47" r="2.0" class="node-corridor"><title>COR-V18: Corredor V18</title></circle>
+  <circle cx="84.03" cy="239.47" r="2.0" class="node-corridor"><title>COR-V19: Corredor V19</title></circle>
+  <circle cx="84.03" cy="259.47" r="2.0" class="node-corridor"><title>COR-V20: Corredor V20</title></circle>
+  <circle cx="320.74" cy="94.68" r="2.0" class="node-corridor"><title>COR-V21: Corredor V21</title></circle>
+  <circle cx="320.74" cy="114.68" r="2.0" class="node-corridor"><title>COR-V22: Corredor V22</title></circle>
+  <circle cx="353.98" cy="137.14" r="2.0" class="node-corridor"><title>COR-V23: Corredor V23</title></circle>
+  <circle cx="353.98" cy="157.14" r="2.0" class="node-corridor"><title>COR-V24: Corredor V24</title></circle>
+  <circle cx="353.98" cy="177.14" r="2.0" class="node-corridor"><title>COR-V25: Corredor V25</title></circle>
+  <circle cx="353.98" cy="197.14" r="2.0" class="node-corridor"><title>COR-V26: Corredor V26</title></circle>
+  <circle cx="353.98" cy="217.14" r="2.0" class="node-corridor"><title>COR-V27: Corredor V27</title></circle>
+  <circle cx="353.98" cy="237.14" r="2.0" class="node-corridor"><title>COR-V28: Corredor V28</title></circle>
+  <circle cx="353.98" cy="257.14" r="2.0" class="node-corridor"><title>COR-V29: Corredor V29</title></circle>
+  <circle cx="353.98" cy="277.14" r="2.0" class="node-corridor"><title>COR-V30: Corredor V30</title></circle>
+  <circle cx="456.25" cy="6.52" r="2.0" class="node-corridor"><title>COR-V31: Corredor V31</title></circle>
+  <circle cx="456.25" cy="26.52" r="2.0" class="node-corridor"><title>COR-V32: Corredor V32</title></circle>
+</svg>
