@@ -96,31 +96,73 @@ def process_ways(osm_data: dict) -> tuple[dict, list]:
     return nodes_map, edges
 
 
-def _poi_type(tags: dict) -> str:
-    """Map OSM tags to a simple internal POI type."""
+def _poi_type(tags: dict, name: str = "") -> str:
+    """Map OSM tags to a simple internal POI type.
+    Returns None for POIs that should be skipped (irrelevant clutter)."""
     amenity = tags.get("amenity", "")
+    building = tags.get("building", "")
     shop = tags.get("shop", "")
     tourism = tags.get("tourism", "")
+
+    # ── Skip irrelevant amenities (map clutter) ──
+    if amenity in (
+        "waste_basket", "waste_disposal", "recycling",
+        "vending_machine", "bench", "telephone",
+        "waiting_room", "fountain", "drinking_water",
+    ):
+        return None  # Will be skipped in process_pois
+
+    # ── ATMs ──
+    if amenity == "atm":
+        return "atm"
+
+    # ── Parking (all types) ──
+    if amenity in ("parking", "bicycle_parking", "motorcycle_parking", "parking_entrance"):
+        return "parking"
+
+    # ── Reception desks → information ──
+    if amenity == "reception_desk":
+        return "information"
+
+    # ── Food & drink (BEFORE building check — e.g. Cantina has both fast_food + building=university) ──
     if amenity in ("restaurant", "fast_food", "food_court", "canteen"):
         return "food"
     if amenity == "cafe":
         return "cafe"
+    if amenity in ("bar", "pub"):
+        return "bar"
+
+    # ── Services ──
     if amenity in ("toilets",):
         return "wc"
     if amenity in ("library",):
         return "library"
-    if amenity in ("parking",):
-        return "parking"
-    if amenity in ("bar", "pub"):
-        return "bar"
     if amenity in ("pharmacy", "hospital", "clinic"):
         return "first_aid"
-    if amenity in ("university", "school", "college"):
-        return "poi"
+
+    # ── Departamentos & campus buildings ──
+    if building in ("university", "college", "school", "sports_centre"):
+        return "departamento"
+    if amenity in ("college", "school"):
+        return "departamento"
+
+    # ── Dormitories → skip (not navigable POIs) ──
+    if building == "dormitory":
+        return None
+
+    # ── Shopping ──
     if shop:
         return "shop"
+
+    # ── Tourism ──
     if tourism:
         return "poi"
+
+    # ── University campus as generic POI ──
+    if amenity in ("university",):
+        return "poi"
+
+    # ── Default: keep as generic poi ──
     return "poi"
 
 
@@ -137,7 +179,19 @@ def process_pois(poi_data: dict, nodes_map: dict, edges: list, connect_radius_m:
 
     for el in poi_data["elements"]:
         tags = el.get("tags", {})
-        name = tags.get("name") or tags.get("alt_name") or tags.get("short_name")
+        # FIX: Fallback to short_name, operator, brand, or amenity tag for unnamed POIs (e.g. ATMs)
+        name = (
+            tags.get("name")
+            or tags.get("alt_name")
+            or tags.get("short_name")
+            or tags.get("operator")
+            or tags.get("brand")
+        )
+        if not name:
+            # Last resort: use amenity/shop tag as name (e.g. "atm" → "ATM")
+            amenity = tags.get("amenity", "")
+            if amenity:
+                name = amenity.replace("_", " ").title()
 
         if not name:
             skipped_no_name += 1
@@ -173,7 +227,10 @@ def process_pois(poi_data: dict, nodes_map: dict, edges: list, connect_radius_m:
             print(f"  [SKIP] '{name}' — nearest node {min_dist:.0f}m away (limit {connect_radius_m}m)")
             continue
 
-        poi_type = _poi_type(tags)
+        poi_type = _poi_type(tags, name=name)
+        if poi_type is None:
+            # Irrelevant POI (waste baskets, benches, etc.) — skip
+            continue
         nodes_map[poi_id] = {
             "id": poi_id,
             "x": lon,
