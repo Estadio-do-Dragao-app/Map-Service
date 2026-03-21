@@ -842,7 +842,7 @@ def get_grid_stats(db: Session = Depends(get_db)):
 def get_pois(db: Session = Depends(get_db)):
     """Get all POI nodes (restroom, food, emergency_exit, etc)."""
     poi_types = [
-        'poi', 'restroom', 'entrance', 'food', 'shop', 'bar',
+        'poi', 'restroom', 'wc', 'entrance', 'food', 'shop', 'bar',
         'emergency_exit', 'first_aid', 'information', 'merchandise'
     ]
     pois = db.query(Node).filter(Node.type.in_(poi_types)).all()
