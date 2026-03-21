@@ -23,6 +23,19 @@ import time
 import json as json_module
 import urllib.request
 import urllib.parse
+import httpx
+import threading
+
+def notify_routing_refresh():
+    """Trigger a silent background refresh in the routing service after a map change."""
+    def _send():
+        try:
+            # Fire-and-forget webhook
+            httpx.post("http://routing-service:8002/api/refresh_map", timeout=2.0)
+            print("[WEBHOOK] Notified routing service of map change")
+        except Exception as e:
+            print(f"[WEBHOOK] Failed to notify routing service: {e}")
+    threading.Thread(target=_send).start()
 
 app = FastAPI(title="Smart Stadium Map Backend")
 
@@ -593,6 +606,7 @@ def create_node(data: NodeCreate, db: Session = Depends(get_db)):
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     
+    notify_routing_refresh()
     return node
 
 @app.put("/nodes/{node_id}", response_model=NodeResponse)
@@ -634,6 +648,7 @@ def update_node(node_id: str, data: NodeUpdate, db: Session = Depends(get_db)):
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     
+    notify_routing_refresh()
     return node
 
 @app.delete("/nodes/{node_id}")
@@ -653,6 +668,7 @@ def delete_node(node_id: str, db: Session = Depends(get_db)):
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    notify_routing_refresh()
     return {"deleted": node_id}
 # ================== EDGES ==================
 
@@ -693,6 +709,7 @@ def create_edge(data: EdgeCreate, db: Session = Depends(get_db)):
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     
+    notify_routing_refresh()
     return edge
 
 @app.put("/edges/{edge_id}", response_model=EdgeResponse)
@@ -714,6 +731,7 @@ def update_edge(edge_id: str, data: EdgeUpdate, db: Session = Depends(get_db)):
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     
+    notify_routing_refresh()
     return edge
 
 @app.delete("/edges/{edge_id}")
@@ -730,6 +748,7 @@ def delete_edge(edge_id: str, db: Session = Depends(get_db)):
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     
+    notify_routing_refresh()
     return {"deleted": edge_id}
 
 # ================== CLOSURES ==================
@@ -782,6 +801,7 @@ def add_closure(data: ClosureCreate, db: Session = Depends(get_db)):
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     
+    notify_routing_refresh()
     return closure
 
 @app.delete("/closures/{closure_id}")
