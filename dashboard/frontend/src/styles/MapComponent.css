@@ -54,6 +54,14 @@
   cursor: crosshair;
 }
 
+.leaflet-interactive {
+  transition: opacity 180ms ease;
+}
+
+.leaflet-marker-icon {
+  transition: opacity 180ms ease;
+}
+
 /* ─── Toolbar ───────────────────────────────────────────────────────────── */
 .map-toolbar {
   position: absolute;

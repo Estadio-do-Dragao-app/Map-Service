@@ -74,6 +74,10 @@ export function MapComponent() {
   });
   const [draggedPosition, setDraggedPosition]     = useState(null);
   const rectangleRef = useRef(null);
+  const hasFitBoundsRef = useRef(false);
+  const markerTimersRef = useRef({});
+  const FADE_DURATION_MS = 180;
+  const prevHideNonPoiRef = useRef(false);
 
   // ── Fetch ────────────────────────────────────────────────────────────────
   const fetchData = async () => {
@@ -255,6 +259,8 @@ export function MapComponent() {
     setDeleteMode(false);
     setSelectingDoor(false);
     setPointsForEdge({ from: null, to: null });
+    setSelectedNode(null);
+    setSelectedEdgeFromList(null);
     clearRectangleSelection();
     clearTempNodeMarker();
 
@@ -281,16 +287,42 @@ export function MapComponent() {
     } catch (err) { setError(`Error deleting items: ${err.message}`); }
   };
 
+  const clearMarkerTimer = (nodeId) => {
+    if (markerTimersRef.current[nodeId]) {
+      clearTimeout(markerTimersRef.current[nodeId]);
+      delete markerTimersRef.current[nodeId];
+    }
+  };
+
+  const setMarkerVisible = (entry, visible, fillOpacity = 0.9) => {
+    if (!entry) return;
+    if (entry.kind === 'circle') {
+      entry.marker.setStyle({ opacity: visible ? 1 : 0, fillOpacity: visible ? fillOpacity : 0 });
+    } else {
+      entry.marker.setOpacity(visible ? 1 : 0);
+    }
+  };
+
+  const scheduleMarkerRemoval = (nodeId, entry) => {
+    clearMarkerTimer(nodeId);
+    setMarkerVisible(entry, false);
+    markerTimersRef.current[nodeId] = setTimeout(() => {
+      entry.marker.remove();
+      delete markersRef.current[nodeId];
+      delete markerTimersRef.current[nodeId];
+    }, FADE_DURATION_MS);
+  };
+
   // ── Map rendering ─────────────────────────────────────────────────────────
   const updateMapView = () => {
     if (!map.current) return;
 
-    const maxZoom = typeof map.current.getMaxZoom === 'function' ? map.current.getMaxZoom() : 19;
-    const zoomThreshold = maxZoom - 2;
-    const hideNonPoi = mapZoom !== null && mapZoom <= zoomThreshold && !showAllEdges;
+    const minNodeZoom = 18;
+    const hideNonPoi = mapZoom !== null && mapZoom < minNodeZoom && !showAllEdges;
+    const fadeOutOnZoom = hideNonPoi && !prevHideNonPoiRef.current;
+    const fadeInOnZoom = !hideNonPoi && prevHideNonPoiRef.current;
+    const nodeIdSet = new Set(nodes.map((node) => node.id));
 
-    Object.values(markersRef.current).forEach(marker => marker.remove());
-    markersRef.current = {};
     Object.values(edgeLines.current).forEach(line => line.remove());
     edgeLines.current = {};
 
@@ -315,13 +347,19 @@ export function MapComponent() {
 
       line.on('click', (e) => {
         L.DomEvent.stopPropagation(e);
-        if (deleteMode) deleteEdge(edge.id);
-        else selectEdge(edge.id);
+        if (deleteMode) {
+          deleteEdge(edge.id);
+          return;
+        }
+        if (creatingEdge || rectangleSelectMode) return;
+        selectEdge(edge.id);
       });
       edgeLines.current[edge.id] = line;
     });
 
     // Nodes
+    const visibleNodeIds = new Set();
+    const hiddenByZoom = new Set();
     nodes.forEach(node => {
       const poiTypes = new Set([
         'poi',
@@ -335,7 +373,11 @@ export function MapComponent() {
         'vip_box',
       ]);
       const isPoi = poiTypes.has((node.type || '').toLowerCase());
-      if (hideNonPoi && !isPoi) return;
+      if (hideNonPoi && !isPoi) {
+        hiddenByZoom.add(node.id);
+        return;
+      }
+      visibleNodeIds.add(node.id);
       const isFromNode       = pointsForEdge.from === node.id;
       const isToNode         = pointsForEdge.to   === node.id;
       const isEdgeSelected   = isFromNode || isToNode;
@@ -358,76 +400,148 @@ export function MapComponent() {
       else if (isPartOfEdgeSel){ fillColor = '#ff6b6b'; radius = 12; }
       else if (isEdgeSelected) { fillColor = '#ffc107'; radius = 10; }
 
-      let marker;
+      const markerKind = node.id === editingNode && draggedPosition
+        ? 'edit'
+        : (isPoi ? 'poi' : 'circle');
+      const existingEntry = markersRef.current[node.id];
+      let entry = existingEntry;
 
-      if (node.id === editingNode && draggedPosition) {
-        marker = L.marker([draggedPosition.lat, draggedPosition.lng], {
-          draggable: true,
-          icon: L.divIcon({
-            className: 'editing-marker',
-            html: '<div style="background-color:#ff6b6b;width:24px;height:24px;border-radius:50%;border:3px solid white;box-shadow:0 0 10px rgba(255,107,107,0.5);"></div>',
-            iconSize: [24, 24], iconAnchor: [12, 12],
-          }),
-        }).addTo(map.current);
-        marker.on('drag',    (e) => { const p = e.target.getLatLng(); setDraggedPosition({ lat: p.lat, lng: p.lng }); });
-        marker.on('dragend', (e) => { const p = e.target.getLatLng(); setDraggedPosition({ lat: p.lat, lng: p.lng }); });
-        marker.bindPopup(`<strong>Editing: ${node.name || node.id}</strong><br/>Drag to move`);
-      } else if (isPoi) {
+      if (!entry || entry.kind !== markerKind) {
+        if (entry) entry.marker.remove();
+
+        if (markerKind === 'edit') {
+          const editMarker = L.marker([draggedPosition.lat, draggedPosition.lng], {
+            draggable: true,
+            icon: L.divIcon({
+              className: 'editing-marker',
+              html: '<div style="background-color:#ff6b6b;width:24px;height:24px;border-radius:50%;border:3px solid white;box-shadow:0 0 10px rgba(255,107,107,0.5);"></div>',
+              iconSize: [24, 24], iconAnchor: [12, 12],
+            }),
+          }).addTo(map.current);
+          editMarker.on('drag',    (e) => { const p = e.target.getLatLng(); setDraggedPosition({ lat: p.lat, lng: p.lng }); });
+          editMarker.on('dragend', (e) => { const p = e.target.getLatLng(); setDraggedPosition({ lat: p.lat, lng: p.lng }); });
+          editMarker.bindPopup(`<strong>Editing: ${node.name || node.id}</strong><br/>Drag to move`);
+          entry = { marker: editMarker, kind: 'edit' };
+        } else if (markerKind === 'poi') {
+          const poiStateClass = isInDelete
+            ? 'poi-delete'
+            : (isListSelected || isPartOfEdgeSel || isEdgeSelected ? 'poi-selected' : '');
+          const poiMarker = L.marker([node.y, node.x], {
+            icon: L.divIcon({
+              className: `poi-marker ${poiStateClass}`,
+              html: '<div class="poi-marker-pin"></div><div class="poi-marker-dot"></div>',
+              iconSize: [22, 30],
+              iconAnchor: [11, 30],
+              popupAnchor: [0, -24],
+            }),
+          }).addTo(map.current);
+          poiMarker.bindPopup(`
+            <strong>${node.name || 'Unnamed'}</strong><br/>
+            ID: ${node.id}<br/>
+            Tipo: ${node.type || 'normal'}<br/>
+            ${node.description ? `Desc: ${node.description}<br/>` : ''}
+            Lat: ${node.y.toFixed(6)}<br/>
+            Lng: ${node.x.toFixed(6)}<br/>
+            ${isNewNode ? '<em>New</em>' : ''}
+          `);
+          entry = { marker: poiMarker, kind: 'poi' };
+        } else {
+          const circleMarker = L.circleMarker([node.y, node.x], {
+            radius, fill: true, fillColor,
+            fillOpacity: matchesSearch ? 0.9 : 0.4,
+            stroke: true, color: fillColor, weight: 2,
+            opacity: 1,
+          }).addTo(map.current);
+          circleMarker.bindPopup(`
+            <strong>${node.name || 'Unnamed'}</strong><br/>
+            ID: ${node.id}<br/>
+            Tipo: ${node.type || 'normal'}<br/>
+            ${node.description ? `Desc: ${node.description}<br/>` : ''}
+            Lat: ${node.y.toFixed(6)}<br/>
+            Lng: ${node.x.toFixed(6)}<br/>
+            ${isNewNode ? '<em>New</em>' : ''}
+          `);
+          entry = { marker: circleMarker, kind: 'circle' };
+        }
+
+        markersRef.current[node.id] = entry;
+      }
+
+      entry.marker.off('click');
+      entry.marker.on('click', (e) => {
+        L.DomEvent.stopPropagation(e);
+        if (!creatingEdge) entry.marker.openPopup();
+        if (deleteMode) {
+          deleteNode(node.id);
+          return;
+        }
+        if (creatingEdge) {
+          setPointsForEdge((prev) => {
+            if (!prev.from) return { ...prev, from: node.id };
+            if (!prev.to && node.id !== prev.from) return { ...prev, to: node.id };
+            return prev;
+          });
+          return;
+        }
+        selectNode(node);
+      });
+
+      clearMarkerTimer(node.id);
+
+      if (entry.kind === 'circle') {
+        entry.marker.setLatLng([node.y, node.x]);
+        entry.marker.setRadius(radius);
+        entry.marker.setStyle({
+          fillColor,
+          color: fillColor,
+          opacity: 1,
+          fillOpacity: matchesSearch ? 0.9 : 0.4,
+        });
+      } else if (entry.kind === 'poi') {
         const poiStateClass = isInDelete
           ? 'poi-delete'
           : (isListSelected || isPartOfEdgeSel || isEdgeSelected ? 'poi-selected' : '');
-        marker = L.marker([node.y, node.x], {
-          icon: L.divIcon({
-            className: `poi-marker ${poiStateClass}`,
-            html: '<div class="poi-marker-pin"></div><div class="poi-marker-dot"></div>',
-            iconSize: [22, 30],
-            iconAnchor: [11, 30],
-            popupAnchor: [0, -24],
-          }),
-        }).addTo(map.current);
-
-        marker.bindPopup(`
-          <strong>${node.name || 'Unnamed'}</strong><br/>
-          ID: ${node.id}<br/>
-          Tipo: ${node.type || 'normal'}<br/>
-          ${node.description ? `Desc: ${node.description}<br/>` : ''}
-          Lat: ${node.y.toFixed(6)}<br/>
-          Lng: ${node.x.toFixed(6)}<br/>
-          ${isNewNode ? '<em>New</em>' : ''}
-        `);
-      } else {
-        marker = L.circleMarker([node.y, node.x], {
-          radius, fill: true, fillColor,
-          fillOpacity: matchesSearch ? 0.9 : 0.4,
-          stroke: true, color: fillColor, weight: 2,
-        }).addTo(map.current);
-
-        marker.bindPopup(`
-          <strong>${node.name || 'Unnamed'}</strong><br/>
-          ID: ${node.id}<br/>
-          Tipo: ${node.type || 'normal'}<br/>
-          ${node.description ? `Desc: ${node.description}<br/>` : ''}
-          Lat: ${node.y.toFixed(6)}<br/>
-          Lng: ${node.x.toFixed(6)}<br/>
-          ${isNewNode ? '<em>New</em>' : ''}
-        `);
+        entry.marker.setLatLng([node.y, node.x]);
+        entry.marker.setIcon(L.divIcon({
+          className: `poi-marker ${poiStateClass}`,
+          html: '<div class="poi-marker-pin"></div><div class="poi-marker-dot"></div>',
+          iconSize: [22, 30],
+          iconAnchor: [11, 30],
+          popupAnchor: [0, -24],
+        }));
+      } else if (entry.kind === 'edit' && draggedPosition) {
+        entry.marker.setLatLng([draggedPosition.lat, draggedPosition.lng]);
       }
 
-      marker.on('click', (e) => {
-        L.DomEvent.stopPropagation(e);
-        marker.openPopup();
-        if (deleteMode) {
-          deleteNode(node.id);
-        } else if (creatingEdge) {
-          if (!pointsForEdge.from) setPointsForEdge({ ...pointsForEdge, from: node.id });
-          else if (!pointsForEdge.to && node.id !== pointsForEdge.from) setPointsForEdge({ ...pointsForEdge, to: node.id });
-        } else {
-          selectNode(node);
-        }
-      });
-
-      markersRef.current[node.id] = marker;
+      if (fadeInOnZoom) {
+        if (entry.kind === 'circle') setMarkerVisible(entry, false, 0);
+        else setMarkerVisible(entry, false);
+        setTimeout(() => {
+          if (entry.kind === 'circle') setMarkerVisible(entry, true, matchesSearch ? 0.9 : 0.4);
+          else setMarkerVisible(entry, true);
+        }, 0);
+      }
     });
+
+    Object.entries(markersRef.current).forEach(([nodeId, entry]) => {
+      if (!nodeIdSet.has(nodeId)) {
+        clearMarkerTimer(nodeId);
+        entry.marker.remove();
+        delete markersRef.current[nodeId];
+        return;
+      }
+      if (hiddenByZoom.has(nodeId)) {
+        if (fadeOutOnZoom) scheduleMarkerRemoval(nodeId, entry);
+        return;
+      }
+      if (!visibleNodeIds.has(nodeId)) {
+        clearMarkerTimer(nodeId);
+        entry.marker.remove();
+        delete markersRef.current[nodeId];
+      }
+    });
+
+    prevHideNonPoiRef.current = hideNonPoi;
 
     // Temp marker
     if (tempNodeMarkerRef.current) { map.current.removeLayer(tempNodeMarkerRef.current); tempNodeMarkerRef.current = null; }
@@ -448,13 +562,15 @@ export function MapComponent() {
       dragging: false,
       touchZoom: true,
       scrollWheelZoom: true,
+      maxZoom: 50,
     }).setView(AVEIRO_CENTER, 16);
 
     if (map.current.dragging) map.current.dragging.disable();
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap contributors',
-      maxZoom: 19,
+      maxZoom: 50,
+      maxNativeZoom: 19,
     }).addTo(map.current);
 
     setMapZoom(map.current.getZoom());
@@ -494,6 +610,8 @@ export function MapComponent() {
         map.current.remove();
         map.current = null;
       }
+      Object.values(markerTimersRef.current).forEach((timerId) => clearTimeout(timerId));
+      markerTimersRef.current = {};
     };
   }, []);
 
@@ -525,10 +643,11 @@ export function MapComponent() {
 
   // ── Fit bounds on first load ──────────────────────────────────────────────
   useEffect(() => {
-    if (!map.current || nodes.length === 0) return;
+    if (!map.current || nodes.length === 0 || hasFitBoundsRef.current) return;
     try {
       const fg = L.featureGroup(nodes.map(n => L.marker([n.y, n.x])));
       map.current.fitBounds(fg.getBounds(), { padding: [50, 50] });
+      hasFitBoundsRef.current = true;
     } catch (err) { console.error('Error fitting bounds:', err); }
   }, [nodes]);
 
