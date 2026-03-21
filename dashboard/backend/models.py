@@ -1,6 +1,24 @@
 from pydantic import BaseModel
 from typing import Optional, List
 
+NODE_TYPES = [
+    "corridor",
+    "row_aisle",
+    "seat",
+    "gate",
+    "stairs",
+    "ramp",
+    "restroom",
+    "food",
+    "bar",
+    "merchandise",
+    "first_aid",
+    "emergency_exit",
+    "information",
+    "vip_box",
+    "normal",
+]
+
 # ================== NODE SCHEMAS ==================
 
 class NodeCreate(BaseModel):

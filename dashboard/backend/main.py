@@ -7,7 +7,8 @@ import asyncio
 from models import (
     EdgeUpdate, NodeCreate, NodeResponse,
     EdgeCreate, EdgeResponse,
-    ClosureCreate, ClosureResponse, BatchCreate, NodeUpdate
+    ClosureCreate, ClosureResponse, BatchCreate, NodeUpdate,
+    NODE_TYPES
 )
 from database import call_map_service, check_map_service_health
 
@@ -83,6 +84,8 @@ async def create_node(data: NodeCreate):
     Tipos válidos: corridor, row_aisle, seat, gate, stairs, ramp, restroom,
     food, bar, merchandise, first_aid, emergency_exit, information, vip_box, normal
     """
+    if data.type not in NODE_TYPES:
+        raise HTTPException(status_code=400, detail=f"Invalid node type: {data.type}")
     try:
         return await call_map_service("POST", "/nodes", json=data.model_dump())
     except httpx.ConnectError:
@@ -106,6 +109,8 @@ async def update_node(node_id: str, data: NodeUpdate):
     """
     Atualiza um node existente.
     """
+    if data.type is not None and data.type not in NODE_TYPES:
+        raise HTTPException(status_code=400, detail=f"Invalid node type: {data.type}")
     try:
         return await call_map_service("PUT", f"/nodes/{node_id}", json=data.model_dump(exclude_none=True))
     except httpx.ConnectError:

@@ -1,4 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import {
+  faLocationCrosshairs,
+  faCircleNodes,
+  faTrash,
+  faDumpster,
+  faMousePointer,
+  faHexagonNodes,
+} from '@fortawesome/free-solid-svg-icons';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import '../styles/MapComponent.css';
@@ -8,6 +17,24 @@ const API_BASE = 'http://localhost:8001';
 const AVEIRO_CENTER = [
   (40.628 + 40.635) / 2,
   (-8.662 + -8.654) / 2,
+];
+
+const NODE_TYPE_OPTIONS = [
+  'corridor',
+  'row_aisle',
+  'seat',
+  'gate',
+  'stairs',
+  'ramp',
+  'restroom',
+  'food',
+  'bar',
+  'merchandise',
+  'first_aid',
+  'emergency_exit',
+  'information',
+  'vip_box',
+  'normal',
 ];
 
 export function MapComponent() {
@@ -35,9 +62,11 @@ export function MapComponent() {
   const [showAllEdges, setShowAllEdges]           = useState(false);
   const [selectingDoor, setSelectingDoor]         = useState(false);
   const [rectangleSelectMode, setRectangleSelectMode] = useState(false);
+  const [deleteMode, setDeleteMode]               = useState(false);
   const [rectStart, setRectStart]                 = useState(null);
   const [rectEnd, setRectEnd]                     = useState(null);
   const [selectedForDelete, setSelectedForDelete] = useState({ nodes: [], edges: [] });
+  const [mapZoom, setMapZoom]                     = useState(null);
   const [editFormData, setEditFormData]           = useState({
     name: '', type: 'normal', level: 0, description: '',
     num_servers: null, service_rate: null, block: '',
@@ -212,6 +241,32 @@ export function MapComponent() {
 
   const cancelRectangleMode = () => { setRectangleSelectMode(false); clearRectangleSelection(); };
 
+  const clearTempNodeMarker = () => {
+    if (tempNodeMarkerRef.current && map.current) {
+      map.current.removeLayer(tempNodeMarkerRef.current);
+      tempNodeMarkerRef.current = null;
+    }
+  };
+
+  const setToolMode = (mode) => {
+    setCreatingEdge(false);
+    setShowNodeForm(false);
+    setRectangleSelectMode(false);
+    setDeleteMode(false);
+    setSelectingDoor(false);
+    setPointsForEdge({ from: null, to: null });
+    clearRectangleSelection();
+    clearTempNodeMarker();
+
+    if (mode === 'node') {
+      setShowNodeForm(true);
+      setNewNodePosition(null);
+    }
+    if (mode === 'edge') setCreatingEdge(true);
+    if (mode === 'bulk') setRectangleSelectMode(true);
+    if (mode === 'delete') setDeleteMode(true);
+  };
+
   const deleteSelectedItems = async () => {
     if (!selectedForDelete.nodes.length && !selectedForDelete.edges.length) return;
     try {
@@ -229,6 +284,10 @@ export function MapComponent() {
   // ── Map rendering ─────────────────────────────────────────────────────────
   const updateMapView = () => {
     if (!map.current) return;
+
+    const maxZoom = typeof map.current.getMaxZoom === 'function' ? map.current.getMaxZoom() : 19;
+    const zoomThreshold = maxZoom - 2;
+    const hideNonPoi = mapZoom !== null && mapZoom <= zoomThreshold && !showAllEdges;
 
     Object.values(markersRef.current).forEach(marker => marker.remove());
     markersRef.current = {};
@@ -254,12 +313,29 @@ export function MapComponent() {
         color, weight, opacity: 0.7,
       }).addTo(map.current);
 
-      line.on('click', (e) => { L.DomEvent.stopPropagation(e); deleteEdge(edge.id); });
+      line.on('click', (e) => {
+        L.DomEvent.stopPropagation(e);
+        if (deleteMode) deleteEdge(edge.id);
+        else selectEdge(edge.id);
+      });
       edgeLines.current[edge.id] = line;
     });
 
     // Nodes
     nodes.forEach(node => {
+      const poiTypes = new Set([
+        'poi',
+        'restroom',
+        'food',
+        'bar',
+        'merchandise',
+        'first_aid',
+        'emergency_exit',
+        'information',
+        'vip_box',
+      ]);
+      const isPoi = poiTypes.has((node.type || '').toLowerCase());
+      if (hideNonPoi && !isPoi) return;
       const isFromNode       = pointsForEdge.from === node.id;
       const isToNode         = pointsForEdge.to   === node.id;
       const isEdgeSelected   = isFromNode || isToNode;
@@ -296,6 +372,29 @@ export function MapComponent() {
         marker.on('drag',    (e) => { const p = e.target.getLatLng(); setDraggedPosition({ lat: p.lat, lng: p.lng }); });
         marker.on('dragend', (e) => { const p = e.target.getLatLng(); setDraggedPosition({ lat: p.lat, lng: p.lng }); });
         marker.bindPopup(`<strong>Editing: ${node.name || node.id}</strong><br/>Drag to move`);
+      } else if (isPoi) {
+        const poiStateClass = isInDelete
+          ? 'poi-delete'
+          : (isListSelected || isPartOfEdgeSel || isEdgeSelected ? 'poi-selected' : '');
+        marker = L.marker([node.y, node.x], {
+          icon: L.divIcon({
+            className: `poi-marker ${poiStateClass}`,
+            html: '<div class="poi-marker-pin"></div><div class="poi-marker-dot"></div>',
+            iconSize: [22, 30],
+            iconAnchor: [11, 30],
+            popupAnchor: [0, -24],
+          }),
+        }).addTo(map.current);
+
+        marker.bindPopup(`
+          <strong>${node.name || 'Unnamed'}</strong><br/>
+          ID: ${node.id}<br/>
+          Tipo: ${node.type || 'normal'}<br/>
+          ${node.description ? `Desc: ${node.description}<br/>` : ''}
+          Lat: ${node.y.toFixed(6)}<br/>
+          Lng: ${node.x.toFixed(6)}<br/>
+          ${isNewNode ? '<em>New</em>' : ''}
+        `);
       } else {
         marker = L.circleMarker([node.y, node.x], {
           radius, fill: true, fillColor,
@@ -317,7 +416,9 @@ export function MapComponent() {
       marker.on('click', (e) => {
         L.DomEvent.stopPropagation(e);
         marker.openPopup();
-        if (creatingEdge) {
+        if (deleteMode) {
+          deleteNode(node.id);
+        } else if (creatingEdge) {
           if (!pointsForEdge.from) setPointsForEdge({ ...pointsForEdge, from: node.id });
           else if (!pointsForEdge.to && node.id !== pointsForEdge.from) setPointsForEdge({ ...pointsForEdge, to: node.id });
         } else {
@@ -356,6 +457,10 @@ export function MapComponent() {
       maxZoom: 19,
     }).addTo(map.current);
 
+    setMapZoom(map.current.getZoom());
+    const handleZoom = () => setMapZoom(map.current.getZoom());
+    map.current.on('zoomend', handleZoom);
+
     // Left-click drag or middle-click drag to pan
     let isPanning = false, panStart = null;
     const container = map.current.getContainer();
@@ -383,13 +488,20 @@ export function MapComponent() {
 
     fetchData();
 
-    return () => { if (map.current) { map.current.remove(); map.current = null; } };
+    return () => {
+      if (map.current) {
+        map.current.off('zoomend', handleZoom);
+        map.current.remove();
+        map.current = null;
+      }
+    };
   }, []);
 
   // ── Map click handler ─────────────────────────────────────────────────────
   useEffect(() => {
     if (!map.current) return;
     const handleMapClick = (e) => {
+      if (deleteMode) return;
       if (rectangleSelectMode) {
         if (!rectStart) {
           setRectStart(e.latlng);
@@ -409,7 +521,7 @@ export function MapComponent() {
     };
     map.current.on('click', handleMapClick);
     return () => { if (map.current) map.current.off('click', handleMapClick); };
-  }, [rectangleSelectMode, rectStart, rectEnd, showNodeForm, newNodePosition]);
+  }, [rectangleSelectMode, rectStart, rectEnd, showNodeForm, newNodePosition, deleteMode]);
 
   // ── Fit bounds on first load ──────────────────────────────────────────────
   useEffect(() => {
@@ -425,7 +537,7 @@ export function MapComponent() {
     if (map.current) updateMapView();
   }, [nodes, edges, pointsForEdge, newNodePosition, selectedNode, selectedEdgeFromList,
       selectedForDelete, nodeSearchQuery, creatingEdge, editingNode, draggedPosition,
-      showAllEdges, selectingDoor]);
+      showAllEdges, selectingDoor, deleteMode, mapZoom]);
 
   // ── Filtered lists ────────────────────────────────────────────────────────
   const filteredNodes = nodes.filter(node =>
@@ -445,7 +557,58 @@ export function MapComponent() {
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="map-container">
-      <div ref={mapContainer} className="map" />
+      <div className="map-stage">
+        <div ref={mapContainer} className="map" />
+
+        <div className="map-toolbar">
+          <button
+            className={`tool-button ${!showNodeForm && !creatingEdge && !rectangleSelectMode && !deleteMode ? 'active' : ''}`}
+            onClick={() => setToolMode('select')}
+            title="Select">
+            <FontAwesomeIcon icon={faMousePointer} />
+            <span>Select</span>
+          </button>
+          <button
+            className={`tool-button ${showNodeForm ? 'active' : ''}`}
+            onClick={() => setToolMode(showNodeForm ? 'select' : 'node')}
+            title="Add node">
+            <FontAwesomeIcon icon={faLocationCrosshairs} />
+            <span>Add Node</span>
+          </button>
+          <button
+            className={`tool-button ${creatingEdge ? 'active' : ''}`}
+            onClick={() => setToolMode(creatingEdge ? 'select' : 'edge')}
+            title="Add edge">
+            <FontAwesomeIcon icon={faCircleNodes} />
+            <span>Add Edge</span>
+          </button>
+          <button
+            className={`tool-button ${deleteMode ? 'active' : ''}`}
+            onClick={() => setToolMode(deleteMode ? 'select' : 'delete')}
+            title="Delete">
+            <FontAwesomeIcon icon={faTrash} />
+            <span>Delete</span>
+          </button>
+          <button
+            className={`tool-button ${rectangleSelectMode ? 'active' : ''}`}
+            onClick={() => setToolMode(rectangleSelectMode ? 'select' : 'bulk')}
+            title="Bulk delete">
+            <FontAwesomeIcon icon={faDumpster} />
+            <span>Bulk Delete</span>
+          </button>
+        </div>
+
+        <div className="edge-filter">
+          <button
+            className={`edge-filter-button ${showAllEdges ? 'active' : ''}`}
+            onClick={() => setShowAllEdges(!showAllEdges)}>
+            <FontAwesomeIcon icon={faHexagonNodes} />
+          </button>
+          <div className="edge-filter-tooltip">
+            {showAllEdges ? 'Hide All edges' : 'Show All edges'}
+          </div>
+        </div>
+      </div>
 
       <div className="map-sidebar">
 
@@ -474,113 +637,90 @@ export function MapComponent() {
               {!rectStart && ' — click the first corner'}
             </div>
           )}
+          {deleteMode && (
+            <div className="mode-banner delete">Delete mode — click a node or edge to remove</div>
+          )}
 
-          {/* ── Add Node ─────────────────────────────────────────────── */}
-          <div className="control-section">
-            <h3>Add Node</h3>
-            {!showNodeForm ? (
-              <button className="btn-primary"
-                onClick={() => { setShowNodeForm(true); setNewNodePosition(null); }}
-                disabled={creatingEdge || rectangleSelectMode}>
-                Add Node
-              </button>
-            ) : (
-              <>
-                <div className="form-group">
-                  <label>Name</label>
-                  <input type="text" value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="Node name" autoFocus />
-                </div>
-                <div className="form-group">
-                  <label>Type</label>
-                  <select value={formData.type} onChange={(e) => setFormData({ ...formData, type: e.target.value })}>
-                    <option value="normal">Normal</option>
-                    <option value="corridor">Corridor</option>
-                    <option value="stairs">Stairs</option>
-                    <option value="exit">Exit</option>
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Door Node (optional)</label>
-                  <select value={formData.door_id || ''} onChange={(e) => setFormData({ ...formData, door_id: e.target.value || null })}>
-                    <option value="">None</option>
-                    {nodes.map(node => <option key={node.id} value={node.id}>{node.name || node.id}</option>)}
-                  </select>
-                </div>
-                <p className="hint">
-                  {newNodePosition
-                    ? `Position: (${newNodePosition[0].toFixed(4)}, ${newNodePosition[1].toFixed(4)})`
-                    : 'Click on the map to set position'}
-                </p>
-                <div className="button-group">
-                  <button className="btn-primary" onClick={createNode} disabled={!newNodePosition}>Create</button>
-                  <button className="btn-secondary" onClick={() => {
-                    setShowNodeForm(false); setNewNodePosition(null);
-                    setFormData({ name: '', type: 'normal', door_id: null });
-                    if (tempNodeMarkerRef.current) { map.current.removeLayer(tempNodeMarkerRef.current); tempNodeMarkerRef.current = null; }
-                  }}>Cancel</button>
-                </div>
-              </>
-            )}
-          </div>
+          {showNodeForm && (
+            <div className="control-section">
+              <h3>Add Node</h3>
+              <div className="form-group">
+                <label>Name</label>
+                <input type="text" value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="Node name" autoFocus />
+              </div>
+              <div className="form-group">
+                <label>Type</label>
+                <select value={formData.type} onChange={(e) => setFormData({ ...formData, type: e.target.value })}>
+                  {NODE_TYPE_OPTIONS.map((type) => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Door Node (optional)</label>
+                <select value={formData.door_id || ''} onChange={(e) => setFormData({ ...formData, door_id: e.target.value || null })}>
+                  <option value="">None</option>
+                  {nodes.map(node => <option key={node.id} value={node.id}>{node.name || node.id}</option>)}
+                </select>
+              </div>
+              <p className="hint">
+                {newNodePosition
+                  ? `Position: (${newNodePosition[0].toFixed(4)}, ${newNodePosition[1].toFixed(4)})`
+                  : 'Click on the map to set position'}
+              </p>
+              <div className="button-group">
+                <button className="btn-primary" onClick={createNode} disabled={!newNodePosition}>Create</button>
+                <button className="btn-secondary" onClick={() => {
+                  setToolMode('select');
+                  setNewNodePosition(null);
+                  setFormData({ name: '', type: 'normal', door_id: null });
+                }}>Cancel</button>
+              </div>
+            </div>
+          )}
 
-          {/* ── Bulk Delete ───────────────────────────────────────────── */}
-          <div className="control-section">
-            <h3>Bulk Delete</h3>
-            {!rectangleSelectMode ? (
-              <button className="btn-primary"
-                onClick={() => { setRectangleSelectMode(true); clearRectangleSelection(); }}
-                disabled={creatingEdge || showNodeForm}>
-                Rectangle Select
-              </button>
-            ) : (
-              <>
-                <p className="hint">
-                  {!rectStart && 'Click on the map for the first corner'}
-                  {rectStart && !rectEnd && 'Click the opposite corner'}
-                </p>
-                {rectStart && rectEnd && (
-                  <>
-                    <p className="selected-nodes">
-                      {selectedForDelete.nodes.length} nodes · {selectedForDelete.edges.length} edges
-                    </p>
-                    <div className="button-group">
-                      <button className="btn-primary btn-delete" onClick={deleteSelectedItems}>Delete All</button>
-                      <button className="btn-secondary" onClick={cancelRectangleMode}>Cancel</button>
-                    </div>
-                  </>
-                )}
-                {(!rectStart || (rectStart && !rectEnd)) && (
-                  <button className="btn-secondary" onClick={cancelRectangleMode} style={{ marginTop: '8px' }}>Cancel</button>
-                )}
-              </>
-            )}
-          </div>
+          {rectangleSelectMode && (
+            <div className="control-section">
+              <h3>Bulk Delete</h3>
+              <p className="hint">
+                {!rectStart && 'Click on the map for the first corner'}
+                {rectStart && !rectEnd && 'Click the opposite corner'}
+              </p>
+              {rectStart && rectEnd && (
+                <>
+                  <p className="selected-nodes">
+                    {selectedForDelete.nodes.length} nodes · {selectedForDelete.edges.length} edges
+                  </p>
+                  <div className="button-group">
+                    <button className="btn-primary btn-delete" onClick={deleteSelectedItems}>Delete All</button>
+                    <button className="btn-secondary" onClick={cancelRectangleMode}>Cancel</button>
+                  </div>
+                </>
+              )}
+              {(!rectStart || (rectStart && !rectEnd)) && (
+                <button className="btn-secondary" onClick={cancelRectangleMode} style={{ marginTop: '8px' }}>Cancel</button>
+              )}
+            </div>
+          )}
 
-          {/* ── Connect Nodes ─────────────────────────────────────────── */}
-          <div className="control-section">
-            <h3>Connect Nodes</h3>
-            {!creatingEdge ? (
-              <button className="btn-primary" onClick={() => setCreatingEdge(true)} disabled={showNodeForm || rectangleSelectMode}>
-                Create Edge
-              </button>
-            ) : (
-              <>
-                <p className="hint">Click two nodes to connect them</p>
-                {pointsForEdge.from && <p className="selected-nodes">From: {pointsForEdge.from}</p>}
-                {pointsForEdge.to   && <p className="selected-nodes">To: {pointsForEdge.to}</p>}
-                <div className="button-group">
-                  <button className="btn-primary" onClick={createEdge} disabled={!pointsForEdge.from || !pointsForEdge.to}>
-                    Create Edge
-                  </button>
-                  <button className="btn-secondary" onClick={() => { setCreatingEdge(false); setPointsForEdge({ from: null, to: null }); }}>
-                    Cancel
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
+          {creatingEdge && (
+            <div className="control-section">
+              <h3>Connect Nodes</h3>
+              <p className="hint">Click two nodes to connect them</p>
+              {pointsForEdge.from && <p className="selected-nodes">From: {pointsForEdge.from}</p>}
+              {pointsForEdge.to   && <p className="selected-nodes">To: {pointsForEdge.to}</p>}
+              <div className="button-group">
+                <button className="btn-primary" onClick={createEdge} disabled={!pointsForEdge.from || !pointsForEdge.to}>
+                  Create Edge
+                </button>
+                <button className="btn-secondary" onClick={() => setToolMode('select')}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* ── Node Details ──────────────────────────────────────────── */}
           {selectedNode && !editingNode && (
@@ -627,10 +767,9 @@ export function MapComponent() {
               <div className="form-group">
                 <label>Type</label>
                 <select value={editFormData.type} onChange={(e) => setEditFormData({ ...editFormData, type: e.target.value })}>
-                  <option value="normal">Normal</option>
-                  <option value="corridor">Corridor</option>
-                  <option value="stairs">Stairs</option>
-                  <option value="exit">Exit</option>
+                  {NODE_TYPE_OPTIONS.map((type) => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
                 </select>
               </div>
               <div className="form-group">
@@ -752,11 +891,6 @@ export function MapComponent() {
                 value={edgeSearchQuery}
                 onChange={(e) => setEdgeSearchQuery(e.target.value)} />
             </div>
-            <button className="btn-primary"
-              onClick={() => setShowAllEdges(!showAllEdges)}
-              style={{ marginBottom: '10px', background: showAllEdges ? '#3fb950' : undefined, color: showAllEdges ? '#0d1117' : undefined }}>
-              {showAllEdges ? 'Hide Edges' : 'Show All Edges'}
-            </button>
             <ul className="items-list edges-list">
               {filteredEdges.map((edge) => {
                 const fromNode = nodes.find(n => n.id === edge.from_id);

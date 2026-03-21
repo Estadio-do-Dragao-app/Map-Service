@@ -40,11 +40,176 @@
   font-family: var(--font-ui);
 }
 
-.map {
+.map-stage {
+  position: relative;
   flex: 1;
+  min-width: 0;
+}
+
+.map {
+  width: 100%;
+  height: 100%;
   min-height: 500px;
   z-index: 1;
   cursor: crosshair;
+}
+
+/* ─── Toolbar ───────────────────────────────────────────────────────────── */
+.map-toolbar {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  max-width: calc(100% - 32px);
+  padding: 8px 10px;
+  background: rgba(13,17,23,.9);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  box-shadow: var(--shadow-md);
+  z-index: 20;
+  backdrop-filter: blur(8px);
+}
+
+.tool-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  background: var(--panel-raised);
+  color: var(--text-secondary);
+  padding: 6px 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
+}
+
+.tool-button svg {
+  font-size: 12px;
+}
+
+.tool-button:hover {
+  border-color: var(--border-hover);
+  color: var(--text-primary);
+}
+
+.tool-button.active {
+  background: var(--accent);
+  color: #0d1117;
+  border-color: transparent;
+}
+
+/* ─── Edge Filter ───────────────────────────────────────────────────────── */
+.edge-filter {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.edge-filter-button {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--panel-raised);
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
+}
+
+.edge-filter-button:hover {
+  color: var(--text-primary);
+  border-color: var(--border-hover);
+}
+
+.edge-filter:hover .edge-filter-button {
+  background: rgba(88,166,255,.2);
+  border-color: rgba(88,166,255,.5);
+  color: var(--text-primary);
+}
+
+.edge-filter-button.active {
+  background: var(--accent);
+  color: #0d1117;
+  border-color: transparent;
+}
+
+.edge-filter-tooltip {
+  opacity: 0;
+  pointer-events: none;
+  background: var(--accent);
+  color: #000;
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  transition: opacity var(--transition), transform var(--transition), background var(--transition), box-shadow var(--transition);
+  transform: translateX(-6px) scale(.98);
+  box-shadow: 0 0 0 rgba(0,0,0,0);
+}
+
+.edge-filter:hover .edge-filter-tooltip {
+  opacity: 1;
+  transform: translateX(0) scale(1.02);
+  background: var(--accent);
+  box-shadow: 0 0 12px rgba(88,166,255,.35);
+}
+
+/* ─── POI Markers ───────────────────────────────────────────────────────── */
+.poi-marker {
+  position: relative;
+  width: 22px;
+  height: 30px;
+}
+
+.poi-marker-pin {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 18px;
+  height: 18px;
+  background: var(--accent);
+  border: 2px solid #0d1117;
+  border-radius: 50% 50% 50% 0;
+  transform: translateX(-50%) rotate(-45deg);
+  box-shadow: 0 4px 10px rgba(0,0,0,.4);
+}
+
+.poi-marker-dot {
+  position: absolute;
+  top: 5px;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  background: #0d1117;
+  border-radius: 50%;
+  transform: translateX(-50%);
+}
+
+.poi-marker.poi-selected .poi-marker-pin {
+  background: #ff6b6b;
+  box-shadow: 0 0 12px rgba(255,107,107,.6);
+}
+
+.poi-marker.poi-delete .poi-marker-pin {
+  background: #ffa500;
+  box-shadow: 0 0 12px rgba(255,165,0,.6);
 }
 
 /* ─── Sidebar ────────────────────────────────────────────────────────────── */
@@ -311,6 +476,7 @@
 .mode-banner.edge   { background: rgba(227,179,65,.1);  border-color: var(--accent-yellow); color: var(--accent-yellow); }
 .mode-banner.door   { background: rgba(188,140,255,.1); border-color: var(--accent-purple); color: var(--accent-purple); }
 .mode-banner.rect   { background: rgba(248,81,73,.1);   border-color: var(--accent-red);    color: var(--accent-red); }
+.mode-banner.delete { background: rgba(248,81,73,.12);  border-color: var(--accent-red);    color: var(--accent-red); }
 
 /* ─── Node list ──────────────────────────────────────────────────────────── */
 .items-list {
