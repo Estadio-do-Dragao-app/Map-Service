@@ -1919,3 +1919,41 @@ def create_batch(data: BatchCreate, db: Session = Depends(get_db)):
         notify_routing_refresh()
 
     return results
+
+
+# ================== MAP SYNC ==================
+@app.post("/map/sync", status_code=200)
+def sync_map(data: BatchCreate, db: Session = Depends(get_db)):
+    """
+    Overwrites the entire map with the provided nodes, edges, and closures.
+    Rebuilds the grid index and notifies the routing service.
+    """
+    try:
+        # Clear existing data
+        db.query(Closure).delete()
+        db.query(Edge).delete()
+        db.query(Node).delete()
+        db.query(Tile).delete()
+
+        # Insert new data
+        for node_data in data.nodes:
+            db.add(Node(**node_data.model_dump()))
+            
+        for edge_data in data.edges:
+            db.add(Edge(**edge_data.model_dump()))
+            
+        for closure_data in data.closures:
+            db.add(Closure(**closure_data.model_dump()))    
+            
+        db.commit()
+
+        # Rebuild grid
+        grid_manager = GridManager(cell_size=5.0, origin_x=0.0, origin_y=0.0)
+        grid_manager.rebuild_grid(db)
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error during sync: {str(e)}")
+
+    notify_routing_refresh()
+    return {"status": "success", "message": "Map synchronized successfully"}

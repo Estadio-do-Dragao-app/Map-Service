@@ -11,6 +11,7 @@ import {
   faFileImport,
   faVideo,
   faCameraRotate,
+  faCloudArrowUp,
 } from '@fortawesome/free-solid-svg-icons';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -376,6 +377,62 @@ export function MapComponent() {
       alert('Map imported successfully!');
     } catch (err) {
       setError(`Import error: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpload = async () => {
+    const isConfirmed = window.confirm("Are you sure you want to upload the current map? This will overwrite all existing map data in the database.");
+    if (!isConfirmed) return;
+
+    try {
+      setLoading(true);
+
+      const mappedEdges = edges.map(edge => ({
+        id: edge.id,
+        from_id: edge.from_id || edge.from,
+        to_id: edge.to_id || edge.to,
+        weight: edge.weight !== undefined ? edge.weight : edge.w,
+        accessible: edge.accessible !== undefined ? edge.accessible : true,
+      }));
+
+      // Fetch current closures to preserve them (only keep valid ones)
+      let currentClosures = [];
+      try {
+        const closuresRes = await fetch(`${API_BASE}/closures`);
+        if (closuresRes.ok) {
+          currentClosures = await closuresRes.json();
+        }
+      } catch (e) {
+        console.warn("Could not fetch current closures.", e);
+      }
+      
+      const validNodeIds = new Set(nodes.map(n => n.id));
+      const validEdgeIds = new Set(mappedEdges.map(e => e.id));
+      const validClosures = currentClosures.filter(c => 
+        (c.node_id && validNodeIds.has(c.node_id)) || (c.edge_id && validEdgeIds.has(c.edge_id))
+      );
+
+      const response = await fetch(`${API_BASE}/map/sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nodes: nodes,
+          edges: mappedEdges,
+          closures: validClosures,
+        }),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.detail || 'Failed to upload map');
+      }
+
+      await fetchData();
+      alert('Map uploaded and synced successfully!');
+    } catch (err) {
+      setError(`Upload error: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -917,6 +974,13 @@ export function MapComponent() {
             onClick={exportMap}>
             <FontAwesomeIcon icon={faFileExport} />
             <span>Export</span>
+          </button>
+          <button
+            className="tool-button"
+            title="Upload"
+            onClick={handleUpload}>
+            <FontAwesomeIcon icon={faCloudArrowUp} />
+            <span>Upload</span>
           </button>
         </div>
 
