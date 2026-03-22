@@ -9,6 +9,8 @@ import {
   faHexagonNodes,
   faFileExport,
   faFileImport,
+  faVideo,
+  faCameraRotate,
 } from '@fortawesome/free-solid-svg-icons';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -22,21 +24,9 @@ const AVEIRO_CENTER = [
 ];
 
 const NODE_TYPE_OPTIONS = [
-  'corridor',
-  'row_aisle',
-  'seat',
-  'gate',
-  'stairs',
-  'ramp',
-  'restroom',
-  'food',
-  'bar',
-  'merchandise',
-  'first_aid',
-  'emergency_exit',
-  'information',
-  'vip_box',
-  'normal',
+  'corridor', 'row_aisle', 'seat', 'gate', 'stairs', 'ramp',
+  'restroom', 'food', 'bar', 'merchandise', 'first_aid',
+  'emergency_exit', 'information', 'vip_box', 'camera', 'normal',
 ];
 
 export function MapComponent() {
@@ -81,17 +71,30 @@ export function MapComponent() {
   const FADE_DURATION_MS = 180;
   const prevHideNonPoiRef = useRef(false);
 
+  // ── Camera state ─────────────────────────────────────────────────────────
+  const [cameras, setCameras]               = useState([]);
+  const [showCameras, setShowCameras]       = useState(false);
+  const [showCameraForm, setShowCameraForm] = useState(false);
+  const [cameraFormData, setCameraFormData] = useState({
+    id: '', pos_z: 10.0, pan: 0.0, tilt: -30.0,
+    fov_horizontal: 70.0, fov_vertical: 55.0,
+    coverage_x_min: '', coverage_x_max: '',
+    coverage_y_min: '', coverage_y_max: '',
+  });
+
   // ── Fetch ────────────────────────────────────────────────────────────────
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [nodesRes, edgesRes] = await Promise.all([
+      const [nodesRes, edgesRes, camerasRes] = await Promise.all([
         fetch(`${API_BASE}/nodes`),
         fetch(`${API_BASE}/edges`),
+        fetch(`${API_BASE}/cameras`),
       ]);
       if (!nodesRes.ok || !edgesRes.ok) throw new Error('Failed to fetch data');
       setNodes(await nodesRes.json());
       setEdges(await edgesRes.json());
+      if (camerasRes.ok) setCameras(await camerasRes.json());
     } catch (err) {
       setError(err.message);
       console.error('Error fetching data:', err);
@@ -322,6 +325,7 @@ export function MapComponent() {
   const setToolMode = (mode) => {
     setCreatingEdge(false);
     setShowNodeForm(false);
+    setShowCameraForm(false);
     setRectangleSelectMode(false);
     setDeleteMode(false);
     setSelectingDoor(false);
@@ -331,22 +335,70 @@ export function MapComponent() {
     clearRectangleSelection();
     clearTempNodeMarker();
 
-    if (mode === 'node') {
-      setShowNodeForm(true);
-      setNewNodePosition(null);
-    }
-    if (mode === 'edge') setCreatingEdge(true);
-    if (mode === 'bulk') setRectangleSelectMode(true);
+    if (mode === 'node')   { setShowNodeForm(true);   setNewNodePosition(null); }
+    if (mode === 'camera') { setShowCameraForm(true);  setNewNodePosition(null); }
+    if (mode === 'edge')   setCreatingEdge(true);
+    if (mode === 'bulk')   setRectangleSelectMode(true);
     if (mode === 'delete') setDeleteMode(true);
+  };
+
+  const createCamera = async () => {
+    if (!newNodePosition) { alert('Click on the map to set the camera position'); return; }
+    if (!cameraFormData.id.trim()) { alert('Camera ID is required'); return; }
+    const nodeId = `cam_node_${Date.now()}`;
+    try {
+      const nodeRes = await fetch(`${API_BASE}/nodes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: nodeId, name: cameraFormData.id,
+          x: newNodePosition[1], y: newNodePosition[0],
+          type: 'camera', level: 0,
+          description: `Camera ${cameraFormData.id}`,
+        }),
+      });
+      if (!nodeRes.ok) throw new Error('Failed to create camera node');
+
+      const camRes = await fetch(`${API_BASE}/cameras`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: cameraFormData.id,
+          node_id: nodeId,
+          pos_x: newNodePosition[1],
+          pos_y: newNodePosition[0],
+          pos_z: cameraFormData.pos_z,
+          pan: cameraFormData.pan,
+          tilt: cameraFormData.tilt,
+          fov_horizontal: cameraFormData.fov_horizontal,
+          fov_vertical: cameraFormData.fov_vertical,
+          coverage_x_min: cameraFormData.coverage_x_min !== '' ? parseFloat(cameraFormData.coverage_x_min) : null,
+          coverage_x_max: cameraFormData.coverage_x_max !== '' ? parseFloat(cameraFormData.coverage_x_max) : null,
+          coverage_y_min: cameraFormData.coverage_y_min !== '' ? parseFloat(cameraFormData.coverage_y_min) : null,
+          coverage_y_max: cameraFormData.coverage_y_max !== '' ? parseFloat(cameraFormData.coverage_y_max) : null,
+        }),
+      });
+      if (!camRes.ok) throw new Error('Failed to create camera record');
+
+      setNewNodeIds(prev => new Set([...prev, nodeId]));
+      await fetchData();
+      setToolMode('select');
+      setCameraFormData({ id: '', pos_z: 10.0, pan: 0.0, tilt: -30.0, fov_horizontal: 70.0, fov_vertical: 55.0, coverage_x_min: '', coverage_x_max: '', coverage_y_min: '', coverage_y_max: '' });
+    } catch (err) { setError(err.message); }
   };
 
   const deleteSelectedItems = async () => {
     if (!selectedForDelete.nodes.length && !selectedForDelete.edges.length) return;
     try {
-      await Promise.all([
-        ...selectedForDelete.edges.map(edge => fetch(`${API_BASE}/edges/${edge.id}`, { method: 'DELETE' })),
-        ...selectedForDelete.nodes.map(node => fetch(`${API_BASE}/nodes/${node.id}`, { method: 'DELETE' })),
-      ]);
+      const response = await fetch(`${API_BASE}/batch/delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          node_ids: selectedForDelete.nodes.map(n => n.id),
+          edge_ids: selectedForDelete.edges.map(e => e.id)
+        })
+      });
+      if (!response.ok) throw new Error('Batch delete request failed');
       setNewNodeIds(prev => {
         const s = new Set(prev); selectedForDelete.nodes.forEach(n => s.delete(n.id)); return s;
       });
@@ -428,22 +480,15 @@ export function MapComponent() {
     const visibleNodeIds = new Set();
     const hiddenByZoom = new Set();
     nodes.forEach(node => {
+      const isCamera = (node.type || '') === 'camera';
       const poiTypes = new Set([
-        'poi',
-        'restroom',
-        'food',
-        'bar',
-        'merchandise',
-        'first_aid',
-        'emergency_exit',
-        'information',
-        'vip_box',
+        'poi', 'restroom', 'food', 'bar', 'merchandise',
+        'first_aid', 'emergency_exit', 'information', 'vip_box', 'camera',
       ]);
       const isPoi = poiTypes.has((node.type || '').toLowerCase());
-      if (hideNonPoi && !isPoi) {
-        hiddenByZoom.add(node.id);
-        return;
-      }
+
+      if (isCamera && !showCameras) { hiddenByZoom.add(node.id); return; }
+      if (hideNonPoi && !isPoi) { hiddenByZoom.add(node.id); return; }
       visibleNodeIds.add(node.id);
       const isFromNode       = pointsForEdge.from === node.id;
       const isToNode         = pointsForEdge.to   === node.id;
@@ -469,7 +514,9 @@ export function MapComponent() {
 
       const markerKind = node.id === editingNode && draggedPosition
         ? 'edit'
-        : (isPoi ? 'poi' : 'circle');
+        : isCamera ? 'camera'
+        : isPoi ? 'poi'
+        : 'circle';
       const existingEntry = markersRef.current[node.id];
       let entry = existingEntry;
 
@@ -489,6 +536,21 @@ export function MapComponent() {
           editMarker.on('dragend', (e) => { const p = e.target.getLatLng(); setDraggedPosition({ lat: p.lat, lng: p.lng }); });
           editMarker.bindPopup(`<strong>Editing: ${node.name || node.id}</strong><br/>Drag to move`);
           entry = { marker: editMarker, kind: 'edit' };
+        } else if (markerKind === 'camera') {
+          const camData = cameras.find(c => c.node_id === node.id);
+          const bg = isInDelete ? '#ffa500' : isListSelected ? '#ff6b6b' : '#bc8cff';
+          const camMarker = L.marker([node.y, node.x], {
+            icon: L.divIcon({
+              className: 'camera-marker',
+              html: `<div class="camera-marker-inner" style="background:${bg}"><svg viewBox="0 0 24 24" fill="white" width="14" height="14"><path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4z"/></svg></div>`,
+              iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -16],
+            }),
+          }).addTo(map.current);
+          camMarker.bindPopup(`
+            <strong>${node.name || node.id}</strong><br/>
+            ${camData ? `H: ${camData.pos_z}m · Pan: ${camData.pan}° · Tilt: ${camData.tilt}°<br/>FOV: ${camData.fov_horizontal}°×${camData.fov_vertical}°` : ''}
+          `);
+          entry = { marker: camMarker, kind: 'camera' };
         } else if (markerKind === 'poi') {
           const poiStateClass = isInDelete
             ? 'poi-delete'
@@ -598,7 +660,16 @@ export function MapComponent() {
         return;
       }
       if (hiddenByZoom.has(nodeId)) {
-        if (fadeOutOnZoom) scheduleMarkerRemoval(nodeId, entry);
+        const node = nodes.find(n => n.id === nodeId);
+        const isCamera = (node?.type || '') === 'camera';
+        if (isCamera) {
+          // Camera toggled off — remove immediately
+          clearMarkerTimer(nodeId);
+          entry.marker.remove();
+          delete markersRef.current[nodeId];
+        } else if (fadeOutOnZoom) {
+          scheduleMarkerRemoval(nodeId, entry);
+        }
         return;
       }
       if (!visibleNodeIds.has(nodeId)) {
@@ -706,10 +777,11 @@ export function MapComponent() {
         return;
       }
       if (showNodeForm && !newNodePosition) setNewNodePosition([e.latlng.lat, e.latlng.lng]);
+      if (showCameraForm && !newNodePosition) setNewNodePosition([e.latlng.lat, e.latlng.lng]);
     };
     map.current.on('click', handleMapClick);
     return () => { if (map.current) map.current.off('click', handleMapClick); };
-  }, [rectangleSelectMode, rectStart, rectEnd, showNodeForm, newNodePosition, deleteMode]);
+  }, [rectangleSelectMode, rectStart, rectEnd, showNodeForm, showCameraForm, newNodePosition, deleteMode]);
 
   // ── Fit bounds on first load ──────────────────────────────────────────────
   useEffect(() => {
@@ -726,7 +798,7 @@ export function MapComponent() {
     if (map.current) updateMapView();
   }, [nodes, edges, pointsForEdge, newNodePosition, selectedNode, selectedEdgeFromList,
       selectedForDelete, nodeSearchQuery, creatingEdge, editingNode, draggedPosition,
-      showAllEdges, selectingDoor, deleteMode, mapZoom]);
+      showAllEdges, selectingDoor, deleteMode, mapZoom, showCameras, cameras]);
 
   // ── Filtered lists ────────────────────────────────────────────────────────
   const filteredNodes = nodes.filter(node =>
@@ -809,16 +881,36 @@ export function MapComponent() {
             <FontAwesomeIcon icon={faDumpster} />
             <span>Bulk Delete</span>
           </button>
+          <button
+            className={`tool-button ${showCameraForm ? 'active' : ''}`}
+            onClick={() => setToolMode(showCameraForm ? 'select' : 'camera')}
+            title="Add camera">
+            <FontAwesomeIcon icon={faCameraRotate} />
+            <span>Add Camera</span>
+          </button>
         </div>
 
-        <div className="edge-filter">
-          <button
-            className={`edge-filter-button ${showAllEdges ? 'active' : ''}`}
-            onClick={() => setShowAllEdges(!showAllEdges)}>
-            <FontAwesomeIcon icon={faHexagonNodes} />
-          </button>
-          <div className="edge-filter-tooltip">
-            {showAllEdges ? 'Hide All edges' : 'Show All edges'}
+        <div className="edge-filter" style={{ flexDirection: 'column', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <button
+              className={`edge-filter-button ${showAllEdges ? 'active' : ''}`}
+              onClick={() => setShowAllEdges(!showAllEdges)}>
+              <FontAwesomeIcon icon={faHexagonNodes} />
+            </button>
+            <div className="edge-filter-tooltip">
+              {showAllEdges ? 'Hide All edges' : 'Show All edges'}
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <button
+              className={`edge-filter-button ${showCameras ? 'active' : ''}`}
+              onClick={() => setShowCameras(!showCameras)}
+              style={showCameras ? { background: 'var(--accent-purple)', borderColor: 'transparent', color: '#0d1117' } : {}}>
+              <FontAwesomeIcon icon={faVideo} />
+            </button>
+            <div className="edge-filter-tooltip" style={{ background: showCameras ? 'var(--accent-purple)' : undefined }}>
+              {showCameras ? 'Hide cameras' : 'Show cameras'}
+            </div>
           </div>
         </div>
       </div>
@@ -852,6 +944,98 @@ export function MapComponent() {
           )}
           {deleteMode && (
             <div className="mode-banner delete">Delete mode — click a node or edge to remove</div>
+          )}
+          {showCameraForm && (
+            <div className="mode-banner" style={{ borderColor: 'var(--accent-purple)', background: 'rgba(188,140,255,.1)', color: 'var(--accent-purple)' }}>
+              Camera mode — click the map to place
+            </div>
+          )}
+
+          {showCameraForm && (
+            <div className="control-section">
+              <h3>Add Camera</h3>
+              <div className="form-group">
+                <label>Camera ID</label>
+                <input type="text" value={cameraFormData.id}
+                  onChange={(e) => setCameraFormData({ ...cameraFormData, id: e.target.value })}
+                  placeholder="e.g. CAM_001" autoFocus />
+              </div>
+              <div className="form-group">
+                <label>Height (m)</label>
+                <input type="number" step="0.5" value={cameraFormData.pos_z}
+                  onChange={(e) => setCameraFormData({ ...cameraFormData, pos_z: parseFloat(e.target.value) })} />
+              </div>
+              <div className="form-group">
+                <label>Pan (°)</label>
+                <input type="number" step="1" value={cameraFormData.pan}
+                  onChange={(e) => setCameraFormData({ ...cameraFormData, pan: parseFloat(e.target.value) })} />
+              </div>
+              <div className="form-group">
+                <label>Tilt (°)</label>
+                <input type="number" step="1" value={cameraFormData.tilt}
+                  onChange={(e) => setCameraFormData({ ...cameraFormData, tilt: parseFloat(e.target.value) })} />
+              </div>
+              <div className="form-group">
+                <label>FOV Horizontal (°)</label>
+                <input type="number" step="1" value={cameraFormData.fov_horizontal}
+                  onChange={(e) => setCameraFormData({ ...cameraFormData, fov_horizontal: parseFloat(e.target.value) })} />
+              </div>
+              <div className="form-group">
+                <label>FOV Vertical (°)</label>
+                <input type="number" step="1" value={cameraFormData.fov_vertical}
+                  onChange={(e) => setCameraFormData({ ...cameraFormData, fov_vertical: parseFloat(e.target.value) })} />
+              </div>
+              <div className="form-group">
+                <label>Coverage X min / max (m)</label>
+                <div style={{ display: 'flex', gap: '5px' }}>
+                  <input type="number" step="any" placeholder="min" value={cameraFormData.coverage_x_min}
+                    onChange={(e) => setCameraFormData({ ...cameraFormData, coverage_x_min: e.target.value })} />
+                  <input type="number" step="any" placeholder="max" value={cameraFormData.coverage_x_max}
+                    onChange={(e) => setCameraFormData({ ...cameraFormData, coverage_x_max: e.target.value })} />
+                </div>
+              </div>
+              <div className="form-group">
+                <label>Coverage Y min / max (m)</label>
+                <div style={{ display: 'flex', gap: '5px' }}>
+                  <input type="number" step="any" placeholder="min" value={cameraFormData.coverage_y_min}
+                    onChange={(e) => setCameraFormData({ ...cameraFormData, coverage_y_min: e.target.value })} />
+                  <input type="number" step="any" placeholder="max" value={cameraFormData.coverage_y_max}
+                    onChange={(e) => setCameraFormData({ ...cameraFormData, coverage_y_max: e.target.value })} />
+                </div>
+              </div>
+              <p className="hint">
+                {newNodePosition
+                  ? `Position: (${newNodePosition[0].toFixed(4)}, ${newNodePosition[1].toFixed(4)})`
+                  : 'Click on the map to place the camera'}
+              </p>
+              <div className="button-group">
+                <button className="btn-primary" onClick={createCamera} disabled={!newNodePosition}
+                  style={{ background: 'var(--accent-purple)', color: '#0d1117' }}>Create</button>
+                <button className="btn-secondary" onClick={() => setToolMode('select')}>Cancel</button>
+              </div>
+            </div>
+          )}
+
+          {showCameras && cameras.length > 0 && (
+            <div className="control-section">
+              <h3>Cameras ({cameras.length})</h3>
+              <ul className="items-list">
+                {cameras.map((cam) => {
+                  const camNode = nodes.find(n => n.id === cam.node_id);
+                  return (
+                    <li key={cam.id} onClick={() => {
+                      if (camNode) { selectNode(camNode); map.current?.setView([camNode.y, camNode.x], map.current.getZoom()); }
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <FontAwesomeIcon icon={faVideo} style={{ color: 'var(--accent-purple)', fontSize: '11px' }} />
+                        <strong>{cam.id}</strong>
+                      </div>
+                      <small>H:{cam.pos_z}m · pan:{cam.pan}° · tilt:{cam.tilt}° · FOV:{cam.fov_horizontal}×{cam.fov_vertical}°</small>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
           )}
 
           {showNodeForm && (

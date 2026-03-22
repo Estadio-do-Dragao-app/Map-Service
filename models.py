@@ -31,6 +31,7 @@ NODE_TYPES = [
     "emergency_exit", # Emergency exit point
     "information",    # Information desk
     "vip_box",        # VIP box/corporate area
+    "camera",         # Surveillance camera
     "normal",         # Generic navigation node
 ]
 
@@ -221,6 +222,40 @@ class Tile(Base):
     seat_id = Column(String, nullable=True)
     gate_id = Column(String, nullable=True)
 
+
+class Camera(Base):
+    """
+    Surveillance camera node in the stadium.
+    Extends the concept of a Node with camera-specific calibration fields.
+    The camera is also registered as a Node (type="camera") for map display.
+    """
+    __tablename__ = "cameras"
+
+    id = Column(String, primary_key=True)          # e.g., "CAM_001"
+    node_id = Column(String, ForeignKey("nodes.id", ondelete="CASCADE"), nullable=False)  # linked map node
+
+    # Physical position (metres)
+    pos_x = Column(Float, nullable=False)          # X position in real-world metres
+    pos_y = Column(Float, nullable=False)          # Y position in real-world metres
+    pos_z = Column(Float, nullable=False)          # Height in metres (e.g., 10.0)
+
+    # Orientation
+    pan = Column(Float, default=0.0)               # Horizontal rotation in degrees
+    tilt = Column(Float, default=-30.0)            # Vertical angle in degrees (negative = looking down)
+
+    # Field of View
+    fov_horizontal = Column(Float, default=70.0)   # Horizontal FOV in degrees
+    fov_vertical = Column(Float, default=55.0)     # Vertical FOV in degrees
+
+    # Coverage area in real-world metres (bounding box on the ground)
+    coverage_x_min = Column(Float, nullable=True)
+    coverage_x_max = Column(Float, nullable=True)
+    coverage_y_min = Column(Float, nullable=True)
+    coverage_y_max = Column(Float, nullable=True)
+
+    # Relationship to the map node
+    node = relationship("Node", foreign_keys=[node_id])
+
 # ================== Pydantic Schemas ==================
 
 class NodeBase(BaseModel):
@@ -400,3 +435,51 @@ class BatchCreate(BaseModel):
     nodes: list[NodeCreate] = []
     edges: list[EdgeCreate] = []
     closures: list[ClosureCreate] = []
+
+# ================== Camera Schemas ==================
+
+class CameraCreate(BaseModel):
+    id: str                          # e.g., "CAM_001"
+    node_id: str                     # ID of the linked Node (type="camera")
+    pos_x: float
+    pos_y: float
+    pos_z: float                     # Height in metres
+    pan: float = 0.0
+    tilt: float = -30.0
+    fov_horizontal: float = 70.0
+    fov_vertical: float = 55.0
+    coverage_x_min: Optional[float] = None
+    coverage_x_max: Optional[float] = None
+    coverage_y_min: Optional[float] = None
+    coverage_y_max: Optional[float] = None
+
+class CameraUpdate(BaseModel):
+    pos_x: Optional[float] = None
+    pos_y: Optional[float] = None
+    pos_z: Optional[float] = None
+    pan: Optional[float] = None
+    tilt: Optional[float] = None
+    fov_horizontal: Optional[float] = None
+    fov_vertical: Optional[float] = None
+    coverage_x_min: Optional[float] = None
+    coverage_x_max: Optional[float] = None
+    coverage_y_min: Optional[float] = None
+    coverage_y_max: Optional[float] = None
+
+class CameraResponse(BaseModel):
+    id: str
+    node_id: str
+    pos_x: float
+    pos_y: float
+    pos_z: float
+    pan: float
+    tilt: float
+    fov_horizontal: float
+    fov_vertical: float
+    coverage_x_min: Optional[float]
+    coverage_x_max: Optional[float]
+    coverage_y_min: Optional[float]
+    coverage_y_max: Optional[float]
+
+    class Config:
+        from_attributes = True

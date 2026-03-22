@@ -2,21 +2,9 @@ from pydantic import BaseModel
 from typing import Optional, List
 
 NODE_TYPES = [
-    "corridor",
-    "row_aisle",
-    "seat",
-    "gate",
-    "stairs",
-    "ramp",
-    "restroom",
-    "food",
-    "bar",
-    "merchandise",
-    "first_aid",
-    "emergency_exit",
-    "information",
-    "vip_box",
-    "normal",
+    "corridor", "row_aisle", "seat", "gate", "stairs", "ramp",
+    "restroom", "food", "bar", "merchandise", "first_aid",
+    "emergency_exit", "information", "vip_box", "camera", "normal",
 ]
 
 # ================== NODE SCHEMAS ==================
@@ -107,9 +95,62 @@ class ClosureResponse(BaseModel):
     node_id: Optional[str]
 
 
-# ================== BATCH SCHEMA ==================
+# ================== BATCH SCHEMAS ==================
 
 class BatchCreate(BaseModel):
     nodes: List[NodeCreate] = []
     edges: List[EdgeCreate] = []
     closures: List[ClosureCreate] = []
+
+
+class BatchDelete(BaseModel):
+    node_ids: List[str] = []
+    edge_ids: List[str] = []
+
+
+# ================== CAMERA SCHEMAS ==================
+
+class CameraCreate(BaseModel):
+    id: str
+    node_id: str
+    pos_x: float
+    pos_y: float
+    pos_z: float
+    pan: float = 0.0
+    tilt: float = -30.0
+    fov_horizontal: float = 70.0
+    fov_vertical: float = 55.0
+    coverage_x_min: Optional[float] = None
+    coverage_x_max: Optional[float] = None
+    coverage_y_min: Optional[float] = None
+    coverage_y_max: Optional[float] = None
+
+
+class CameraUpdate(BaseModel):
+    pos_x: Optional[float] = None
+    pos_y: Optional[float] = None
+    pos_z: Optional[float] = None
+    pan: Optional[float] = None
+    tilt: Optional[float] = None
+    fov_horizontal: Optional[float] = None
+    fov_vertical: Optional[float] = None
+    coverage_x_min: Optional[float] = None
+    coverage_x_max: Optional[float] = None
+    coverage_y_min: Optional[float] = None
+    coverage_y_max: Optional[float] = None
+
+
+class CameraResponse(BaseModel):
+    id: str
+    node_id: str
+    pos_x: float
+    pos_y: float
+    pos_z: float
+    pan: float
+    tilt: float
+    fov_horizontal: float
+    fov_vertical: float
+    coverage_x_min: Optional[float]
+    coverage_x_max: Optional[float]
+    coverage_y_min: Optional[float]
+    coverage_y_max: Optional[float]

@@ -7,7 +7,8 @@ import asyncio
 from models import (
     EdgeUpdate, NodeCreate, NodeResponse,
     EdgeCreate, EdgeResponse,
-    ClosureCreate, ClosureResponse, BatchCreate, NodeUpdate,
+    ClosureCreate, ClosureResponse, BatchCreate, BatchDelete, NodeUpdate,
+    CameraCreate, CameraUpdate, CameraResponse,
     NODE_TYPES
 )
 from database import call_map_service, check_map_service_health
@@ -238,6 +239,95 @@ async def create_batch(data: BatchCreate):
     """
     try:
         return await call_map_service("POST", "/batch", json=data.model_dump(exclude_none=True))
+    except httpx.ConnectError:
+        raise HTTPException(status_code=503, detail="Map-Service não está acessível")
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=e.response.status_code, detail=e.response.text)
+    
+
+# ================== BATCH DELETE ==================
+
+@app.post("/batch/delete", status_code=200, tags=["batch"])
+async def delete_batch(data: BatchDelete):
+    """Apaga múltiplos nodes e/ou edges em paralelo. Edges primeiro, depois nodes."""
+    results = {
+        "edges": {"deleted": [], "errors": []},
+        "nodes": {"deleted": [], "errors": []},
+    }
+
+    async def del_edge(edge_id: str):
+        try:
+            await call_map_service("DELETE", f"/edges/{edge_id}")
+            results["edges"]["deleted"].append(edge_id)
+        except Exception as e:
+            results["edges"]["errors"].append({"id": edge_id, "error": str(e)})
+
+    async def del_node(node_id: str):
+        try:
+            await call_map_service("DELETE", f"/nodes/{node_id}")
+            results["nodes"]["deleted"].append(node_id)
+        except Exception as e:
+            results["nodes"]["errors"].append({"id": node_id, "error": str(e)})
+
+    if data.edge_ids:
+        await asyncio.gather(*[del_edge(eid) for eid in data.edge_ids])
+    if data.node_ids:
+        await asyncio.gather(*[del_node(nid) for nid in data.node_ids])
+
+    return results
+
+
+# ================== CAMERAS ==================
+
+@app.get("/cameras", response_model=List[CameraResponse], tags=["cameras"])
+async def get_cameras():
+    """Lista todas as câmaras."""
+    try:
+        return await call_map_service("GET", "/cameras")
+    except httpx.ConnectError:
+        raise HTTPException(status_code=503, detail="Map-Service não está acessível")
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=e.response.status_code, detail=e.response.text)
+
+
+@app.get("/cameras/{camera_id}", response_model=CameraResponse, tags=["cameras"])
+async def get_camera(camera_id: str):
+    """Obtém uma câmara pelo ID."""
+    try:
+        return await call_map_service("GET", f"/cameras/{camera_id}")
+    except httpx.ConnectError:
+        raise HTTPException(status_code=503, detail="Map-Service não está acessível")
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=e.response.status_code, detail=e.response.text)
+
+
+@app.post("/cameras", response_model=CameraResponse, status_code=201, tags=["cameras"])
+async def create_camera(data: CameraCreate):
+    """Cria uma nova câmara com dados de calibração."""
+    try:
+        return await call_map_service("POST", "/cameras", json=data.model_dump())
+    except httpx.ConnectError:
+        raise HTTPException(status_code=503, detail="Map-Service não está acessível")
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=e.response.status_code, detail=e.response.text)
+
+
+@app.put("/cameras/{camera_id}", response_model=CameraResponse, tags=["cameras"])
+async def update_camera(camera_id: str, data: CameraUpdate):
+    """Atualiza os dados de calibração de uma câmara."""
+    try:
+        return await call_map_service("PUT", f"/cameras/{camera_id}", json=data.model_dump(exclude_none=True))
+    except httpx.ConnectError:
+        raise HTTPException(status_code=503, detail="Map-Service não está acessível")
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=e.response.status_code, detail=e.response.text)
+
+
+@app.delete("/cameras/{camera_id}", tags=["cameras"])
+async def delete_camera(camera_id: str):
+    """Apaga uma câmara pelo ID."""
+    try:
+        return await call_map_service("DELETE", f"/cameras/{camera_id}")
     except httpx.ConnectError:
         raise HTTPException(status_code=503, detail="Map-Service não está acessível")
     except httpx.HTTPStatusError as e:
