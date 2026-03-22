@@ -14,7 +14,7 @@ from models import (
     EdgeCreate, EdgeUpdate, EdgeResponse,
     ClosureCreate, ClosureResponse,
     TileCreate, TileUpdate, TileResponse,
-    EmergencyRouteResponse
+    EmergencyRouteResponse, BatchCreate
 )
 from grid_name import GridManager
 import hashlib
@@ -1738,3 +1738,93 @@ def reset_data(db: Session = Depends(get_db)):
     except Exception as e:
         print(f"Reset failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Reset failed: {str(e)}")
+
+# ================== BATCH IMPORT ==================
+@app.post("/batch", status_code=201)
+def create_batch(data: BatchCreate, db: Session = Depends(get_db)):
+    """
+    Create multiple nodes, edges, and closures in a single request.
+    Notifies routing service only once at the end.
+    """
+    results = {
+        "nodes": {"created": [], "errors": []},
+        "edges": {"created": [], "errors": []},
+        "closures": {"created": [], "errors": []},
+    }
+
+    existing_nodes = set(r[0] for r in db.query(Node.id).all())
+
+    # Add nodes
+    for node_data in data.nodes:
+        try:
+            if node_data.id in existing_nodes:
+                results["nodes"]["errors"].append({"id": node_data.id, "error": "Node already exists"})
+                continue
+            
+            node = Node(**node_data.model_dump())
+            db.add(node)
+            results["nodes"]["created"].append(node.id)
+            existing_nodes.add(node.id)
+        except Exception as e:
+            results["nodes"]["errors"].append({"id": getattr(node_data, 'id', 'unknown'), "error": str(e)})
+
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error committing nodes: {str(e)}")
+
+    existing_edges = set(r[0] for r in db.query(Edge.id).all())
+
+    # Add edges
+    for edge_data in data.edges:
+        try:
+            if edge_data.id in existing_edges:
+                results["edges"]["errors"].append({"id": edge_data.id, "error": "Edge already exists"})
+                continue
+            
+            # validate nodes
+            if edge_data.from_id not in existing_nodes or edge_data.to_id not in existing_nodes:
+                results["edges"]["errors"].append({"id": edge_data.id, "error": f"One or both nodes do not exist ({edge_data.from_id}, {edge_data.to_id})"})
+                continue
+
+            edge = Edge(**edge_data.model_dump())
+            db.add(edge)
+            results["edges"]["created"].append(edge.id)
+            existing_edges.add(edge.id)
+        except Exception as e:
+            results["edges"]["errors"].append({"id": getattr(edge_data, 'id', 'unknown'), "error": str(e)})
+
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error committing edges: {str(e)}")
+
+    existing_closures = set(r[0] for r in db.query(Closure.id).all())
+
+    # Add closures
+    for closure_data in data.closures:
+        try:
+            if closure_data.id in existing_closures:
+                results["closures"]["errors"].append({"id": closure_data.id, "error": "Closure already exists"})
+                continue
+            
+            closure = Closure(**closure_data.model_dump())
+            db.add(closure)
+            results["closures"]["created"].append(closure.id)
+            existing_closures.add(closure.id)
+        except Exception as e:
+            results["closures"]["errors"].append({"id": getattr(closure_data, 'id', 'unknown'), "error": str(e)})
+
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error committing closures: {str(e)}")
+
+    # Only notify routing once if something was actually created
+    if results["nodes"]["created"] or results["edges"]["created"] or results["closures"]["created"]:
+        notify_routing_refresh()
+
+    return results

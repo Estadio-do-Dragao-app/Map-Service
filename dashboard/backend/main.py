@@ -52,6 +52,18 @@ async def get_map():
         raise HTTPException(status_code=e.response.status_code, detail=e.response.text)
 
 
+@app.get("/export", tags=["map"])
+async def export_map():
+    """Exporta o estado atual do mapa num ficheiro JSON (incluindo nodes, edges e closures)."""
+    try:
+        # Reutilizamos o endpoint do map para simplificar
+        data = await call_map_service("GET", "/map")
+        return data
+    except httpx.ConnectError:
+        raise HTTPException(status_code=503, detail="Map-Service não está acessível")
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=e.response.status_code, detail=e.response.text)
+
 # ================== NODES ==================
 
 @app.get("/nodes", response_model=List[NodeResponse], tags=["nodes"])
@@ -222,49 +234,11 @@ async def delete_closure(closure_id: str):
 async def create_batch(data: BatchCreate):
     """
     Cria múltiplos nodes, edges e closures num único pedido.
-    A ordem de criação é: nodes → edges → closures.
-    Retorna um resumo dos itens criados e eventuais erros.
+    Delegates to Map-Service native /batch endpoint for efficiency.
     """
-    results = {
-        "nodes": {"created": [], "errors": []},
-        "edges": {"created": [], "errors": []},
-        "closures": {"created": [], "errors": []},
-    }
-
-    # Função auxiliar para criar um node
-    async def create_node(node):
-        try:
-            resp = await call_map_service("POST", "/nodes", json=node.model_dump())
-            results["nodes"]["created"].append(resp.get("id") or node.id)
-        except Exception as e:
-            results["nodes"]["errors"].append({"item": node.model_dump(), "error": str(e)})
-
-    # Função auxiliar para criar uma edge
-    async def create_edge(edge):
-        try:
-            resp = await call_map_service("POST", "/edges", json=edge.model_dump())
-            results["edges"]["created"].append(resp.get("id") or edge.id)
-        except Exception as e:
-            results["edges"]["errors"].append({"item": edge.model_dump(), "error": str(e)})
-
-    # Função auxiliar para criar uma closure
-    async def create_closure(closure):
-        try:
-            resp = await call_map_service("POST", "/closures", json=closure.model_dump())
-            results["closures"]["created"].append(resp.get("id") or closure.id)
-        except Exception as e:
-            results["closures"]["errors"].append({"item": closure.model_dump(), "error": str(e)})
-
-    # Executar todas as tarefas de nodes em paralelo
-    if data.nodes:
-        await asyncio.gather(*[create_node(node) for node in data.nodes])
-
-    # Depois as edges
-    if data.edges:
-        await asyncio.gather(*[create_edge(edge) for edge in data.edges])
-
-    # Por fim as closures
-    if data.closures:
-        await asyncio.gather(*[create_closure(closure) for closure in data.closures])
-
-    return results
+    try:
+        return await call_map_service("POST", "/batch", json=data.model_dump(exclude_none=True))
+    except httpx.ConnectError:
+        raise HTTPException(status_code=503, detail="Map-Service não está acessível")
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=e.response.status_code, detail=e.response.text)

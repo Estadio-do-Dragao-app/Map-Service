@@ -63,6 +63,22 @@
 }
 
 /* ─── Toolbar ───────────────────────────────────────────────────────────── */
+.map-toolbar-left {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  background: rgba(13,17,23,.9);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  box-shadow: var(--shadow-md);
+  z-index: 20;
+  backdrop-filter: blur(8px);
+}
+
 .map-toolbar {
   position: absolute;
   top: 16px;

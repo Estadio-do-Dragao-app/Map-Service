@@ -25,7 +25,8 @@ async def call_map_service(method: str, path: str, json: dict | None = None) -> 
         httpx.ConnectError: se o serviço não estiver acessível
     """
     url = f"{MAP_SERVICE_URL}{path}"
-    async with httpx.AsyncClient(timeout=10.0) as client:
+    timeout = 60.0 if "/batch" in path else 10.0
+    async with httpx.AsyncClient(timeout=timeout) as client:
         response = await client.request(method, url, json=json)
         response.raise_for_status()
         # DELETE pode não ter corpo

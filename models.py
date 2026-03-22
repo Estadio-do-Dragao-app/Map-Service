@@ -395,3 +395,8 @@ class EmergencyRouteResponse(BaseModel):
     
     class Config:
         from_attributes = True
+
+class BatchCreate(BaseModel):
+    nodes: list[NodeCreate] = []
+    edges: list[EdgeCreate] = []
+    closures: list[ClosureCreate] = []

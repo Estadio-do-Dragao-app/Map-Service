@@ -7,6 +7,8 @@ import {
   faDumpster,
   faMousePointer,
   faHexagonNodes,
+  faFileExport,
+  faFileImport,
 } from '@fortawesome/free-solid-svg-icons';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -249,6 +251,71 @@ export function MapComponent() {
     if (tempNodeMarkerRef.current && map.current) {
       map.current.removeLayer(tempNodeMarkerRef.current);
       tempNodeMarkerRef.current = null;
+    }
+  };
+
+  // ── Import / Export ──────────────────────────────────────────────────────
+  const fileInputRef = useRef(null);
+
+  const exportMap = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/export`);
+      if (!response.ok) throw new Error('Failed to export map');
+      const data = await response.json();
+      
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'campus_map.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(`Export error: ${err.message}`);
+    }
+  };
+
+  const handleImportFile = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    try {
+      setLoading(true);
+      const text = await file.text();
+      const data = JSON.parse(text);
+
+      const mappedEdges = (data.edges || []).map(edge => ({
+        id: edge.id,
+        from_id: edge.from_id || edge.from,
+        to_id: edge.to_id || edge.to,
+        weight: edge.weight !== undefined ? edge.weight : edge.w,
+        accessible: edge.accessible !== undefined ? edge.accessible : true,
+      }));
+
+      const response = await fetch(`${API_BASE}/batch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nodes: data.nodes || [],
+          edges: mappedEdges,
+          closures: data.closures || [],
+        }),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.detail || 'Failed to import map');
+      }
+
+      await fetchData();
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      alert('Map imported successfully!');
+    } catch (err) {
+      setError(`Import error: ${err.message}`);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -563,7 +630,10 @@ export function MapComponent() {
       touchZoom: true,
       scrollWheelZoom: true,
       maxZoom: 50,
+      zoomControl: false,
     }).setView(AVEIRO_CENTER, 16);
+
+    L.control.zoom({ position: 'bottomright' }).addTo(map.current);
 
     if (map.current.dragging) map.current.dragging.disable();
 
@@ -678,6 +748,30 @@ export function MapComponent() {
     <div className="map-container">
       <div className="map-stage">
         <div ref={mapContainer} className="map" />
+
+        <div className="map-toolbar-left">
+          <input
+            type="file"
+            accept=".json"
+            style={{ display: 'none' }}
+            ref={fileInputRef}
+            onChange={handleImportFile}
+          />
+          <button
+            className="tool-button"
+            title="Import"
+            onClick={() => fileInputRef.current && fileInputRef.current.click()}>
+            <FontAwesomeIcon icon={faFileImport} />
+            <span>Import</span>
+          </button>
+          <button
+            className="tool-button"
+            title="Export"
+            onClick={exportMap}>
+            <FontAwesomeIcon icon={faFileExport} />
+            <span>Export</span>
+          </button>
+        </div>
 
         <div className="map-toolbar">
           <button
