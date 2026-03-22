@@ -81,6 +81,13 @@ export function MapComponent() {
     coverage_x_min: '', coverage_x_max: '',
     coverage_y_min: '', coverage_y_max: '',
   });
+  const [editingCamera, setEditingCamera]           = useState(null);
+  const [editCameraFormData, setEditCameraFormData] = useState({
+    pos_z: 10.0, pan: 0.0, tilt: -30.0,
+    fov_horizontal: 70.0, fov_vertical: 55.0,
+    coverage_x_min: '', coverage_x_max: '',
+    coverage_y_min: '', coverage_y_max: '',
+  });
 
   // ── Fetch ────────────────────────────────────────────────────────────────
   const fetchData = async () => {
@@ -165,6 +172,57 @@ export function MapComponent() {
 
   const cancelEdit = () => { setEditingNode(null); setDraggedPosition(null); };
 
+  // ── Edit Camera ───────────────────────────────────────────────────────────
+  const startEditCamera = (camNode) => {
+    const cam = cameras.find(c => c.node_id === camNode.id);
+    if (!cam) return;
+    setEditingCamera(cam.id);
+    setEditCameraFormData({
+      pos_z: cam.pos_z, pan: cam.pan, tilt: cam.tilt,
+      fov_horizontal: cam.fov_horizontal, fov_vertical: cam.fov_vertical,
+      coverage_x_min: cam.coverage_x_min ?? '', coverage_x_max: cam.coverage_x_max ?? '',
+      coverage_y_min: cam.coverage_y_min ?? '', coverage_y_max: cam.coverage_y_max ?? '',
+    });
+    setDraggedPosition({ lat: camNode.y, lng: camNode.x });
+    if (map.current) map.current.setView([camNode.y, camNode.x], map.current.getZoom());
+  };
+
+  const updateCamera = async () => {
+    if (!editingCamera) return;
+    try {
+      const cam = cameras.find(c => c.id === editingCamera);
+      const payload = {
+        pos_z: editCameraFormData.pos_z,
+        pan: editCameraFormData.pan,
+        tilt: editCameraFormData.tilt,
+        fov_horizontal: editCameraFormData.fov_horizontal,
+        fov_vertical: editCameraFormData.fov_vertical,
+        coverage_x_min: editCameraFormData.coverage_x_min !== '' ? parseFloat(editCameraFormData.coverage_x_min) : null,
+        coverage_x_max: editCameraFormData.coverage_x_max !== '' ? parseFloat(editCameraFormData.coverage_x_max) : null,
+        coverage_y_min: editCameraFormData.coverage_y_min !== '' ? parseFloat(editCameraFormData.coverage_y_min) : null,
+        coverage_y_max: editCameraFormData.coverage_y_max !== '' ? parseFloat(editCameraFormData.coverage_y_max) : null,
+      };
+      if (cam && draggedPosition) {
+        await fetch(`${API_BASE}/nodes/${cam.node_id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ x: draggedPosition.lng, y: draggedPosition.lat }),
+        });
+        payload.pos_x = draggedPosition.lng;
+        payload.pos_y = draggedPosition.lat;
+      }
+      const response = await fetch(`${API_BASE}/cameras/${editingCamera}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) throw new Error('Failed to update camera');
+      await fetchData();
+      setEditingCamera(null); setDraggedPosition(null); setSelectedNode(null);
+    } catch (err) { setError(err.message); }
+  };
+
+  const cancelEditCamera = () => { setEditingCamera(null); setDraggedPosition(null); };
   // ── Delete node ──────────────────────────────────────────────────────────
   const deleteNode = async (nodeId) => {
     if (!confirm('Are you sure you want to delete this node? Connected edges will also be deleted.')) return;
@@ -329,6 +387,7 @@ export function MapComponent() {
     setRectangleSelectMode(false);
     setDeleteMode(false);
     setSelectingDoor(false);
+    setEditingCamera(null);
     setPointsForEdge({ from: null, to: null });
     setSelectedNode(null);
     setSelectedEdgeFromList(null);
@@ -345,6 +404,14 @@ export function MapComponent() {
   const createCamera = async () => {
     if (!newNodePosition) { alert('Click on the map to set the camera position'); return; }
     if (!cameraFormData.id.trim()) { alert('Camera ID is required'); return; }
+
+    // Verificar se já existe uma câmara com este ID
+    const existing = cameras.find(c => c.id === cameraFormData.id.trim());
+    if (existing) {
+      setError(`Camera ID "${cameraFormData.id}" already exists. Please choose a different ID.`);
+      return;
+    }
+
     const nodeId = `cam_node_${Date.now()}`;
     try {
       const nodeRes = await fetch(`${API_BASE}/nodes`, {
@@ -378,7 +445,13 @@ export function MapComponent() {
           coverage_y_max: cameraFormData.coverage_y_max !== '' ? parseFloat(cameraFormData.coverage_y_max) : null,
         }),
       });
-      if (!camRes.ok) throw new Error('Failed to create camera record');
+
+      if (!camRes.ok) {
+        // Rollback: apagar o node que acabámos de criar para não ficar órfão
+        await fetch(`${API_BASE}/nodes/${nodeId}`, { method: 'DELETE' });
+        const errData = await camRes.json().catch(() => ({}));
+        throw new Error(errData.detail || 'Failed to create camera record');
+      }
 
       setNewNodeIds(prev => new Set([...prev, nodeId]));
       await fetchData();
@@ -512,7 +585,7 @@ export function MapComponent() {
       else if (isPartOfEdgeSel){ fillColor = '#ff6b6b'; radius = 12; }
       else if (isEdgeSelected) { fillColor = '#ffc107'; radius = 10; }
 
-      const markerKind = node.id === editingNode && draggedPosition
+      const markerKind = (node.id === editingNode || (isCamera && cameras.find(c => c.id === editingCamera)?.node_id === node.id)) && draggedPosition
         ? 'edit'
         : isCamera ? 'camera'
         : isPoi ? 'poi'
@@ -798,7 +871,7 @@ export function MapComponent() {
     if (map.current) updateMapView();
   }, [nodes, edges, pointsForEdge, newNodePosition, selectedNode, selectedEdgeFromList,
       selectedForDelete, nodeSearchQuery, creatingEdge, editingNode, draggedPosition,
-      showAllEdges, selectingDoor, deleteMode, mapZoom, showCameras, cameras]);
+      showAllEdges, selectingDoor, deleteMode, mapZoom, showCameras, cameras, editingCamera]);
 
   // ── Filtered lists ────────────────────────────────────────────────────────
   const filteredNodes = nodes.filter(node =>
@@ -1120,34 +1193,148 @@ export function MapComponent() {
           )}
 
           {/* ── Node Details ──────────────────────────────────────────── */}
-          {selectedNode && !editingNode && (
+          {selectedNode && !editingNode && !editingCamera && (
             <div className="control-section">
-              <h3>Node Details</h3>
-              {[
-                ['ID',           selectedNode.id],
-                ['Name',         selectedNode.name || '—'],
-                ['Type',         selectedNode.type],
-                ['Level',        selectedNode.level],
-                ['Description',    selectedNode.description || '—'],
-                ['Num. Servers', selectedNode.num_servers ?? '—'],
-                ['Service Rate', selectedNode.service_rate ?? '—'],
-                ['Block',        selectedNode.block || '—'],
-                ['Row',         selectedNode.row ?? '—'],
-                ['Number',       selectedNode.number ?? '—'],
-                ['Door',        selectedNode.door_id
-                  ? (nodes.find(n => n.id === selectedNode.door_id)?.name || selectedNode.door_id)
-                  : '—'],
-                ['Coordinates',  `${selectedNode.y.toFixed(6)}, ${selectedNode.x.toFixed(6)}`],
-              ].map(([label, val]) => (
-                <div className="form-group" key={label}>
-                  <label>{label}</label>
-                  <div>{val}</div>
+              <h3>{selectedNode.type === 'camera' ? 'Camera Details' : 'Node Details'}</h3>
+              {selectedNode.type === 'camera' ? (() => {
+                const cam = cameras.find(c => c.node_id === selectedNode.id);
+                return (
+                  <>
+                    {[
+                      ['ID',          selectedNode.id],
+                      ['Camera ID',   cam?.id || '—'],
+                      ['Name',        selectedNode.name || '—'],
+                      ['Coordinates', `${selectedNode.y.toFixed(6)}, ${selectedNode.x.toFixed(6)}`],
+                      ['Height (m)',  cam?.pos_z ?? '—'],
+                      ['Pan (°)',     cam?.pan ?? '—'],
+                      ['Tilt (°)',    cam?.tilt ?? '—'],
+                      ['FOV H (°)',   cam?.fov_horizontal ?? '—'],
+                      ['FOV V (°)',   cam?.fov_vertical ?? '—'],
+                      ['Coverage X',  cam ? `${cam.coverage_x_min ?? '—'} / ${cam.coverage_x_max ?? '—'}` : '—'],
+                      ['Coverage Y',  cam ? `${cam.coverage_y_min ?? '—'} / ${cam.coverage_y_max ?? '—'}` : '—'],
+                    ].map(([label, val]) => (
+                      <div className="form-group" key={label}>
+                        <label>{label}</label>
+                        <div>{val}</div>
+                      </div>
+                    ))}
+                    <div className="button-group" style={{ gap: '4px', marginTop: '8px' }}>
+                      <button className="btn-primary"
+                        style={{ padding: '5px 8px', fontSize: '11px', background: 'var(--accent-purple)', color: '#0d1117' }}
+                        onClick={() => startEditCamera(selectedNode)}>Edit</button>
+                      <button className="btn-primary btn-delete"
+                        style={{ padding: '5px 8px', fontSize: '11px' }}
+                        onClick={() => deleteNode(selectedNode.id)}>Delete</button>
+                      <button className="btn-secondary"
+                        style={{ padding: '5px 8px', fontSize: '11px' }}
+                        onClick={() => setSelectedNode(null)}>Close</button>
+                    </div>
+                  </>
+                );
+              })() : (
+                <>
+                  {[
+                    ['ID',           selectedNode.id],
+                    ['Name',         selectedNode.name || '—'],
+                    ['Type',         selectedNode.type],
+                    ['Level',        selectedNode.level],
+                    ['Description',  selectedNode.description || '—'],
+                    ['Num. Servers', selectedNode.num_servers ?? '—'],
+                    ['Service Rate', selectedNode.service_rate ?? '—'],
+                    ['Block',        selectedNode.block || '—'],
+                    ['Row',          selectedNode.row ?? '—'],
+                    ['Number',       selectedNode.number ?? '—'],
+                    ['Door',         selectedNode.door_id
+                      ? (nodes.find(n => n.id === selectedNode.door_id)?.name || selectedNode.door_id)
+                      : '—'],
+                    ['Coordinates',  `${selectedNode.y.toFixed(6)}, ${selectedNode.x.toFixed(6)}`],
+                  ].map(([label, val]) => (
+                    <div className="form-group" key={label}>
+                      <label>{label}</label>
+                      <div>{val}</div>
+                    </div>
+                  ))}
+                  <div className="button-group" style={{ gap: '4px', marginTop: '8px' }}>
+                    <button className="btn-primary" style={{ padding: '5px 8px', fontSize: '11px' }}
+                      onClick={() => startEditNode(selectedNode)}>Edit</button>
+                    <button className="btn-primary btn-delete" style={{ padding: '5px 8px', fontSize: '11px' }}
+                      onClick={() => deleteNode(selectedNode.id)}>Delete</button>
+                    <button className="btn-secondary" style={{ padding: '5px 8px', fontSize: '11px' }}
+                      onClick={() => setSelectedNode(null)}>Close</button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* ── Edit Camera ───────────────────────────────────────────── */}
+          {editingCamera && (
+            <div className="control-section">
+              <h3>Edit Camera</h3>
+              <div className="form-group">
+                <label>Camera ID</label>
+                <div style={{ fontWeight: 600, color: 'var(--accent-purple)' }}>{editingCamera}</div>
+              </div>
+              <div className="form-group">
+                <label>Height (m)</label>
+                <input type="number" step="0.5" value={editCameraFormData.pos_z}
+                  onChange={(e) => setEditCameraFormData({ ...editCameraFormData, pos_z: parseFloat(e.target.value) })} />
+              </div>
+              <div className="form-group">
+                <label>Pan (°)</label>
+                <input type="number" step="1" value={editCameraFormData.pan}
+                  onChange={(e) => setEditCameraFormData({ ...editCameraFormData, pan: parseFloat(e.target.value) })} />
+              </div>
+              <div className="form-group">
+                <label>Tilt (°)</label>
+                <input type="number" step="1" value={editCameraFormData.tilt}
+                  onChange={(e) => setEditCameraFormData({ ...editCameraFormData, tilt: parseFloat(e.target.value) })} />
+              </div>
+              <div className="form-group">
+                <label>FOV Horizontal (°)</label>
+                <input type="number" step="1" value={editCameraFormData.fov_horizontal}
+                  onChange={(e) => setEditCameraFormData({ ...editCameraFormData, fov_horizontal: parseFloat(e.target.value) })} />
+              </div>
+              <div className="form-group">
+                <label>FOV Vertical (°)</label>
+                <input type="number" step="1" value={editCameraFormData.fov_vertical}
+                  onChange={(e) => setEditCameraFormData({ ...editCameraFormData, fov_vertical: parseFloat(e.target.value) })} />
+              </div>
+              <div className="form-group">
+                <label>Coverage X min / max (m)</label>
+                <div style={{ display: 'flex', gap: '5px' }}>
+                  <input type="number" step="any" placeholder="min" value={editCameraFormData.coverage_x_min}
+                    onChange={(e) => setEditCameraFormData({ ...editCameraFormData, coverage_x_min: e.target.value })} />
+                  <input type="number" step="any" placeholder="max" value={editCameraFormData.coverage_x_max}
+                    onChange={(e) => setEditCameraFormData({ ...editCameraFormData, coverage_x_max: e.target.value })} />
                 </div>
-              ))}
-              <div className="button-group" style={{ gap: '4px', marginTop: '8px' }}>
-                <button className="btn-primary" style={{ padding: '5px 8px', fontSize: '11px' }} onClick={() => startEditNode(selectedNode)}>Edit</button>
-                <button className="btn-primary btn-delete" style={{ padding: '5px 8px', fontSize: '11px' }} onClick={() => deleteNode(selectedNode.id)}>Delete</button>
-                <button className="btn-secondary" style={{ padding: '5px 8px', fontSize: '11px' }} onClick={() => setSelectedNode(null)}>Close</button>
+              </div>
+              <div className="form-group">
+                <label>Coverage Y min / max (m)</label>
+                <div style={{ display: 'flex', gap: '5px' }}>
+                  <input type="number" step="any" placeholder="min" value={editCameraFormData.coverage_y_min}
+                    onChange={(e) => setEditCameraFormData({ ...editCameraFormData, coverage_y_min: e.target.value })} />
+                  <input type="number" step="any" placeholder="max" value={editCameraFormData.coverage_y_max}
+                    onChange={(e) => setEditCameraFormData({ ...editCameraFormData, coverage_y_max: e.target.value })} />
+                </div>
+              </div>
+              <div className="form-group">
+                <label>Coordinates</label>
+                <div style={{ display: 'flex', gap: '5px' }}>
+                  <input type="number" step="any" placeholder="Lat"
+                    value={draggedPosition?.lat.toFixed(6) || ''}
+                    onChange={(e) => setDraggedPosition({ ...draggedPosition, lat: parseFloat(e.target.value) })} />
+                  <input type="number" step="any" placeholder="Lng"
+                    value={draggedPosition?.lng.toFixed(6) || ''}
+                    onChange={(e) => setDraggedPosition({ ...draggedPosition, lng: parseFloat(e.target.value) })} />
+                </div>
+                <p className="hint">Drag the red marker to reposition</p>
+              </div>
+              <div className="button-group">
+                <button className="btn-primary"
+                  style={{ background: 'var(--accent-purple)', color: '#0d1117' }}
+                  onClick={updateCamera}>Save</button>
+                <button className="btn-secondary" onClick={cancelEditCamera}>Cancel</button>
               </div>
             </div>
           )}
