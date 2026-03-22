@@ -243,7 +243,22 @@ async def create_batch(data: BatchCreate):
         raise HTTPException(status_code=503, detail="Map-Service não está acessível")
     except httpx.HTTPStatusError as e:
         raise HTTPException(status_code=e.response.status_code, detail=e.response.text)
-    
+
+
+# ================== MAP SYNC ==================
+
+@app.post("/map/sync", status_code=200, tags=["map"])
+async def sync_map(data: BatchCreate):
+    """
+    Sincroniza o mapa completo. Lê o estado atual do dashboard e sobrescreve o mapa no backend principal.
+    """
+    try:
+        return await call_map_service("POST", "/map/sync", json=data.model_dump(exclude_none=True))
+    except httpx.ConnectError:
+        raise HTTPException(status_code=503, detail="Map-Service não está acessível")
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=e.response.status_code, detail=e.response.text)
+
 
 # ================== BATCH DELETE ==================
 
