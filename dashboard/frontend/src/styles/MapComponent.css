@@ -644,3 +644,19 @@
 }
 .leaflet-popup-tip-container { display: none !important; }
 .leaflet-popup-close-button  { color: var(--text-secondary) !important; font-size: 16px !important; top: 6px !important; right: 8px !important; }
+/* ─── Camera Markers ─────────────────────────────────────────────────────── */
+.camera-marker-inner {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 2px solid white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 10px rgba(188,140,255,0.5);
+  transition: transform 150ms ease;
+}
+
+.camera-marker-inner:hover {
+  transform: scale(1.15);
+}

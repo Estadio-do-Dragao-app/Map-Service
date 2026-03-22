@@ -9,12 +9,13 @@ from sqlalchemy import func
 from typing import List, Optional
 from database import get_db, init_db
 from models import (
-    Node, Edge, Closure, Tile, EmergencyRoute,
+    Node, Edge, Closure, Tile, EmergencyRoute, Camera,
     NodeCreate, NodeUpdate, NodeResponse,
     EdgeCreate, EdgeUpdate, EdgeResponse,
     ClosureCreate, ClosureResponse,
     TileCreate, TileUpdate, TileResponse,
-    EmergencyRouteResponse
+    EmergencyRouteResponse,
+    CameraCreate, CameraUpdate, CameraResponse,
 )
 from grid_name import GridManager
 import hashlib
@@ -1702,6 +1703,69 @@ def get_emergency_route_geojson(route_id: str, db: Session = Depends(get_db)):
             "num_waypoints": len(route.node_ids)
         }
     }
+
+# ================== CAMERAS ==================
+
+@app.get("/cameras", response_model=List[CameraResponse])
+def get_cameras(db: Session = Depends(get_db)):
+    """List all cameras."""
+    return db.query(Camera).all()
+
+@app.get("/cameras/{camera_id}", response_model=CameraResponse)
+def get_camera(camera_id: str, db: Session = Depends(get_db)):
+    """Get a specific camera by ID."""
+    camera = db.query(Camera).filter(Camera.id == camera_id).first()
+    if not camera:
+        raise HTTPException(status_code=404, detail="Camera not found")
+    return camera
+
+@app.post("/cameras", response_model=CameraResponse, status_code=201)
+def create_camera(data: CameraCreate, db: Session = Depends(get_db)):
+    """Create a new camera and link it to an existing node (type=camera)."""
+    if db.query(Camera).filter(Camera.id == data.id).first():
+        raise HTTPException(status_code=400, detail="Camera already exists")
+    node = db.query(Node).filter(Node.id == data.node_id).first()
+    if not node:
+        raise HTTPException(status_code=400, detail=f"Node '{data.node_id}' not found")
+    camera = Camera(**data.model_dump())
+    db.add(camera)
+    try:
+        db.commit()
+        db.refresh(camera)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    return camera
+
+@app.put("/cameras/{camera_id}", response_model=CameraResponse)
+def update_camera(camera_id: str, data: CameraUpdate, db: Session = Depends(get_db)):
+    """Update camera calibration data."""
+    camera = db.query(Camera).filter(Camera.id == camera_id).first()
+    if not camera:
+        raise HTTPException(status_code=404, detail="Camera not found")
+    for field, value in data.model_dump(exclude_none=True).items():
+        setattr(camera, field, value)
+    try:
+        db.commit()
+        db.refresh(camera)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    return camera
+
+@app.delete("/cameras/{camera_id}")
+def delete_camera(camera_id: str, db: Session = Depends(get_db)):
+    """Delete a camera record (does NOT delete the linked node)."""
+    camera = db.query(Camera).filter(Camera.id == camera_id).first()
+    if not camera:
+        raise HTTPException(status_code=404, detail="Camera not found")
+    try:
+        db.delete(camera)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    return {"deleted": camera_id}
 
 # ================== RESET ==================
 
