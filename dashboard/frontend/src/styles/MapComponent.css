@@ -597,10 +597,11 @@
   line-height: 1.6;
   flex-shrink: 0;
 }
-.node-type-pill[data-type="normal"]   { color: var(--accent);        border-color: rgba(88,166,255,.4);  background: rgba(88,166,255,.08); }
-.node-type-pill[data-type="corridor"] { color: var(--accent-green);  border-color: rgba(63,185,80,.4);   background: rgba(63,185,80,.08); }
-.node-type-pill[data-type="stairs"]   { color: var(--accent-yellow); border-color: rgba(227,179,65,.4);  background: rgba(227,179,65,.08); }
-.node-type-pill[data-type="exit"]     { color: var(--accent-red);    border-color: rgba(248,81,73,.4);   background: rgba(248,81,73,.08); }
+.node-type-pill[data-type="normal"]      { color: var(--accent);        border-color: rgba(88,166,255,.4);  background: rgba(88,166,255,.08); }
+.node-type-pill[data-type="corridor"]    { color: var(--accent-green);  border-color: rgba(63,185,80,.4);   background: rgba(63,185,80,.08); }
+.node-type-pill[data-type="stairs"]      { color: var(--accent-yellow); border-color: rgba(227,179,65,.4);  background: rgba(227,179,65,.08); }
+.node-type-pill[data-type="exit"]        { color: var(--accent-red);    border-color: rgba(248,81,73,.4);   background: rgba(248,81,73,.08); }
+.node-type-pill[data-type="departments"] { color: #14b8a6;              border-color: rgba(20,184,166,.4);  background: rgba(20,184,166,.08); }
 
 .badge {
   display: inline-block;

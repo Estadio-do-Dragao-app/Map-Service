@@ -33,6 +33,7 @@ NODE_TYPES = [
     "vip_box",        # VIP box/corporate area
     "camera",         # Surveillance camera
     "normal",         # Generic navigation node
+    "departments",    # University department / campus building
 ]
 
 # Valid closure reasons
@@ -80,7 +81,7 @@ class Node(Base):
     # Node type - see NODE_TYPES constant for valid values
     # Options: "corridor", "seat", "gate", "stairs", "ramp", "restroom", 
     #          "food", "bar", "merchandise", "first_aid", "emergency_exit",
-    #          "information", "vip_box", "normal"
+    #          "information", "vip_box", "normal", "departments"
     type = Column(String, default="normal")
     
     description = Column(String, default="null",nullable=True)  # Additional info (e.g., sponsor name)
@@ -240,8 +241,8 @@ class Camera(Base):
     pos_z = Column(Float, nullable=False)          # Height in metres (e.g., 10.0)
 
     # Orientation
-    pan = Column(Float, default=0.0)               # Horizontal rotation in degrees
-    tilt = Column(Float, default=-30.0)            # Vertical angle in degrees (negative = looking down)
+    pan = Column(Float, default=0.0)               # Pan angle in degrees (0 = north)
+    tilt = Column(Float, default=-30.0)            # Tilt angle in degrees (negative = down)
 
     # Field of View
     fov_horizontal = Column(Float, default=70.0)   # Horizontal FOV in degrees

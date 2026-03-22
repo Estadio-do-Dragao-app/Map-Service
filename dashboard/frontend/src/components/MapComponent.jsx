@@ -27,6 +27,7 @@ const NODE_TYPE_OPTIONS = [
   'corridor', 'row_aisle', 'seat', 'gate', 'stairs', 'ramp',
   'restroom', 'food', 'bar', 'merchandise', 'first_aid',
   'emergency_exit', 'information', 'vip_box', 'camera', 'normal',
+  'departments',
 ];
 
 export function MapComponent() {
@@ -557,6 +558,7 @@ export function MapComponent() {
       const poiTypes = new Set([
         'poi', 'restroom', 'food', 'bar', 'merchandise',
         'first_aid', 'emergency_exit', 'information', 'vip_box', 'camera',
+        'departments',
       ]);
       const isPoi = poiTypes.has((node.type || '').toLowerCase());
 
