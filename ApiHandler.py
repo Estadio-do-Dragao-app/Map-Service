@@ -119,7 +119,8 @@ def get_map_visualization(level: int = None, db: Session = Depends(get_db)):
         "gates": [],
         "pois": [],
         "seats": [],
-        "stairs": []
+        "stairs": [],
+        "departments": [],
     }
     
     for node in nodes:
@@ -149,6 +150,11 @@ def get_map_visualization(level: int = None, db: Session = Depends(get_db)):
                 "row": node.row,
                 "number": node.number
             })
+        elif node.type == "departments":
+            grouped_nodes["departments"].append({
+                **node_data,
+                "type": node.type
+            })
         else:
             # POIs: restroom, food, bar, emergency_exit, first_aid, information, merchandise
             grouped_nodes["pois"].append({
@@ -174,6 +180,7 @@ def get_map_visualization(level: int = None, db: Session = Depends(get_db)):
             "pois": len(grouped_nodes["pois"]),
             "seats": len(grouped_nodes["seats"]),
             "stairs": len(grouped_nodes["stairs"]),
+            "departments": len(grouped_nodes["departments"]),
             "total": len(nodes)
         }
     }
@@ -200,13 +207,14 @@ def preview_map(level: int = 0, db: Session = Depends(get_db)):
         'stairs': sum(1 for n in nodes if n.type in ['stairs', 'ramp']),
         'poi': sum(1 for n in nodes if n.type in ['restroom', 'food', 'bar', 'emergency_exit', 'first_aid', 'information', 'merchandise']),
         'seat': sum(1 for n in nodes if n.type == 'seat'),
+        'departments': sum(1 for n in nodes if n.type == 'departments'),
     }
     
     html_content = f"""
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Estádio do Dragão - Nível {level}</title>
+        <title>Estadio do Dragao - Nivel {level}</title>
         <style>
             * {{ box-sizing: border-box; }}
             body {{
@@ -373,6 +381,10 @@ def preview_map(level: int = 0, db: Session = Depends(get_db)):
                         <span>Seats</span>
                     </label>
                     <label class="checkbox-label">
+                        <input type="checkbox" id="showDepartments" checked onchange="draw()">
+                        <span>Departments</span>
+                    </label>
+                    <label class="checkbox-label">
                         <input type="checkbox" id="showLabels" onchange="draw()">
                         <span>Labels</span>
                     </label>
@@ -415,6 +427,10 @@ def preview_map(level: int = 0, db: Session = Depends(get_db)):
                         <div class="legend-color" style="background: #a855f7;"></div>
                         <span>Seats ({counts['seat']})</span>
                     </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #14b8a6;"></div>
+                        <span>Departments ({counts['departments']})</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -435,7 +451,7 @@ def preview_map(level: int = 0, db: Session = Depends(get_db)):
                 "row": n.row,
                 "number": n.number
             } for n in nodes]).replace("'", '"').replace("None", "null")};
-            const edges = {str([{"from": e.from_id, "to": e.to_id} for e in edges]).replace("'", '"')};
+            const edges = {str([{{"from": e.from_id, "to": e.to_id}} for e in edges]).replace("'", '"')};
             
             let scale = 1.3;
             let offsetX = 50;
@@ -455,7 +471,8 @@ def preview_map(level: int = 0, db: Session = Depends(get_db)):
                     'bar': '#8b5cf6',
                     'first_aid': '#22c55e',
                     'information': '#3b82f6',
-                    'merchandise': '#ec4899'
+                    'merchandise': '#ec4899',
+                    'departments': '#14b8a6',
                 }};
                 return colors[type] || '#ec4899';
             }}
@@ -475,6 +492,7 @@ def preview_map(level: int = 0, db: Session = Depends(get_db)):
                 const showAisles = document.getElementById('showAisles').checked;
                 const showPOIs = document.getElementById('showPOIs').checked;
                 const showSeats = document.getElementById('showSeats').checked;
+                const showDepartments = document.getElementById('showDepartments').checked;
                 const showLabels = document.getElementById('showLabels').checked;
                 
                 // Draw edges
@@ -498,6 +516,7 @@ def preview_map(level: int = 0, db: Session = Depends(get_db)):
                     if (node.type === 'seat' && !showSeats) return;
                     if (node.type === 'corridor' && !showCorridors) return;
                     if (node.type === 'row_aisle' && !showAisles) return;
+                    if (node.type === 'departments' && !showDepartments) return;
                     if (['restroom', 'food', 'bar', 'emergency_exit', 'first_aid', 'information', 'merchandise', 'gate', 'stairs', 'ramp'].includes(node.type) && !showPOIs) return;
                     
                     const x = screenX(node.x);
@@ -507,6 +526,7 @@ def preview_map(level: int = 0, db: Session = Depends(get_db)):
                     if (node.type === 'seat') radius = 2;
                     else if (node.type === 'gate') radius = 10;
                     else if (node.type === 'row_aisle') radius = 3;
+                    else if (node.type === 'departments') radius = 10;
                     else if (['stairs', 'ramp', 'emergency_exit'].includes(node.type)) radius = 8;
                     
                     ctx.fillStyle = getNodeColor(node.type);
@@ -514,8 +534,8 @@ def preview_map(level: int = 0, db: Session = Depends(get_db)):
                     ctx.arc(x, y, radius, 0, Math.PI * 2);
                     ctx.fill();
                     
-                    // Draw labels for POIs
-                    if (showLabels && ['gate', 'stairs', 'ramp', 'emergency_exit', 'first_aid', 'restroom', 'food', 'bar'].includes(node.type)) {{
+                    // Draw labels for POIs and departments
+                    if (showLabels && ['gate', 'stairs', 'ramp', 'emergency_exit', 'first_aid', 'restroom', 'food', 'bar', 'departments'].includes(node.type)) {{
                         ctx.fillStyle = '#fff';
                         ctx.font = '10px Arial';
                         ctx.fillText(node.name || node.id, x + 12, y + 3);
@@ -671,6 +691,7 @@ def delete_node(node_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     notify_routing_refresh()
     return {"deleted": node_id}
+
 # ================== EDGES ==================
 
 @app.get("/edges", response_model=List[EdgeResponse])
@@ -832,6 +853,7 @@ def get_grid_config():
         "origin_x": grid_manager.origin_x,
         "origin_y": grid_manager.origin_y
     }
+
 @app.get("/maps/grid/tiles")
 def get_all_tiles(level: Optional[int] = None, db: Session = Depends(get_db)):
     """Get all tiles, optionally filtered by level."""
@@ -948,6 +970,7 @@ def get_grid_stats(db: Session = Depends(get_db)):
             "origin_y": grid_manager.origin_y
         }
     }
+
 # ================== POIs ==================
 # Now handled via Node endpoints with type filtering
 
@@ -994,6 +1017,7 @@ out;
 def _osm_tag_to_type(tags: dict) -> str:
     """Map OSM tags to internal POI type."""
     amenity = tags.get("amenity", "")
+    building = tags.get("building", "")
     shop = tags.get("shop", "")
     tourism = tags.get("tourism", "")
     if amenity in ("restaurant", "cafe", "fast_food", "food_court", "canteen"):
@@ -1008,8 +1032,10 @@ def _osm_tag_to_type(tags: dict) -> str:
         return "parking"
     if amenity in ("pharmacy", "hospital", "clinic", "first_aid"):
         return "first_aid"
+    if building in ("university", "college", "school", "sports_centre"):
+        return "departments"
     if amenity == "university" or amenity == "school" or amenity == "college":
-        return "poi"
+        return "departments"
     if shop:
         return "shop"
     if tourism:
@@ -1534,11 +1560,12 @@ def get_pois_geojson(level: Optional[int] = None, db: Session = Depends(get_db))
     Get only POI nodes in GeoJSON format (optimized for markers layer).
     
     Includes: gates, restrooms, food, bars, stairs, ramps, emergency exits, 
-    first aid, information, and merchandise.
+    first aid, information, merchandise, and departments.
     """
     poi_types = [
         'gate', 'restroom', 'food', 'bar', 'stairs', 'ramp',
-        'emergency_exit', 'first_aid', 'information', 'merchandise'
+        'emergency_exit', 'first_aid', 'information', 'merchandise',
+        'departments',
     ]
     return get_map_geojson(
         level=level, 
@@ -1871,7 +1898,7 @@ def create_batch(data: BatchCreate, db: Session = Depends(get_db)):
     for closure_data in data.closures:
         try:
             if closure_data.id in existing_closures:
-                results["closures"]["errors"].append({"id": closure_data.id, "error": "Closure already exists"})
+                results["closures"]["errors"].append({"id": closure_data.id, "error": "Closure already already exists"})
                 continue
             
             closure = Closure(**closure_data.model_dump())
