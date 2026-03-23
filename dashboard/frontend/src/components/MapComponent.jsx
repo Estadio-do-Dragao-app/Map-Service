@@ -247,6 +247,11 @@ export function MapComponent() {
   // ── Create node ──────────────────────────────────────────────────────────
   const createNode = async () => {
     if (!newNodePosition || !formData.name) { alert('Please enter a node name'); return; }
+    // Guard: reject (0,0) or clearly invalid coordinates
+    if (newNodePosition[0] === 0 && newNodePosition[1] === 0) {
+      alert('Invalid node position (0,0). Please click on the map to set a valid location.'); return;
+    }
+
     const newId = `node_${Date.now()}`;
     try {
       const response = await fetch(`${API_BASE}/nodes`, {
