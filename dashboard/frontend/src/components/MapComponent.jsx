@@ -17,7 +17,9 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import '../styles/MapComponent.css';
 
-const API_BASE = 'http://localhost:8001';
+// Dashboard backend URL (override with VITE_DASHBOARD_API_BASE if needed)
+const API_BASE =
+  import.meta.env.VITE_DASHBOARD_API_BASE || 'http://localhost:8005';
 
 const AVEIRO_CENTER = [
   (40.628 + 40.635) / 2,
@@ -28,6 +30,7 @@ const NODE_TYPE_OPTIONS = [
   'corridor', 'row_aisle', 'seat', 'gate', 'stairs', 'ramp',
   'restroom', 'food', 'bar', 'merchandise', 'first_aid',
   'emergency_exit', 'information', 'vip_box', 'camera', 'normal',
+  'departments',
 ];
 
 export function MapComponent() {
@@ -619,6 +622,7 @@ export function MapComponent() {
       const poiTypes = new Set([
         'poi', 'restroom', 'food', 'bar', 'merchandise',
         'first_aid', 'emergency_exit', 'information', 'vip_box', 'camera',
+        'departments',
       ]);
       const isPoi = poiTypes.has((node.type || '').toLowerCase());
 
