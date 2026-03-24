@@ -142,9 +142,9 @@ def _poi_type(tags: dict, name: str = "") -> str:
 
     # ── Departamentos & campus buildings ──
     if building in ("university", "college", "school", "sports_centre"):
-        return "departamento"
+        return "departments"
     if amenity in ("college", "school"):
-        return "departamento"
+        return "departments"
 
     # ── Dormitories → skip (not navigable POIs) ──
     if building == "dormitory":

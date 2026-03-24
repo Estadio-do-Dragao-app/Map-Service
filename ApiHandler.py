@@ -2,17 +2,20 @@ from fastapi import FastAPI, HTTPException, Depends, Query
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.middleware.cors import CORSMiddleware
+from networkx import edges, nodes
+from networkx import edges
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Optional
 from database import get_db, init_db
 from models import (
-    Node, Edge, Closure, Tile, EmergencyRoute,
+    Node, Edge, Closure, Tile, EmergencyRoute, Camera,
     NodeCreate, NodeUpdate, NodeResponse,
     EdgeCreate, EdgeUpdate, EdgeResponse,
     ClosureCreate, ClosureResponse,
     TileCreate, TileUpdate, TileResponse,
-    EmergencyRouteResponse
+    EmergencyRouteResponse, BatchCreate,
+    CameraCreate, CameraUpdate, CameraResponse,
 )
 from grid_name import GridManager
 import hashlib
@@ -21,6 +24,19 @@ import time
 import json as json_module
 import urllib.request
 import urllib.parse
+import httpx
+import threading
+
+def notify_routing_refresh():
+    """Trigger a silent background refresh in the routing service after a map change."""
+    def _send():
+        try:
+            # Fire-and-forget webhook
+            httpx.post("http://routing-service:8002/api/refresh_map", timeout=2.0)
+            print("[WEBHOOK] Notified routing service of map change")
+        except Exception as e:
+            print(f"[WEBHOOK] Failed to notify routing service: {e}")
+    threading.Thread(target=_send).start()
 
 app = FastAPI(title="Smart Stadium Map Backend")
 
@@ -103,7 +119,8 @@ def get_map_visualization(level: int = None, db: Session = Depends(get_db)):
         "gates": [],
         "pois": [],
         "seats": [],
-        "stairs": []
+        "stairs": [],
+        "departments": [],
     }
     
     for node in nodes:
@@ -133,6 +150,11 @@ def get_map_visualization(level: int = None, db: Session = Depends(get_db)):
                 "row": node.row,
                 "number": node.number
             })
+        elif node.type == "departments":
+            grouped_nodes["departments"].append({
+                **node_data,
+                "type": node.type
+            })
         else:
             # POIs: restroom, food, bar, emergency_exit, first_aid, information, merchandise
             grouped_nodes["pois"].append({
@@ -158,6 +180,7 @@ def get_map_visualization(level: int = None, db: Session = Depends(get_db)):
             "pois": len(grouped_nodes["pois"]),
             "seats": len(grouped_nodes["seats"]),
             "stairs": len(grouped_nodes["stairs"]),
+            "departments": len(grouped_nodes["departments"]),
             "total": len(nodes)
         }
     }
@@ -184,13 +207,14 @@ def preview_map(level: int = 0, db: Session = Depends(get_db)):
         'stairs': sum(1 for n in nodes if n.type in ['stairs', 'ramp']),
         'poi': sum(1 for n in nodes if n.type in ['restroom', 'food', 'bar', 'emergency_exit', 'first_aid', 'information', 'merchandise']),
         'seat': sum(1 for n in nodes if n.type == 'seat'),
+        'departments': sum(1 for n in nodes if n.type == 'departments'),
     }
     
     html_content = f"""
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Estádio do Dragão - Nível {level}</title>
+        <title>Estadio do Dragao - Nivel {level}</title>
         <style>
             * {{ box-sizing: border-box; }}
             body {{
@@ -357,6 +381,10 @@ def preview_map(level: int = 0, db: Session = Depends(get_db)):
                         <span>Seats</span>
                     </label>
                     <label class="checkbox-label">
+                        <input type="checkbox" id="showDepartments" checked onchange="draw()">
+                        <span>Departments</span>
+                    </label>
+                    <label class="checkbox-label">
                         <input type="checkbox" id="showLabels" onchange="draw()">
                         <span>Labels</span>
                     </label>
@@ -399,6 +427,10 @@ def preview_map(level: int = 0, db: Session = Depends(get_db)):
                         <div class="legend-color" style="background: #a855f7;"></div>
                         <span>Seats ({counts['seat']})</span>
                     </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #14b8a6;"></div>
+                        <span>Departments ({counts['departments']})</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -419,7 +451,7 @@ def preview_map(level: int = 0, db: Session = Depends(get_db)):
                 "row": n.row,
                 "number": n.number
             } for n in nodes]).replace("'", '"').replace("None", "null")};
-            const edges = {str([{"from": e.from_id, "to": e.to_id} for e in edges]).replace("'", '"')};
+            const edges = {str([{{"from": e.from_id, "to": e.to_id}} for e in edges]).replace("'", '"')};
             
             let scale = 1.3;
             let offsetX = 50;
@@ -439,7 +471,8 @@ def preview_map(level: int = 0, db: Session = Depends(get_db)):
                     'bar': '#8b5cf6',
                     'first_aid': '#22c55e',
                     'information': '#3b82f6',
-                    'merchandise': '#ec4899'
+                    'merchandise': '#ec4899',
+                    'departments': '#14b8a6',
                 }};
                 return colors[type] || '#ec4899';
             }}
@@ -459,6 +492,7 @@ def preview_map(level: int = 0, db: Session = Depends(get_db)):
                 const showAisles = document.getElementById('showAisles').checked;
                 const showPOIs = document.getElementById('showPOIs').checked;
                 const showSeats = document.getElementById('showSeats').checked;
+                const showDepartments = document.getElementById('showDepartments').checked;
                 const showLabels = document.getElementById('showLabels').checked;
                 
                 // Draw edges
@@ -482,6 +516,7 @@ def preview_map(level: int = 0, db: Session = Depends(get_db)):
                     if (node.type === 'seat' && !showSeats) return;
                     if (node.type === 'corridor' && !showCorridors) return;
                     if (node.type === 'row_aisle' && !showAisles) return;
+                    if (node.type === 'departments' && !showDepartments) return;
                     if (['restroom', 'food', 'bar', 'emergency_exit', 'first_aid', 'information', 'merchandise', 'gate', 'stairs', 'ramp'].includes(node.type) && !showPOIs) return;
                     
                     const x = screenX(node.x);
@@ -491,6 +526,7 @@ def preview_map(level: int = 0, db: Session = Depends(get_db)):
                     if (node.type === 'seat') radius = 2;
                     else if (node.type === 'gate') radius = 10;
                     else if (node.type === 'row_aisle') radius = 3;
+                    else if (node.type === 'departments') radius = 10;
                     else if (['stairs', 'ramp', 'emergency_exit'].includes(node.type)) radius = 8;
                     
                     ctx.fillStyle = getNodeColor(node.type);
@@ -498,8 +534,8 @@ def preview_map(level: int = 0, db: Session = Depends(get_db)):
                     ctx.arc(x, y, radius, 0, Math.PI * 2);
                     ctx.fill();
                     
-                    // Draw labels for POIs
-                    if (showLabels && ['gate', 'stairs', 'ramp', 'emergency_exit', 'first_aid', 'restroom', 'food', 'bar'].includes(node.type)) {{
+                    // Draw labels for POIs and departments
+                    if (showLabels && ['gate', 'stairs', 'ramp', 'emergency_exit', 'first_aid', 'restroom', 'food', 'bar', 'departments'].includes(node.type)) {{
                         ctx.fillStyle = '#fff';
                         ctx.font = '10px Arial';
                         ctx.fillText(node.name || node.id, x + 12, y + 3);
@@ -575,6 +611,25 @@ def get_node(node_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Node not found")
     return node
 
+@app.post("/nodes", response_model=NodeResponse, status_code=201)
+def create_node(data: NodeCreate, db: Session = Depends(get_db)):
+    """Create a new node."""
+    existing = db.query(Node).filter(Node.id == data.id).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Node already exists")
+    
+    node = Node(**data.model_dump())
+    db.add(node)
+    try:
+        db.commit()
+        db.refresh(node)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    
+    notify_routing_refresh()
+    return node
+
 @app.put("/nodes/{node_id}", response_model=NodeResponse)
 def update_node(node_id: str, data: NodeUpdate, db: Session = Depends(get_db)):
     """Update an existing node."""
@@ -592,6 +647,20 @@ def update_node(node_id: str, data: NodeUpdate, db: Session = Depends(get_db)):
         node.level = data.level
     if data.type is not None:
         node.type = data.type
+    if data.description is not None:
+        node.description = data.description
+    if data.num_servers is not None:
+        node.num_servers = data.num_servers
+    if data.service_rate is not None:
+        node.service_rate = data.service_rate
+    if data.block is not None:
+        node.block = data.block
+    if data.row is not None:
+        node.row = data.row
+    if data.number is not None:
+        node.number = data.number
+    if data.door_id is not None:
+        node.door_id = data.door_id
     
     try:
         db.commit()
@@ -600,7 +669,28 @@ def update_node(node_id: str, data: NodeUpdate, db: Session = Depends(get_db)):
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     
+    notify_routing_refresh()
     return node
+
+@app.delete("/nodes/{node_id}")
+def delete_node(node_id: str, db: Session = Depends(get_db)):
+    node = db.query(Node).filter(Node.id == node_id).first()
+    if not node:
+        raise HTTPException(status_code=404, detail="Node not found")
+    try:
+        # Delete edges that reference this node
+        db.query(Edge).filter(
+            (Edge.from_id == node_id) | (Edge.to_id == node_id)
+        ).delete(synchronize_session=False)
+        # Delete closures that reference this node
+        db.query(Closure).filter(Closure.node_id == node_id).delete(synchronize_session=False)
+        db.delete(node)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    notify_routing_refresh()
+    return {"deleted": node_id}
 
 # ================== EDGES ==================
 
@@ -615,6 +705,33 @@ def get_edge(edge_id: str, db: Session = Depends(get_db)):
     edge = db.query(Edge).filter(Edge.id == edge_id).first()
     if not edge:
         raise HTTPException(status_code=404, detail="Edge not found")
+    return edge
+
+@app.post("/edges", response_model=EdgeResponse, status_code=201)
+def create_edge(data: EdgeCreate, db: Session = Depends(get_db)):
+    """Create a new edge between two nodes."""
+    existing = db.query(Edge).filter(Edge.id == data.id).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Edge already exists")
+    
+    # Validate that both nodes exist
+    from_node = db.query(Node).filter(Node.id == data.from_id).first()
+    if not from_node:
+        raise HTTPException(status_code=400, detail=f"from_id '{data.from_id}' does not exist")
+    to_node = db.query(Node).filter(Node.id == data.to_id).first()
+    if not to_node:
+        raise HTTPException(status_code=400, detail=f"to_id '{data.to_id}' does not exist")
+    
+    edge = Edge(**data.model_dump())
+    db.add(edge)
+    try:
+        db.commit()
+        db.refresh(edge)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    
+    notify_routing_refresh()
     return edge
 
 @app.put("/edges/{edge_id}", response_model=EdgeResponse)
@@ -636,7 +753,25 @@ def update_edge(edge_id: str, data: EdgeUpdate, db: Session = Depends(get_db)):
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     
+    notify_routing_refresh()
     return edge
+
+@app.delete("/edges/{edge_id}")
+def delete_edge(edge_id: str, db: Session = Depends(get_db)):
+    """Delete an edge."""
+    edge = db.query(Edge).filter(Edge.id == edge_id).first()
+    if not edge:
+        raise HTTPException(status_code=404, detail="Edge not found")
+    
+    try:
+        db.delete(edge)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    
+    notify_routing_refresh()
+    return {"deleted": edge_id}
 
 # ================== CLOSURES ==================
 
@@ -688,6 +823,7 @@ def add_closure(data: ClosureCreate, db: Session = Depends(get_db)):
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     
+    notify_routing_refresh()
     return closure
 
 @app.delete("/closures/{closure_id}")
@@ -717,6 +853,7 @@ def get_grid_config():
         "origin_x": grid_manager.origin_x,
         "origin_y": grid_manager.origin_y
     }
+
 @app.get("/maps/grid/tiles")
 def get_all_tiles(level: Optional[int] = None, db: Session = Depends(get_db)):
     """Get all tiles, optionally filtered by level."""
@@ -805,20 +942,18 @@ def get_grid_stats(db: Session = Depends(get_db)):
     """Get grid statistics."""
     tiles = db.query(Tile).all()
     
-    total_nodes = 0
-    total_pois = 0
-    total_seats = 0
-    total_gates = 0
-    
-    for tile in tiles:
-        if tile.node_id:
-            total_nodes += len([i for i in tile.node_id.split(',') if i])
-        if tile.poi_id:
-            total_pois += len([i for i in tile.poi_id.split(',') if i])
-        if tile.seat_id:
-            total_seats += len([i for i in tile.seat_id.split(',') if i])
-        if tile.gate_id:
-            total_gates += len([i for i in tile.gate_id.split(',') if i])
+    total_nodes: int = sum(
+        len([i for i in str(tile.node_id).split(',') if i]) for tile in tiles if tile.node_id
+    )
+    total_pois: int = sum(
+        len([i for i in str(tile.poi_id).split(',') if i]) for tile in tiles if tile.poi_id
+    )
+    total_seats: int = sum(
+        len([i for i in str(tile.seat_id).split(',') if i]) for tile in tiles if tile.seat_id
+    )
+    total_gates: int = sum(
+        len([i for i in str(tile.gate_id).split(',') if i]) for tile in tiles if tile.gate_id
+    )
     
     return {
         "total_tiles": len(tiles),
@@ -835,6 +970,7 @@ def get_grid_stats(db: Session = Depends(get_db)):
             "origin_y": grid_manager.origin_y
         }
     }
+
 # ================== POIs ==================
 # Now handled via Node endpoints with type filtering
 
@@ -881,6 +1017,7 @@ out;
 def _osm_tag_to_type(tags: dict) -> str:
     """Map OSM tags to internal POI type."""
     amenity = tags.get("amenity", "")
+    building = tags.get("building", "")
     shop = tags.get("shop", "")
     tourism = tags.get("tourism", "")
     if amenity in ("restaurant", "cafe", "fast_food", "food_court", "canteen"):
@@ -895,8 +1032,10 @@ def _osm_tag_to_type(tags: dict) -> str:
         return "parking"
     if amenity in ("pharmacy", "hospital", "clinic", "first_aid"):
         return "first_aid"
+    if building in ("university", "college", "school", "sports_centre"):
+        return "departments"
     if amenity == "university" or amenity == "school" or amenity == "college":
-        return "poi"
+        return "departments"
     if shop:
         return "shop"
     if tourism:
@@ -1014,7 +1153,7 @@ def get_osm_pois(db: Session = Depends(get_db)):
             "y": lat,
             "level": 0,
             "nearest_node_id": nearest_id,
-            "distance_to_node_m": round(min_dist, 1),
+            "distance_to_node_m": round(float(min_dist), 1),
         })
 
     result = {
@@ -1421,11 +1560,12 @@ def get_pois_geojson(level: Optional[int] = None, db: Session = Depends(get_db))
     Get only POI nodes in GeoJSON format (optimized for markers layer).
     
     Includes: gates, restrooms, food, bars, stairs, ramps, emergency exits, 
-    first aid, information, and merchandise.
+    first aid, information, merchandise, and departments.
     """
     poi_types = [
         'gate', 'restroom', 'food', 'bar', 'stairs', 'ramp',
-        'emergency_exit', 'first_aid', 'information', 'merchandise'
+        'emergency_exit', 'first_aid', 'information', 'merchandise',
+        'departments',
     ]
     return get_map_geojson(
         level=level, 
@@ -1591,6 +1731,69 @@ def get_emergency_route_geojson(route_id: str, db: Session = Depends(get_db)):
         }
     }
 
+# ================== CAMERAS ==================
+
+@app.get("/cameras", response_model=List[CameraResponse])
+def get_cameras(db: Session = Depends(get_db)):
+    """List all cameras."""
+    return db.query(Camera).all()
+
+@app.get("/cameras/{camera_id}", response_model=CameraResponse)
+def get_camera(camera_id: str, db: Session = Depends(get_db)):
+    """Get a specific camera by ID."""
+    camera = db.query(Camera).filter(Camera.id == camera_id).first()
+    if not camera:
+        raise HTTPException(status_code=404, detail="Camera not found")
+    return camera
+
+@app.post("/cameras", response_model=CameraResponse, status_code=201)
+def create_camera(data: CameraCreate, db: Session = Depends(get_db)):
+    """Create a new camera and link it to an existing node (type=camera)."""
+    if db.query(Camera).filter(Camera.id == data.id).first():
+        raise HTTPException(status_code=400, detail="Camera already exists")
+    node = db.query(Node).filter(Node.id == data.node_id).first()
+    if not node:
+        raise HTTPException(status_code=400, detail=f"Node '{data.node_id}' not found")
+    camera = Camera(**data.model_dump())
+    db.add(camera)
+    try:
+        db.commit()
+        db.refresh(camera)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    return camera
+
+@app.put("/cameras/{camera_id}", response_model=CameraResponse)
+def update_camera(camera_id: str, data: CameraUpdate, db: Session = Depends(get_db)):
+    """Update camera calibration data."""
+    camera = db.query(Camera).filter(Camera.id == camera_id).first()
+    if not camera:
+        raise HTTPException(status_code=404, detail="Camera not found")
+    for field, value in data.model_dump(exclude_none=True).items():
+        setattr(camera, field, value)
+    try:
+        db.commit()
+        db.refresh(camera)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    return camera
+
+@app.delete("/cameras/{camera_id}")
+def delete_camera(camera_id: str, db: Session = Depends(get_db)):
+    """Delete a camera record (does NOT delete the linked node)."""
+    camera = db.query(Camera).filter(Camera.id == camera_id).first()
+    if not camera:
+        raise HTTPException(status_code=404, detail="Camera not found")
+    try:
+        db.delete(camera)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    return {"deleted": camera_id}
+
 # ================== RESET ==================
 
 # ================== HEALTH CHECK ==================
@@ -1626,3 +1829,131 @@ def reset_data(db: Session = Depends(get_db)):
     except Exception as e:
         print(f"Reset failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Reset failed: {str(e)}")
+
+# ================== BATCH IMPORT ==================
+@app.post("/batch", status_code=201)
+def create_batch(data: BatchCreate, db: Session = Depends(get_db)):
+    """
+    Create multiple nodes, edges, and closures in a single request.
+    Notifies routing service only once at the end.
+    """
+    results = {
+        "nodes": {"created": [], "errors": []},
+        "edges": {"created": [], "errors": []},
+        "closures": {"created": [], "errors": []},
+    }
+
+    existing_nodes = set(r[0] for r in db.query(Node.id).all())
+
+    # Add nodes
+    for node_data in data.nodes:
+        try:
+            if node_data.id in existing_nodes:
+                results["nodes"]["errors"].append({"id": node_data.id, "error": "Node already exists"})
+                continue
+            
+            node = Node(**node_data.model_dump())
+            db.add(node)
+            results["nodes"]["created"].append(node.id)
+            existing_nodes.add(node.id)
+        except Exception as e:
+            results["nodes"]["errors"].append({"id": getattr(node_data, 'id', 'unknown'), "error": str(e)})
+
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error committing nodes: {str(e)}")
+
+    existing_edges = set(r[0] for r in db.query(Edge.id).all())
+
+    # Add edges
+    for edge_data in data.edges:
+        try:
+            if edge_data.id in existing_edges:
+                results["edges"]["errors"].append({"id": edge_data.id, "error": "Edge already exists"})
+                continue
+            
+            # validate nodes
+            if edge_data.from_id not in existing_nodes or edge_data.to_id not in existing_nodes:
+                results["edges"]["errors"].append({"id": edge_data.id, "error": f"One or both nodes do not exist ({edge_data.from_id}, {edge_data.to_id})"})
+                continue
+
+            edge = Edge(**edge_data.model_dump())
+            db.add(edge)
+            results["edges"]["created"].append(edge.id)
+            existing_edges.add(edge.id)
+        except Exception as e:
+            results["edges"]["errors"].append({"id": getattr(edge_data, 'id', 'unknown'), "error": str(e)})
+
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error committing edges: {str(e)}")
+
+    existing_closures = set(r[0] for r in db.query(Closure.id).all())
+
+    # Add closures
+    for closure_data in data.closures:
+        try:
+            if closure_data.id in existing_closures:
+                results["closures"]["errors"].append({"id": closure_data.id, "error": "Closure already already exists"})
+                continue
+            
+            closure = Closure(**closure_data.model_dump())
+            db.add(closure)
+            results["closures"]["created"].append(closure.id)
+            existing_closures.add(closure.id)
+        except Exception as e:
+            results["closures"]["errors"].append({"id": getattr(closure_data, 'id', 'unknown'), "error": str(e)})
+
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error committing closures: {str(e)}")
+
+    # Only notify routing once if something was actually created
+    if results["nodes"]["created"] or results["edges"]["created"] or results["closures"]["created"]:
+        notify_routing_refresh()
+
+    return results
+
+
+# ================== MAP SYNC ==================
+@app.post("/map/sync", status_code=200)
+def sync_map(data: BatchCreate, db: Session = Depends(get_db)):
+    """
+    Overwrites the entire map with the provided nodes, edges, and closures.
+    Rebuilds the grid index and notifies the routing service.
+    """
+    try:
+        # Clear existing data
+        db.query(Closure).delete()
+        db.query(Edge).delete()
+        db.query(Node).delete()
+        db.query(Tile).delete()
+
+        # Insert new data
+        for node_data in data.nodes:
+            db.add(Node(**node_data.model_dump()))
+            
+        for edge_data in data.edges:
+            db.add(Edge(**edge_data.model_dump()))
+            
+        for closure_data in data.closures:
+            db.add(Closure(**closure_data.model_dump()))    
+            
+        db.commit()
+
+        # Rebuild grid
+        grid_manager = GridManager(cell_size=5.0, origin_x=0.0, origin_y=0.0)
+        grid_manager.rebuild_grid(db)
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error during sync: {str(e)}")
+
+    notify_routing_refresh()
+    return {"status": "success", "message": "Map synchronized successfully"}
