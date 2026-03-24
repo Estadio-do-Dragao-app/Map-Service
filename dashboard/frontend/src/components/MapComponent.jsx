@@ -19,7 +19,7 @@ import '../styles/MapComponent.css';
 
 // Dashboard backend URL (override with VITE_DASHBOARD_API_BASE if needed)
 const API_BASE =
-  import.meta.env.VITE_DASHBOARD_API_BASE || 'http://localhost:8005';
+  import.meta.env.VITE_DASHBOARD_API_BASE || 'http://localhost:8015';
 
 const AVEIRO_CENTER = [
   (40.628 + 40.635) / 2,
