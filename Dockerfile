@@ -13,6 +13,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy only necessary files instead of entire directory
 COPY *.py ./
 COPY stadiums/ ./stadiums/
+COPY output/ ./output/
 COPY entrypoint.sh ./
 
 # Fix line endings and make entrypoint executable, then set ownership

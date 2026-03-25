@@ -1,0 +1,306 @@
+{
+  "metadata": {
+    "name": "Universidade de Aveiro",
+    "source": "manual",
+    "svg_width": 0.01,
+    "svg_height": 0.01,
+    "total_nodes": 11,
+    "total_edges": 24,
+    "levels": [
+      0
+    ]
+  },
+  "nodes": [
+    {
+      "id": "POI-reitoria",
+      "name": "Reitoria",
+      "x": -8.65622,
+      "y": 40.63032,
+      "level": 0,
+      "type": "poi",
+      "description": "Reitoria",
+      "num_servers": 2,
+      "service_rate": 0.5
+    },
+    {
+      "id": "POI-biblioteca",
+      "name": "Biblioteca Central",
+      "x": -8.65789,
+      "y": 40.63152,
+      "level": 0,
+      "type": "poi",
+      "description": "Biblioteca Central",
+      "num_servers": 4,
+      "service_rate": 0.2
+    },
+    {
+      "id": "POI-deti",
+      "name": "DETI (Inform\u00e1tica)",
+      "x": -8.65934,
+      "y": 40.63321,
+      "level": 0,
+      "type": "poi",
+      "description": "DETI (Inform\u00e1tica)",
+      "num_servers": 3,
+      "service_rate": 0.3
+    },
+    {
+      "id": "POI-fisica",
+      "name": "F\u00edsica",
+      "x": -8.65856,
+      "y": 40.63278,
+      "level": 0,
+      "type": "poi",
+      "description": "F\u00edsica",
+      "num_servers": 2,
+      "service_rate": 0.4
+    },
+    {
+      "id": "POI-cantina",
+      "name": "Cantina Santiago",
+      "x": -8.65825,
+      "y": 40.62972,
+      "level": 0,
+      "type": "food",
+      "description": "Cantina Santiago",
+      "num_servers": 5,
+      "service_rate": 0.1
+    },
+    {
+      "id": "POI-wc-reitoria",
+      "name": "WC Reitoria",
+      "x": -8.6565,
+      "y": 40.6305,
+      "level": 0,
+      "type": "wc",
+      "description": "WC Reitoria",
+      "num_servers": null,
+      "service_rate": null
+    },
+    {
+      "id": "POI-wc-deti",
+      "name": "WC DETI",
+      "x": -8.6595,
+      "y": 40.6334,
+      "level": 0,
+      "type": "wc",
+      "description": "WC DETI",
+      "num_servers": null,
+      "service_rate": null
+    },
+    {
+      "id": "N-cross-1",
+      "name": "Cruzamento Reitoria",
+      "x": -8.657,
+      "y": 40.6305,
+      "level": 0,
+      "type": "normal",
+      "description": "Cruzamento Reitoria",
+      "num_servers": null,
+      "service_rate": null
+    },
+    {
+      "id": "N-cross-2",
+      "name": "Cruzamento Central",
+      "x": -8.658,
+      "y": 40.631,
+      "level": 0,
+      "type": "normal",
+      "description": "Cruzamento Central",
+      "num_servers": null,
+      "service_rate": null
+    },
+    {
+      "id": "N-cross-3",
+      "name": "Acesso Norte",
+      "x": -8.659,
+      "y": 40.6325,
+      "level": 0,
+      "type": "normal",
+      "description": "Acesso Norte",
+      "num_servers": null,
+      "service_rate": null
+    },
+    {
+      "id": "N-path-1",
+      "name": "Caminho Reitoria-Biblioteca",
+      "x": -8.6572,
+      "y": 40.631,
+      "level": 0,
+      "type": "normal",
+      "description": "Caminho Reitoria-Biblioteca",
+      "num_servers": null,
+      "service_rate": null
+    }
+  ],
+  "edges": [
+    {
+      "id": "EDGE-1",
+      "from_id": "POI-reitoria",
+      "to_id": "N-cross-1",
+      "weight": 68.8,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-2",
+      "from_id": "N-cross-1",
+      "to_id": "POI-reitoria",
+      "weight": 68.8,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-3",
+      "from_id": "N-cross-1",
+      "to_id": "POI-wc-reitoria",
+      "weight": 42.19,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-4",
+      "from_id": "POI-wc-reitoria",
+      "to_id": "N-cross-1",
+      "weight": 42.19,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-5",
+      "from_id": "N-cross-1",
+      "to_id": "N-path-1",
+      "weight": 58.1,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-6",
+      "from_id": "N-path-1",
+      "to_id": "N-cross-1",
+      "weight": 58.1,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-7",
+      "from_id": "N-path-1",
+      "to_id": "POI-biblioteca",
+      "weight": 82.06,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-8",
+      "from_id": "POI-biblioteca",
+      "to_id": "N-path-1",
+      "weight": 82.06,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-9",
+      "from_id": "N-cross-1",
+      "to_id": "N-cross-2",
+      "weight": 101.06,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-10",
+      "from_id": "N-cross-2",
+      "to_id": "N-cross-1",
+      "weight": 101.06,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-11",
+      "from_id": "N-cross-2",
+      "to_id": "POI-cantina",
+      "weight": 143.88,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-12",
+      "from_id": "POI-cantina",
+      "to_id": "N-cross-2",
+      "weight": 143.88,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-13",
+      "from_id": "N-cross-2",
+      "to_id": "POI-biblioteca",
+      "weight": 58.56,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-14",
+      "from_id": "POI-biblioteca",
+      "to_id": "N-cross-2",
+      "weight": 58.56,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-15",
+      "from_id": "POI-biblioteca",
+      "to_id": "N-cross-3",
+      "weight": 143.7,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-16",
+      "from_id": "N-cross-3",
+      "to_id": "POI-biblioteca",
+      "weight": 143.7,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-17",
+      "from_id": "N-cross-3",
+      "to_id": "POI-deti",
+      "weight": 84.0,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-18",
+      "from_id": "POI-deti",
+      "to_id": "N-cross-3",
+      "weight": 84.0,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-19",
+      "from_id": "POI-deti",
+      "to_id": "POI-wc-deti",
+      "weight": 25.07,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-20",
+      "from_id": "POI-wc-deti",
+      "to_id": "POI-deti",
+      "weight": 25.07,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-21",
+      "from_id": "N-cross-3",
+      "to_id": "POI-fisica",
+      "weight": 48.46,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-22",
+      "from_id": "POI-fisica",
+      "to_id": "N-cross-3",
+      "weight": 48.46,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-23",
+      "from_id": "POI-fisica",
+      "to_id": "POI-biblioteca",
+      "weight": 151.08,
+      "accessible": true
+    },
+    {
+      "id": "EDGE-24",
+      "from_id": "POI-biblioteca",
+      "to_id": "POI-fisica",
+      "weight": 151.08,
+      "accessible": true
+    }
+  ]
+}
