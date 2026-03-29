@@ -70,14 +70,21 @@ def serialize_node(n: Node) -> dict:
         "x": n.x,
         "y": n.y,
         "level": n.level,
+        "num_servers": n.num_servers,
+        "service_rate": n.service_rate,
+        "block": n.block,
+        "row": n.row,
+        "number": n.number,
+        "door_id": n.door_id,
     }
 
 def serialize_edge(e: Edge) -> dict:
     return {
         "id": e.id,
-        "from": e.from_id,
-        "to": e.to_id,
-        "w": e.weight
+        "from_id": e.from_id,
+        "to_id": e.to_id,
+        "weight": e.weight,
+        "accessible": e.accessible,
     }
 
 def serialize_closure(c: Closure) -> dict:
@@ -451,7 +458,7 @@ def preview_map(level: int = 0, db: Session = Depends(get_db)):
                 "row": n.row,
                 "number": n.number
             } for n in nodes]).replace("'", '"').replace("None", "null")};
-            const edges = {str([{{"from": e.from_id, "to": e.to_id}} for e in edges]).replace("'", '"')};
+            const edges = {str([{{"from_id": e.from_id, "to_id": e.to_id}} for e in edges]).replace("'", '"')};
             
             let scale = 1.3;
             let offsetX = 50;
@@ -500,8 +507,8 @@ def preview_map(level: int = 0, db: Session = Depends(get_db)):
                     ctx.strokeStyle = 'rgba(100, 100, 100, 0.3)';
                     ctx.lineWidth = 0.5;
                     edges.forEach(edge => {{
-                        const fromNode = nodes.find(n => n.id === edge.from);
-                        const toNode = nodes.find(n => n.id === edge.to);
+                        const fromNode = nodes.find(n => n.id === edge.from_id);
+                        const toNode = nodes.find(n => n.id === edge.to_id);
                         if (fromNode && toNode) {{
                             ctx.beginPath();
                             ctx.moveTo(screenX(fromNode.x), screenY(fromNode.y));
@@ -632,43 +639,22 @@ def create_node(data: NodeCreate, db: Session = Depends(get_db)):
 
 @app.put("/nodes/{node_id}", response_model=NodeResponse)
 def update_node(node_id: str, data: NodeUpdate, db: Session = Depends(get_db)):
-    """Update an existing node."""
+    """Update an existing node. Sending null for an optional field clears it."""
     node = db.query(Node).filter(Node.id == node_id).first()
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
-    
-    if data.name is not None:
-        node.name = data.name
-    if data.x is not None:
-        node.x = data.x
-    if data.y is not None:
-        node.y = data.y
-    if data.level is not None:
-        node.level = data.level
-    if data.type is not None:
-        node.type = data.type
-    if data.description is not None:
-        node.description = data.description
-    if data.num_servers is not None:
-        node.num_servers = data.num_servers
-    if data.service_rate is not None:
-        node.service_rate = data.service_rate
-    if data.block is not None:
-        node.block = data.block
-    if data.row is not None:
-        node.row = data.row
-    if data.number is not None:
-        node.number = data.number
-    if data.door_id is not None:
-        node.door_id = data.door_id
-    
+
+    update_data = data.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(node, field, value)
+
     try:
         db.commit()
         db.refresh(node)
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-    
+
     notify_routing_refresh()
     return node
 
@@ -1929,7 +1915,8 @@ def sync_map(data: BatchCreate, db: Session = Depends(get_db)):
     Rebuilds the grid index and notifies the routing service.
     """
     try:
-        # Clear existing data
+        # Clear existing data (Camera first — FK references nodes)
+        db.query(Camera).delete()
         db.query(Closure).delete()
         db.query(Edge).delete()
         db.query(Node).delete()

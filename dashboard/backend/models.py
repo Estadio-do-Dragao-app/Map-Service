@@ -5,7 +5,7 @@ NODE_TYPES = [
     "corridor", "row_aisle", "seat", "gate", "stairs", "ramp",
     "restroom", "food", "bar", "merchandise", "first_aid",
     "emergency_exit", "information", "vip_box", "camera", "normal",
-    "departments",
+    "departments", "queue",
 ]
 
 # ================== NODE SCHEMAS ==================
@@ -121,10 +121,13 @@ class CameraCreate(BaseModel):
     tilt: float = -30.0
     fov_horizontal: float = 70.0
     fov_vertical: float = 55.0
+    # Legacy bounding box (kept for backwards compatibility)
     coverage_x_min: Optional[float] = None
     coverage_x_max: Optional[float] = None
     coverage_y_min: Optional[float] = None
     coverage_y_max: Optional[float] = None
+    # Free-form polygon: list of {x, y} map-coordinate dicts (>=3 points)
+    coverage_polygon: Optional[list] = None
 
 
 class CameraUpdate(BaseModel):
@@ -139,6 +142,7 @@ class CameraUpdate(BaseModel):
     coverage_x_max: Optional[float] = None
     coverage_y_min: Optional[float] = None
     coverage_y_max: Optional[float] = None
+    coverage_polygon: Optional[list] = None
 
 
 class CameraResponse(BaseModel):
@@ -155,3 +159,4 @@ class CameraResponse(BaseModel):
     coverage_x_max: Optional[float]
     coverage_y_min: Optional[float]
     coverage_y_max: Optional[float]
+    coverage_polygon: Optional[list] = None

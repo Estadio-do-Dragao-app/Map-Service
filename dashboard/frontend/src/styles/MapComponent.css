@@ -440,6 +440,11 @@
   box-shadow: 0 0 10px rgba(248,81,73,.3) !important;
 }
 
+.btn-active {
+  border-color: var(--accent-purple) !important;
+  color: var(--accent-purple) !important;
+}
+
 /* ─── Status / hints ─────────────────────────────────────────────────────── */
 .hint {
   font-family: var(--font-mono);
@@ -602,6 +607,25 @@
 .node-type-pill[data-type="stairs"]      { color: var(--accent-yellow); border-color: rgba(227,179,65,.4);  background: rgba(227,179,65,.08); }
 .node-type-pill[data-type="exit"]        { color: var(--accent-red);    border-color: rgba(248,81,73,.4);   background: rgba(248,81,73,.08); }
 .node-type-pill[data-type="departments"] { color: #14b8a6;              border-color: rgba(20,184,166,.4);  background: rgba(20,184,166,.08); }
+.node-type-pill[data-type="queue"]       { color: var(--accent-yellow); border-color: rgba(227,179,65,.5);  background: rgba(227,179,65,.12); font-weight: 700; }
+.node-type-pill[data-type="camera"]      { color: var(--accent-purple); border-color: rgba(188,140,255,.4); background: rgba(188,140,255,.08); }
+
+/* ─── Queue Markers ──────────────────────────────────────────────────────── */
+.queue-marker-inner {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  border: 2px solid white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 10px rgba(227,179,65,0.5);
+  transition: transform 150ms ease;
+}
+
+.queue-marker-inner:hover {
+  transform: scale(1.15);
+}
 
 .badge {
   display: inline-block;
@@ -677,3 +701,15 @@
 .camera-marker-inner:hover {
   transform: scale(1.15);
 }
+/* ─── Camera coverage polygon tooltip ───────────────────────────────────── */
+.camera-coverage-tooltip {
+  background: var(--panel-surface, #161b22) !important;
+  border: 1px solid var(--border, #30363d) !important;
+  border-radius: 4px !important;
+  color: var(--accent-purple, #bc8cff) !important;
+  font-family: var(--font-mono, monospace) !important;
+  font-size: 10px !important;
+  padding: 3px 7px !important;
+  box-shadow: none !important;
+}
+.camera-coverage-tooltip::before { display: none !important; }
