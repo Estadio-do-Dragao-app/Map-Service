@@ -34,6 +34,7 @@ NODE_TYPES = [
     "camera",         # Surveillance camera
     "normal",         # Generic navigation node
     "departments",    # University department / campus building
+    "queue",          # Queue/waiting-line node (only connects to other queue nodes)
 ]
 
 # Valid closure reasons
@@ -254,6 +255,11 @@ class Camera(Base):
     coverage_y_min = Column(Float, nullable=True)
     coverage_y_max = Column(Float, nullable=True)
 
+    # Free-form polygon coverage area on the map
+    # List of {x, y} map-coordinate dicts (at least 3 points = triangle)
+    # e.g. [{"x": 40.123, "y": -8.456}, {"x": 40.124, "y": -8.457}, ...]
+    coverage_polygon = Column(JSON, nullable=True)
+
     # Relationship to the map node
     node = relationship("Node", foreign_keys=[node_id])
 
@@ -453,6 +459,7 @@ class CameraCreate(BaseModel):
     coverage_x_max: Optional[float] = None
     coverage_y_min: Optional[float] = None
     coverage_y_max: Optional[float] = None
+    coverage_polygon: Optional[list] = None  # [{x, y}, ...] free-form polygon
 
 class CameraUpdate(BaseModel):
     pos_x: Optional[float] = None
@@ -466,6 +473,7 @@ class CameraUpdate(BaseModel):
     coverage_x_max: Optional[float] = None
     coverage_y_min: Optional[float] = None
     coverage_y_max: Optional[float] = None
+    coverage_polygon: Optional[list] = None  # [{x, y}, ...] free-form polygon
 
 class CameraResponse(BaseModel):
     id: str
@@ -481,6 +489,7 @@ class CameraResponse(BaseModel):
     coverage_x_max: Optional[float]
     coverage_y_min: Optional[float]
     coverage_y_max: Optional[float]
+    coverage_polygon: Optional[list] = None  # [{x, y}, ...] free-form polygon
 
     class Config:
         from_attributes = True

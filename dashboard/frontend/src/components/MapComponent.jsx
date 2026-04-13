@@ -30,7 +30,7 @@ const NODE_TYPE_OPTIONS = [
   'corridor', 'row_aisle', 'seat', 'gate', 'stairs', 'ramp',
   'restroom', 'food', 'bar', 'merchandise', 'first_aid',
   'emergency_exit', 'information', 'vip_box', 'camera', 'normal',
-  'departments',
+  'departments', 'queue',
 ];
 
 export function MapComponent() {
@@ -78,6 +78,7 @@ export function MapComponent() {
   // ── Camera state ─────────────────────────────────────────────────────────
   const [cameras, setCameras]               = useState([]);
   const [showCameras, setShowCameras]       = useState(false);
+  const [showQueues, setShowQueues]         = useState(false);
   const [showCameraForm, setShowCameraForm] = useState(false);
   const [cameraFormData, setCameraFormData] = useState({
     id: '', pos_z: 10.0, pan: 0.0, tilt: -30.0,
@@ -92,6 +93,14 @@ export function MapComponent() {
     coverage_x_min: '', coverage_x_max: '',
     coverage_y_min: '', coverage_y_max: '',
   });
+
+  // ── Coverage polygon state ────────────────────────────────────────────────
+  // polygonPoints: [{lat, lng}, ...] — points the user places on the map
+  // drawingPolygon: true when the user is actively placing polygon points
+  const [polygonPoints, setPolygonPoints]   = useState([]);
+  const [drawingPolygon, setDrawingPolygon] = useState(false);
+  const polygonLayersRef                    = useRef([]);  // Leaflet layers for live preview
+  const cameraCoverageLayersRef             = useRef([]);  // Leaflet layers for saved camera polygons
 
   // ── Fetch ────────────────────────────────────────────────────────────────
   const fetchData = async () => {
@@ -187,6 +196,12 @@ export function MapComponent() {
       coverage_x_min: cam.coverage_x_min ?? '', coverage_x_max: cam.coverage_x_max ?? '',
       coverage_y_min: cam.coverage_y_min ?? '', coverage_y_max: cam.coverage_y_max ?? '',
     });
+    // Load existing polygon — stored as [{x,y}] where x=lng, y=lat
+    if (cam.coverage_polygon && cam.coverage_polygon.length > 0) {
+      setPolygonPoints(cam.coverage_polygon.map(p => ({ lat: p.y, lng: p.x })));
+    } else {
+      setPolygonPoints([]);
+    }
     setDraggedPosition({ lat: camNode.y, lng: camNode.x });
     if (map.current) map.current.setView([camNode.y, camNode.x], map.current.getZoom());
   };
@@ -205,6 +220,9 @@ export function MapComponent() {
         coverage_x_max: editCameraFormData.coverage_x_max !== '' ? parseFloat(editCameraFormData.coverage_x_max) : null,
         coverage_y_min: editCameraFormData.coverage_y_min !== '' ? parseFloat(editCameraFormData.coverage_y_min) : null,
         coverage_y_max: editCameraFormData.coverage_y_max !== '' ? parseFloat(editCameraFormData.coverage_y_max) : null,
+        coverage_polygon: polygonPoints.length >= 3
+          ? polygonPoints.map(p => ({ x: p.lng, y: p.lat }))
+          : null,
       };
       if (cam && draggedPosition) {
         await fetch(`${API_BASE}/nodes/${cam.node_id}`, {
@@ -223,10 +241,11 @@ export function MapComponent() {
       if (!response.ok) throw new Error('Failed to update camera');
       await fetchData();
       setEditingCamera(null); setDraggedPosition(null); setSelectedNode(null);
+      clearPolygon();
     } catch (err) { setError(err.message); }
   };
 
-  const cancelEditCamera = () => { setEditingCamera(null); setDraggedPosition(null); };
+  const cancelEditCamera = () => { setEditingCamera(null); setDraggedPosition(null); clearPolygon(); };
   // ── Delete node ──────────────────────────────────────────────────────────
   const deleteNode = async (nodeId) => {
     if (!confirm('Are you sure you want to delete this node? Connected edges will also be deleted.')) return;
@@ -283,6 +302,16 @@ export function MapComponent() {
   // ── Create edge ──────────────────────────────────────────────────────────
   const createEdge = async () => {
     if (!pointsForEdge.from || !pointsForEdge.to) { alert('Please select two nodes'); return; }
+
+    const fromNode = nodes.find(n => n.id === pointsForEdge.from);
+    const toNode   = nodes.find(n => n.id === pointsForEdge.to);
+
+    // Camera nodes cannot be connected to anything
+    if (fromNode?.type === 'camera' || toNode?.type === 'camera') {
+      setError('Camera nodes cannot be connected to any other node.');
+      return;
+    }
+
     try {
       const response = await fetch(`${API_BASE}/edges`, {
         method: 'POST',
@@ -321,6 +350,54 @@ export function MapComponent() {
     if (tempNodeMarkerRef.current && map.current) {
       map.current.removeLayer(tempNodeMarkerRef.current);
       tempNodeMarkerRef.current = null;
+    }
+  };
+
+  // ── Polygon helpers ───────────────────────────────────────────────────────
+  const clearPolygon = () => {
+    polygonLayersRef.current.forEach(l => { if (map.current) map.current.removeLayer(l); });
+    polygonLayersRef.current = [];
+    setPolygonPoints([]);
+    setDrawingPolygon(false);
+  };
+
+  const drawPolygonPreview = (points) => {
+    // Remove previous preview layers
+    polygonLayersRef.current.forEach(l => { if (map.current) map.current.removeLayer(l); });
+    polygonLayersRef.current = [];
+    if (!map.current || points.length === 0) return;
+
+    const color = 'var(--accent-purple, #bc8cff)';
+
+    // Draw vertex dots
+    points.forEach((p, i) => {
+      const circle = L.circleMarker([p.lat, p.lng], {
+        radius: 5, fill: true, fillColor: color, fillOpacity: 0.9,
+        stroke: true, color: '#fff', weight: 1.5,
+      }).addTo(map.current);
+      // Click on a vertex to remove it
+      circle.on('click', (e) => {
+        L.DomEvent.stopPropagation(e);
+        setPolygonPoints(prev => prev.filter((_, idx) => idx !== i));
+      });
+      polygonLayersRef.current.push(circle);
+    });
+
+    // Draw lines between consecutive points
+    if (points.length >= 2) {
+      const latlngs = points.map(p => [p.lat, p.lng]);
+      const line = L.polyline(latlngs, { color, weight: 2, opacity: 0.7, dashArray: '6,4' }).addTo(map.current);
+      polygonLayersRef.current.push(line);
+    }
+
+    // Draw closing line + filled polygon when >= 3 points
+    if (points.length >= 3) {
+      const latlngs = points.map(p => [p.lat, p.lng]);
+      const poly = L.polygon(latlngs, {
+        color, weight: 1.5, opacity: 0.8,
+        fill: true, fillColor: color, fillOpacity: 0.15,
+      }).addTo(map.current);
+      polygonLayersRef.current.push(poly);
     }
   };
 
@@ -458,6 +535,7 @@ export function MapComponent() {
     setSelectedEdgeFromList(null);
     clearRectangleSelection();
     clearTempNodeMarker();
+    clearPolygon();
 
     if (mode === 'node')   { setShowNodeForm(true);   setNewNodePosition(null); }
     if (mode === 'camera') { setShowCameraForm(true);  setNewNodePosition(null); }
@@ -470,7 +548,6 @@ export function MapComponent() {
     if (!newNodePosition) { alert('Click on the map to set the camera position'); return; }
     if (!cameraFormData.id.trim()) { alert('Camera ID is required'); return; }
 
-    // Verificar se já existe uma câmara com este ID
     const existing = cameras.find(c => c.id === cameraFormData.id.trim());
     if (existing) {
       setError(`Camera ID "${cameraFormData.id}" already exists. Please choose a different ID.`);
@@ -508,11 +585,13 @@ export function MapComponent() {
           coverage_x_max: cameraFormData.coverage_x_max !== '' ? parseFloat(cameraFormData.coverage_x_max) : null,
           coverage_y_min: cameraFormData.coverage_y_min !== '' ? parseFloat(cameraFormData.coverage_y_min) : null,
           coverage_y_max: cameraFormData.coverage_y_max !== '' ? parseFloat(cameraFormData.coverage_y_max) : null,
+          coverage_polygon: polygonPoints.length >= 3
+            ? polygonPoints.map(p => ({ x: p.lng, y: p.lat }))
+            : null,
         }),
       });
 
       if (!camRes.ok) {
-        // Rollback: apagar o node que acabámos de criar para não ficar órfão
         await fetch(`${API_BASE}/nodes/${nodeId}`, { method: 'DELETE' });
         const errData = await camRes.json().catch(() => ({}));
         throw new Error(errData.detail || 'Failed to create camera record');
@@ -522,6 +601,7 @@ export function MapComponent() {
       await fetchData();
       setToolMode('select');
       setCameraFormData({ id: '', pos_z: 10.0, pan: 0.0, tilt: -30.0, fov_horizontal: 70.0, fov_vertical: 55.0, coverage_x_min: '', coverage_x_max: '', coverage_y_min: '', coverage_y_max: '' });
+      clearPolygon();
     } catch (err) { setError(err.message); }
   };
 
@@ -583,6 +663,32 @@ export function MapComponent() {
     Object.values(edgeLines.current).forEach(line => line.remove());
     edgeLines.current = {};
 
+    // ── Camera coverage polygons ───────────────────────────────────────────
+    // Clear previous coverage polygons and redraw for all visible cameras
+    cameraCoverageLayersRef.current.forEach(l => l.remove());
+    cameraCoverageLayersRef.current = [];
+    if (showCameras) {
+      cameras.forEach(cam => {
+        if (!cam.coverage_polygon || cam.coverage_polygon.length < 3) return;
+        const camNode = nodes.find(n => n.id === cam.node_id);
+        if (!camNode) return;
+        const isSelected = selectedNode?.id === camNode.id;
+        const isEditing  = editingCamera === cam.id;
+        // Don't draw the saved polygon while editing — the live preview takes over
+        if (isEditing) return;
+
+        const latlngs = cam.coverage_polygon.map(p => [p.y, p.x]);
+        const color   = isSelected ? '#ff6b6b' : '#bc8cff';
+        const poly = L.polygon(latlngs, {
+          color, weight: 2, opacity: 0.9,
+          fill: true, fillColor: color, fillOpacity: isSelected ? 0.25 : 0.12,
+          dashArray: '6,3',
+        }).addTo(map.current);
+        poly.bindTooltip(cam.id, { permanent: false, sticky: true, className: 'camera-coverage-tooltip' });
+        cameraCoverageLayersRef.current.push(poly);
+      });
+    }
+
     // Edges
     edges.forEach(edge => {
       const fromNode = nodes.find(n => n.id === edge.from_id);
@@ -591,15 +697,21 @@ export function MapComponent() {
       const isInDelete     = selectedForDelete.edges.some(e => e.id === edge.id);
       if (!fromNode || !toNode) return;
 
-      // Only draw if explicitly shown, selected, or in delete selection
-      if (!showAllEdges && !isEdgeSelected && !isInDelete) return;
+      const isQueueEdge = fromNode.type === 'queue' || toNode.type === 'queue';
 
-      let color = '#4CAF50', weight = 3;
+      // Show queue edges when queue toggle is on, even if showAllEdges is off
+      if (!showAllEdges && !isEdgeSelected && !isInDelete && !isQueueEdge) return;
+      if (isQueueEdge && !showQueues && !showAllEdges && !isEdgeSelected && !isInDelete) return;
+
+      let color = '#4CAF50', weight = 3, opacity = 0.7, dashArray = undefined;
       if (isInDelete)        { color = '#ffa500'; weight = 4; }
       else if (isEdgeSelected){ color = '#ff6b6b'; weight = 4; }
+      else if (isQueueEdge && showQueues) {
+        color = '#bc8cff'; weight = 4; opacity = 0.85; dashArray = '8,4';
+      }
 
       const line = L.polyline([[fromNode.y, fromNode.x], [toNode.y, toNode.x]], {
-        color, weight, opacity: 0.7,
+        color, weight, opacity, dashArray,
       }).addTo(map.current);
 
       line.on('click', (e) => {
@@ -619,6 +731,7 @@ export function MapComponent() {
     const hiddenByZoom = new Set();
     nodes.forEach(node => {
       const isCamera = (node.type || '') === 'camera';
+      const isQueue  = (node.type || '') === 'queue';
       const poiTypes = new Set([
         'poi', 'restroom', 'food', 'bar', 'merchandise',
         'first_aid', 'emergency_exit', 'information', 'vip_box', 'camera',
@@ -645,11 +758,12 @@ export function MapComponent() {
       const baseColor = isNewNode ? '#4CAF50' : '#313b84';
       let fillColor = baseColor, radius = 7;
 
-      if (isSelectingDoor)     { fillColor = '#9c27b0'; radius = 9; }
-      else if (isInDelete)     { fillColor = '#ffa500'; radius = 10; }
-      else if (isListSelected) { fillColor = '#ff6b6b'; radius = 14; }
-      else if (isPartOfEdgeSel){ fillColor = '#ff6b6b'; radius = 12; }
-      else if (isEdgeSelected) { fillColor = '#ffc107'; radius = 10; }
+      if (isSelectingDoor)              { fillColor = '#9c27b0'; radius = 9; }
+      else if (isInDelete)              { fillColor = '#ffa500'; radius = 10; }
+      else if (isListSelected)          { fillColor = '#ff6b6b'; radius = 14; }
+      else if (isPartOfEdgeSel)         { fillColor = '#ff6b6b'; radius = 12; }
+      else if (isEdgeSelected)          { fillColor = '#ffc107'; radius = 10; }
+      else if (isQueue && showQueues)   { fillColor = '#e3b341'; radius = 9; }
 
       const markerKind = (node.id === editingNode || (isCamera && cameras.find(c => c.id === editingCamera)?.node_id === node.id)) && draggedPosition
         ? 'edit'
@@ -745,8 +859,23 @@ export function MapComponent() {
         }
         if (creatingEdge) {
           setPointsForEdge((prev) => {
-            if (!prev.from) return { ...prev, from: node.id };
-            if (!prev.to && node.id !== prev.from) return { ...prev, to: node.id };
+            const clickedNode = nodes.find(n => n.id === node.id);
+            const clickedType = clickedNode?.type;
+
+            // Camera nodes can never be part of an edge
+            if (clickedType === 'camera') {
+              setError('Camera nodes cannot be connected to any other node.');
+              return prev;
+            }
+
+            if (!prev.from) {
+              return { ...prev, from: node.id };
+            }
+
+            if (!prev.to && node.id !== prev.from) {
+              return { ...prev, to: node.id };
+            }
+
             return prev;
           });
           return;
@@ -892,6 +1021,7 @@ export function MapComponent() {
       }
       Object.values(markerTimersRef.current).forEach((timerId) => clearTimeout(timerId));
       markerTimersRef.current = {};
+      cameraCoverageLayersRef.current = [];
     };
   }, []);
 
@@ -899,6 +1029,11 @@ export function MapComponent() {
   useEffect(() => {
     if (!map.current) return;
     const handleMapClick = (e) => {
+      // ── Polygon drawing mode (camera coverage area) ──────────────────────
+      if (drawingPolygon) {
+        setPolygonPoints(prev => [...prev, { lat: e.latlng.lat, lng: e.latlng.lng }]);
+        return;
+      }
       if (deleteMode) return;
       if (rectangleSelectMode) {
         if (!rectStart) {
@@ -920,7 +1055,7 @@ export function MapComponent() {
     };
     map.current.on('click', handleMapClick);
     return () => { if (map.current) map.current.off('click', handleMapClick); };
-  }, [rectangleSelectMode, rectStart, rectEnd, showNodeForm, showCameraForm, newNodePosition, deleteMode]);
+  }, [rectangleSelectMode, rectStart, rectEnd, showNodeForm, showCameraForm, newNodePosition, deleteMode, drawingPolygon]);
 
   // ── Fit bounds on first load ──────────────────────────────────────────────
   useEffect(() => {
@@ -937,7 +1072,12 @@ export function MapComponent() {
     if (map.current) updateMapView();
   }, [nodes, edges, pointsForEdge, newNodePosition, selectedNode, selectedEdgeFromList,
       selectedForDelete, nodeSearchQuery, creatingEdge, editingNode, draggedPosition,
-      showAllEdges, selectingDoor, deleteMode, mapZoom, showCameras, cameras, editingCamera]);
+      showAllEdges, selectingDoor, deleteMode, mapZoom, showCameras, showQueues, cameras, editingCamera]);
+
+  // ── Polygon preview redraw ────────────────────────────────────────────────
+  useEffect(() => {
+    drawPolygonPreview(polygonPoints);
+  }, [polygonPoints]);
 
   // ── Filtered lists ────────────────────────────────────────────────────────
   const filteredNodes = nodes.filter(node =>
@@ -1058,6 +1198,17 @@ export function MapComponent() {
               {showCameras ? 'Hide cameras' : 'Show cameras'}
             </div>
           </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <button
+              className={`edge-filter-button ${showQueues ? 'active' : ''}`}
+              onClick={() => setShowQueues(!showQueues)}
+              style={showQueues ? { background: 'var(--accent-yellow)', borderColor: 'transparent', color: '#0d1117' } : {}}>
+              <FontAwesomeIcon icon={faCircleNodes} />
+            </button>
+            <div className="edge-filter-tooltip" style={{ background: showQueues ? 'var(--accent-yellow)' : undefined }}>
+              {showQueues ? 'Hide queues' : 'Show queues'}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1132,22 +1283,27 @@ export function MapComponent() {
                   onChange={(e) => setCameraFormData({ ...cameraFormData, fov_vertical: parseFloat(e.target.value) })} />
               </div>
               <div className="form-group">
-                <label>Coverage X min / max (m)</label>
-                <div style={{ display: 'flex', gap: '5px' }}>
-                  <input type="number" step="any" placeholder="min" value={cameraFormData.coverage_x_min}
-                    onChange={(e) => setCameraFormData({ ...cameraFormData, coverage_x_min: e.target.value })} />
-                  <input type="number" step="any" placeholder="max" value={cameraFormData.coverage_x_max}
-                    onChange={(e) => setCameraFormData({ ...cameraFormData, coverage_x_max: e.target.value })} />
-                </div>
-              </div>
-              <div className="form-group">
-                <label>Coverage Y min / max (m)</label>
-                <div style={{ display: 'flex', gap: '5px' }}>
-                  <input type="number" step="any" placeholder="min" value={cameraFormData.coverage_y_min}
-                    onChange={(e) => setCameraFormData({ ...cameraFormData, coverage_y_min: e.target.value })} />
-                  <input type="number" step="any" placeholder="max" value={cameraFormData.coverage_y_max}
-                    onChange={(e) => setCameraFormData({ ...cameraFormData, coverage_y_max: e.target.value })} />
-                </div>
+                <label>Coverage Polygon</label>
+                <button
+                  className={`btn-secondary ${drawingPolygon ? 'btn-active' : ''}`}
+                  style={{ borderColor: drawingPolygon ? 'var(--accent-purple)' : undefined, color: drawingPolygon ? 'var(--accent-purple)' : undefined, marginBottom: '6px' }}
+                  onClick={() => setDrawingPolygon(v => !v)}>
+                  {drawingPolygon ? 'Stop drawing' : 'Draw on map'}
+                </button>
+                {polygonPoints.length > 0 && (
+                  <button className="btn-secondary" style={{ marginBottom: '6px' }} onClick={clearPolygon}>
+                    Clear polygon ({polygonPoints.length} pts)
+                  </button>
+                )}
+                {drawingPolygon && (
+                  <p className="hint" style={{ borderColor: 'var(--accent-purple)' }}>
+                    Click on the map to place vertices · click a vertex to remove it<br/>
+                    {polygonPoints.length} point{polygonPoints.length !== 1 ? 's' : ''} placed{polygonPoints.length >= 3 ? ' ✓' : ' — need ≥3'}
+                  </p>
+                )}
+                {!drawingPolygon && polygonPoints.length >= 3 && (
+                  <p className="hint" style={{ borderColor: 'var(--accent-green)' }}>{polygonPoints.length}-point polygon defined ✓</p>
+                )}
               </div>
               <p className="hint">
                 {newNodePosition
@@ -1283,8 +1439,9 @@ export function MapComponent() {
                       ['Tilt (°)',    cam?.tilt ?? '—'],
                       ['FOV H (°)',   cam?.fov_horizontal ?? '—'],
                       ['FOV V (°)',   cam?.fov_vertical ?? '—'],
-                      ['Coverage X',  cam ? `${cam.coverage_x_min ?? '—'} / ${cam.coverage_x_max ?? '—'}` : '—'],
-                      ['Coverage Y',  cam ? `${cam.coverage_y_min ?? '—'} / ${cam.coverage_y_max ?? '—'}` : '—'],
+                      ['Coverage polygon', cam?.coverage_polygon?.length
+                        ? `${cam.coverage_polygon.length} points`
+                        : '—'],
                     ].map(([label, val]) => (
                       <div className="form-group" key={label}>
                         <label>{label}</label>
@@ -1374,22 +1531,27 @@ export function MapComponent() {
                   onChange={(e) => setEditCameraFormData({ ...editCameraFormData, fov_vertical: parseFloat(e.target.value) })} />
               </div>
               <div className="form-group">
-                <label>Coverage X min / max (m)</label>
-                <div style={{ display: 'flex', gap: '5px' }}>
-                  <input type="number" step="any" placeholder="min" value={editCameraFormData.coverage_x_min}
-                    onChange={(e) => setEditCameraFormData({ ...editCameraFormData, coverage_x_min: e.target.value })} />
-                  <input type="number" step="any" placeholder="max" value={editCameraFormData.coverage_x_max}
-                    onChange={(e) => setEditCameraFormData({ ...editCameraFormData, coverage_x_max: e.target.value })} />
-                </div>
-              </div>
-              <div className="form-group">
-                <label>Coverage Y min / max (m)</label>
-                <div style={{ display: 'flex', gap: '5px' }}>
-                  <input type="number" step="any" placeholder="min" value={editCameraFormData.coverage_y_min}
-                    onChange={(e) => setEditCameraFormData({ ...editCameraFormData, coverage_y_min: e.target.value })} />
-                  <input type="number" step="any" placeholder="max" value={editCameraFormData.coverage_y_max}
-                    onChange={(e) => setEditCameraFormData({ ...editCameraFormData, coverage_y_max: e.target.value })} />
-                </div>
+                <label>Coverage Polygon</label>
+                <button
+                  className={`btn-secondary ${drawingPolygon ? 'btn-active' : ''}`}
+                  style={{ borderColor: drawingPolygon ? 'var(--accent-purple)' : undefined, color: drawingPolygon ? 'var(--accent-purple)' : undefined, marginBottom: '6px' }}
+                  onClick={() => setDrawingPolygon(v => !v)}>
+                  {drawingPolygon ? 'Stop drawing' : 'Draw on map'}
+                </button>
+                {polygonPoints.length > 0 && (
+                  <button className="btn-secondary" style={{ marginBottom: '6px' }} onClick={clearPolygon}>
+                    Clear polygon ({polygonPoints.length} pts)
+                  </button>
+                )}
+                {drawingPolygon && (
+                  <p className="hint" style={{ borderColor: 'var(--accent-purple)' }}>
+                    Click on the map to place vertices · click a vertex to remove it<br/>
+                    {polygonPoints.length} point{polygonPoints.length !== 1 ? 's' : ''} placed{polygonPoints.length >= 3 ? ' ✓' : ' — need ≥3'}
+                  </p>
+                )}
+                {!drawingPolygon && polygonPoints.length >= 3 && (
+                  <p className="hint" style={{ borderColor: 'var(--accent-green)' }}>{polygonPoints.length}-point polygon defined ✓</p>
+                )}
               </div>
               <div className="form-group">
                 <label>Coordinates</label>
