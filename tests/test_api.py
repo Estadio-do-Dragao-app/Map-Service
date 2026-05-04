@@ -9,9 +9,9 @@ from models import Node, Edge, Closure, EmergencyRoute
 class TestMapEndpoints:
     """Test /map endpoints."""
     
-    def test_get_map_empty(self, client):
+    def test_get_map_empty(self, client, auth_headers):
         """Test getting an empty map."""
-        response = client.get("/map")
+        response = client.get("/map", headers=auth_headers)
         assert response.status_code == 200
         
         data = response.json()
@@ -21,7 +21,7 @@ class TestMapEndpoints:
         assert len(data["nodes"]) == 0
         assert len(data["edges"]) == 0
     
-    def test_get_map_with_data(self, client, test_db):
+    def test_get_map_with_data(self, client, test_db, auth_headers):
         """Test getting map with nodes and edges."""
         # Add test data
         node1 = Node(id="N1", x=100, y=200, type="corridor")
@@ -31,7 +31,7 @@ class TestMapEndpoints:
         test_db.add_all([node1, node2, edge1])
         test_db.commit()
         
-        response = client.get("/map")
+        response = client.get("/map", headers=auth_headers)
         assert response.status_code == 200
         
         data = response.json()
@@ -43,7 +43,7 @@ class TestMapEndpoints:
         assert "N1" in node_ids
         assert "N2" in node_ids
     
-    def test_get_map_visualization(self, client, test_db):
+    def test_get_map_visualization(self, client, test_db, auth_headers):
         """Test getting map visualization."""
         # Add various node types
         nodes = [
@@ -56,7 +56,7 @@ class TestMapEndpoints:
         test_db.add_all(nodes)
         test_db.commit()
         
-        response = client.get("/map/visualization")
+        response = client.get("/map/visualization", headers=auth_headers)
         assert response.status_code == 200
         
         data = response.json()
@@ -75,7 +75,7 @@ class TestMapEndpoints:
         assert data["stats"]["seats"] == 1
         assert data["stats"]["stairs"] == 1
     
-    def test_get_map_visualization_filtered_by_level(self, client, test_db):
+    def test_get_map_visualization_filtered_by_level(self, client, test_db, auth_headers):
         """Test getting map visualization filtered by level."""
         nodes = [
             Node(id="N1", x=100, y=200, level=0),
@@ -86,16 +86,16 @@ class TestMapEndpoints:
         test_db.commit()
         
         # Get level 0 only
-        response = client.get("/map/visualization?level=0")
+        response = client.get("/map/visualization?level=0", headers=auth_headers)
         assert response.status_code == 200
         
         data = response.json()
         assert data["level"] == 0
         assert data["stats"]["total"] == 2  # Only level 0 nodes
     
-    def test_get_map_preview(self, client, test_db):
+    def test_get_map_preview(self, client, test_db, auth_headers):
         """Test getting HTML map preview."""
-        response = client.get("/map/preview?level=0")
+        response = client.get("/map/preview?level=0", headers=auth_headers)
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
         assert "Estádio do Dragão" in response.text
@@ -437,9 +437,9 @@ class TestGridEndpoints:
 class TestStadiumEndpoints:
     """Test stadium-specific functionality with realistic data."""
     
-    def test_stadium_structure(self, client, create_stadium_graph):
+    def test_stadium_structure(self, client, create_stadium_graph, auth_headers):
         """Test querying the stadium graph structure."""
-        response = client.get("/map")
+        response = client.get("/map", headers=auth_headers)
         assert response.status_code == 200
         
         data = response.json()
@@ -513,7 +513,7 @@ class TestErrorHandling:
 class TestCORSAndMiddleware:
     """Test middleware and CORS configuration."""
     
-    def test_gzip_compression(self, client, test_db):
+    def test_gzip_compression(self, client, test_db, auth_headers):
         """Test that GZip compression is applied to large responses."""
         # Create many nodes to trigger compression
         nodes = [
@@ -523,7 +523,7 @@ class TestCORSAndMiddleware:
         test_db.add_all(nodes)
         test_db.commit()
         
-        response = client.get("/map")
+        response = client.get("/map", headers=auth_headers)
         assert response.status_code == 200
         
         # Response should be large enough to trigger gzip (>500 bytes)
@@ -533,11 +533,11 @@ class TestCORSAndMiddleware:
 class TestStartupEvents:
     """Test application startup events."""
     
-    def test_database_initialized_on_startup(self, client):
+    def test_database_initialized_on_startup(self, client, auth_headers):
         """Test that database is initialized when app starts."""
         # The fixture already ensures db is initialized
         # This test just verifies we can query
-        response = client.get("/map")
+        response = client.get("/map", headers=auth_headers)
         assert response.status_code == 200
 
 
@@ -858,16 +858,16 @@ class TestUtilityEndpoints:
         data = response.json()
         assert data["status"] == "ok"
     
-    def test_reset_database(self, client):
+    def test_reset_database(self, client, auth_headers):
         """Test database reset endpoint."""
-        response = client.post("/reset")
+        response = client.post("/reset", headers=auth_headers)
         assert response.status_code == 200
 
 
 class TestHelperFunctions:
     """Test helper functions and edge cases."""
     
-    def test_serialize_node_function(self, test_db, client):
+    def test_serialize_node_function(self, test_db, client, auth_headers):
         """Test node serialization helper."""
         from models import Node
         node = Node(id="test_node", name="Test", type="corridor", x=10.0, y=20.0, level=0)
@@ -875,13 +875,13 @@ class TestHelperFunctions:
         test_db.commit()
         
         # Test via map endpoint which uses serialize_node
-        response = client.get("/map")
+        response = client.get("/map", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
         assert "nodes" in data
         assert any(n["id"] == "test_node" for n in data["nodes"])
     
-    def test_serialize_edge_function(self, test_db, client):
+    def test_serialize_edge_function(self, test_db, client, auth_headers):
         """Test edge serialization helper."""
         from models import Node, Edge
         node1 = Node(id="n1", name="N1", type="corridor", x=0.0, y=0.0, level=0)
@@ -890,13 +890,13 @@ class TestHelperFunctions:
         test_db.add_all([node1, node2, edge])
         test_db.commit()
         
-        response = client.get("/map")
+        response = client.get("/map", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
         assert "edges" in data
         assert any(e["id"] == "e1" for e in data["edges"])
     
-    def test_serialize_closure_function(self, test_db, client):
+    def test_serialize_closure_function(self, test_db, client, auth_headers):
         """Test closure serialization helper."""
         from models import Node, Closure
         node = Node(id="closed_node", name="Closed", type="corridor", x=0.0, y=0.0, level=0)
@@ -904,13 +904,13 @@ class TestHelperFunctions:
         test_db.add_all([node, closure])
         test_db.commit()
         
-        response = client.get("/map")
+        response = client.get("/map", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
         assert "closures" in data
         assert any(c["id"] == "c1" for c in data["closures"])
     
-    def test_get_map_with_level_filter(self, test_db, client):
+    def test_get_map_with_level_filter(self, test_db, client, auth_headers):
         """Test map visualization with level filter."""
         from models import Node
         node0 = Node(id="n0", name="Level 0", type="corridor", x=0.0, y=0.0, level=0)
@@ -918,25 +918,25 @@ class TestHelperFunctions:
         test_db.add_all([node0, node1])
         test_db.commit()
         
-        response = client.get("/map/visualization?level=0")
+        response = client.get("/map/visualization?level=0", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
         assert data["level"] == 0
         assert "stats" in data
     
-    def test_get_map_preview_html(self, test_db, client):
+    def test_get_map_preview_html(self, test_db, client, auth_headers):
         """Test map preview HTML generation."""
         from models import Node
         node = Node(id="preview_node", name="Test", type="corridor", x=100.0, y=150.0, level=0)
         test_db.add(node)
         test_db.commit()
         
-        response = client.get("/map/preview?level=0")
+        response = client.get("/map/preview?level=0", headers=auth_headers)
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
         assert "canvas" in response.text.lower()
     
-    def test_geojson_etag_caching(self, test_db, client):
+    def test_geojson_etag_caching(self, test_db, client, auth_headers):
         """Test that GeoJSON responses include ETag headers."""
         from models import Node
         node = Node(id="cache_node", name="Test", type="corridor", x=0.0, y=0.0, level=0)
@@ -1269,7 +1269,7 @@ class TestHelperFunctions:
         response = client.get("/emergency-routes/nonexistent")
         assert response.status_code == 404
     
-    def test_map_visualization_with_all_node_types(self, test_db, client):
+    def test_map_visualization_with_all_node_types(self, test_db, client, auth_headers):
         """Test map visualization groups all node types correctly."""
         from models import Node
         
@@ -1283,7 +1283,7 @@ class TestHelperFunctions:
         test_db.add_all([corridor, normal, gate, stairs, seat, restroom])
         test_db.commit()
         
-        response = client.get("/map/visualization")
+        response = client.get("/map/visualization", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
         

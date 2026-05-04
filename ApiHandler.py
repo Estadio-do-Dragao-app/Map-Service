@@ -1,4 +1,5 @@
-from fastapi import FastAPI, HTTPException, Depends, Query
+from fastapi import FastAPI, HTTPException, Depends, Query, Security
+from fastapi.security import APIKeyHeader
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.middleware.cors import CORSMiddleware
@@ -26,6 +27,9 @@ import urllib.request
 import urllib.parse
 import httpx
 import threading
+import os
+import secrets
+from audit_logger import audit_logger
 
 def notify_routing_refresh():
     """Trigger a silent background refresh in the routing service after a map change."""
@@ -51,6 +55,19 @@ app.add_middleware(
 
 # Add GZip compression for large responses (reduces ~2MB GeoJSON to ~300KB)
 app.add_middleware(GZipMiddleware, minimum_size=500)
+
+API_KEY_NAME = "X-API-Key"
+API_KEY = os.getenv("API_KEY", "dragao_secret_key_2026")  # Load from env, fallback for dev
+api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
+
+def get_api_key(api_key_header: str = Security(api_key_header)):
+    if api_key_header and secrets.compare_digest(api_key_header, API_KEY):
+        return api_key_header
+    raise HTTPException(
+        status_code=401,
+        detail="Unauthorized access - invalid or missing API key"
+    )
+
 
 # ================== STARTUP ==================
 
@@ -98,7 +115,7 @@ def serialize_closure(c: Closure) -> dict:
 # ================== MAP ==================
 
 @app.get("/map")
-def get_map(db: Session = Depends(get_db)):
+def get_map(db: Session = Depends(get_db), api_key: str = Depends(get_api_key)):
     """Get complete map with nodes, edges, and closures."""
     nodes = db.query(Node).all()
     edges = db.query(Edge).all()
@@ -111,7 +128,7 @@ def get_map(db: Session = Depends(get_db)):
     }
 
 @app.get("/map/visualization")
-def get_map_visualization(level: int = None, db: Session = Depends(get_db)):
+def get_map_visualization(level: int = None, db: Session = Depends(get_db), api_key: str = Depends(get_api_key)):
     """Get map data optimized for frontend visualization with grouped nodes by type."""
     query = db.query(Node)
     
@@ -221,7 +238,7 @@ def preview_map(level: int = 0, db: Session = Depends(get_db)):
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Estadio do Dragao - Nivel {level}</title>
+        <title>Estádio do Dragão - Nível {level}</title>
         <style>
             * {{ box-sizing: border-box; }}
             body {{
@@ -358,7 +375,7 @@ def preview_map(level: int = 0, db: Session = Depends(get_db)):
     </head>
     <body>
         <div class="container">
-            <h1>Estadio do Dragao - Nivel {level}</h1>
+            <h1>Estádio do Dragão - Nível {level}</h1>
             
             <div class="controls">
                 <div class="btn-group">
@@ -634,6 +651,7 @@ def create_node(data: NodeCreate, db: Session = Depends(get_db)):
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     
+    audit_logger.info(f"API Access: create_node created {node.id}")
     notify_routing_refresh()
     return node
 
@@ -675,6 +693,8 @@ def delete_node(node_id: str, db: Session = Depends(get_db)):
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    
+    audit_logger.info(f"Storage Limitation/Accountability: delete_node removed {node_id}")
     notify_routing_refresh()
     return {"deleted": node_id}
 
@@ -1799,8 +1819,8 @@ def reset_data(db: Session = Depends(get_db)):
     
     try:
         print("Resetting database...")
-        clear_all_data()
-        load_sample_data()
+        clear_all_data(db)
+        load_sample_data(db)
         print("Database reset complete")
 
         print("Rebuilding grid...")

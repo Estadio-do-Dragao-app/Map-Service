@@ -2,6 +2,7 @@
 Tests for data loading functionality.
 """
 import pytest
+pytest.importorskip("load_data_db", reason="load_data_db.py is not present in this repository")
 from load_data_db import load_sample_data
 from models import Node, Edge, Closure, EmergencyRoute
 

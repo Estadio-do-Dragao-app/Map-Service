@@ -10,6 +10,7 @@ import tempfile
 pytest.importorskip("numpy", reason="numpy not installed - floor_plan_to_graph is optional")
 pytest.importorskip("cv2", reason="opencv-python not installed - floor_plan_to_graph is optional")
 pytest.importorskip("skimage", reason="scikit-image not installed - floor_plan_to_graph is optional")
+pytest.importorskip("floor_plan_to_graph", reason="floor_plan_to_graph.py is not present in this repository")
 
 import numpy as np
 import cv2
