@@ -238,7 +238,7 @@ def preview_map(level: int = 0, db: Session = Depends(get_db)):
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Estadio do Dragao - Nivel {level}</title>
+        <title>Estádio do Dragão - Nível {level}</title>
         <style>
             * {{ box-sizing: border-box; }}
             body {{
@@ -375,7 +375,7 @@ def preview_map(level: int = 0, db: Session = Depends(get_db)):
     </head>
     <body>
         <div class="container">
-            <h1>Estadio do Dragao - Nivel {level}</h1>
+            <h1>Estádio do Dragão - Nível {level}</h1>
             
             <div class="controls">
                 <div class="btn-group">
@@ -1819,8 +1819,8 @@ def reset_data(db: Session = Depends(get_db)):
     
     try:
         print("Resetting database...")
-        clear_all_data()
-        load_sample_data()
+        clear_all_data(db)
+        load_sample_data(db)
         print("Database reset complete")
 
         print("Rebuilding grid...")
