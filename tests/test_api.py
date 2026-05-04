@@ -9,9 +9,9 @@ from models import Node, Edge, Closure, EmergencyRoute
 class TestMapEndpoints:
     """Test /map endpoints."""
     
-    def test_get_map_empty(self, client):
+    def test_get_map_empty(self, client, auth_headers):
         """Test getting an empty map."""
-        response = client.get("/map")
+        response = client.get("/map", headers=auth_headers)
         assert response.status_code == 200
         
         data = response.json()
@@ -21,7 +21,7 @@ class TestMapEndpoints:
         assert len(data["nodes"]) == 0
         assert len(data["edges"]) == 0
     
-    def test_get_map_with_data(self, client, test_db):
+    def test_get_map_with_data(self, client, test_db, auth_headers):
         """Test getting map with nodes and edges."""
         # Add test data
         node1 = Node(id="N1", x=100, y=200, type="corridor")
@@ -31,7 +31,7 @@ class TestMapEndpoints:
         test_db.add_all([node1, node2, edge1])
         test_db.commit()
         
-        response = client.get("/map")
+        response = client.get("/map", headers=auth_headers)
         assert response.status_code == 200
         
         data = response.json()
@@ -43,7 +43,7 @@ class TestMapEndpoints:
         assert "N1" in node_ids
         assert "N2" in node_ids
     
-    def test_get_map_visualization(self, client, test_db):
+    def test_get_map_visualization(self, client, test_db, auth_headers):
         """Test getting map visualization."""
         # Add various node types
         nodes = [
@@ -56,7 +56,7 @@ class TestMapEndpoints:
         test_db.add_all(nodes)
         test_db.commit()
         
-        response = client.get("/map/visualization")
+        response = client.get("/map/visualization", headers=auth_headers)
         assert response.status_code == 200
         
         data = response.json()
@@ -75,7 +75,7 @@ class TestMapEndpoints:
         assert data["stats"]["seats"] == 1
         assert data["stats"]["stairs"] == 1
     
-    def test_get_map_visualization_filtered_by_level(self, client, test_db):
+    def test_get_map_visualization_filtered_by_level(self, client, test_db, auth_headers):
         """Test getting map visualization filtered by level."""
         nodes = [
             Node(id="N1", x=100, y=200, level=0),
@@ -86,16 +86,16 @@ class TestMapEndpoints:
         test_db.commit()
         
         # Get level 0 only
-        response = client.get("/map/visualization?level=0")
+        response = client.get("/map/visualization?level=0", headers=auth_headers)
         assert response.status_code == 200
         
         data = response.json()
         assert data["level"] == 0
         assert data["stats"]["total"] == 2  # Only level 0 nodes
     
-    def test_get_map_preview(self, client, test_db):
+    def test_get_map_preview(self, client, test_db, auth_headers):
         """Test getting HTML map preview."""
-        response = client.get("/map/preview?level=0")
+        response = client.get("/map/preview?level=0", headers=auth_headers)
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
         assert "Estádio do Dragão" in response.text
@@ -437,9 +437,9 @@ class TestGridEndpoints:
 class TestStadiumEndpoints:
     """Test stadium-specific functionality with realistic data."""
     
-    def test_stadium_structure(self, client, create_stadium_graph):
+    def test_stadium_structure(self, client, create_stadium_graph, auth_headers):
         """Test querying the stadium graph structure."""
-        response = client.get("/map")
+        response = client.get("/map", headers=auth_headers)
         assert response.status_code == 200
         
         data = response.json()
@@ -513,7 +513,7 @@ class TestErrorHandling:
 class TestCORSAndMiddleware:
     """Test middleware and CORS configuration."""
     
-    def test_gzip_compression(self, client, test_db):
+    def test_gzip_compression(self, client, test_db, auth_headers):
         """Test that GZip compression is applied to large responses."""
         # Create many nodes to trigger compression
         nodes = [
@@ -523,7 +523,7 @@ class TestCORSAndMiddleware:
         test_db.add_all(nodes)
         test_db.commit()
         
-        response = client.get("/map")
+        response = client.get("/map", headers=auth_headers)
         assert response.status_code == 200
         
         # Response should be large enough to trigger gzip (>500 bytes)

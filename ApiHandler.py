@@ -27,6 +27,8 @@ import urllib.request
 import urllib.parse
 import httpx
 import threading
+import os
+import secrets
 from audit_logger import audit_logger
 
 def notify_routing_refresh():
@@ -55,15 +57,15 @@ app.add_middleware(
 app.add_middleware(GZipMiddleware, minimum_size=500)
 
 API_KEY_NAME = "X-API-Key"
-API_KEY = "dragao_secret_key_2026"
+API_KEY = os.getenv("API_KEY", "dragao_secret_key_2026")  # Load from env, fallback for dev
 api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
 
 async def get_api_key(api_key_header: str = Security(api_key_header)):
-    if api_key_header == API_KEY:
+    if api_key_header and secrets.compare_digest(api_key_header, API_KEY):
         return api_key_header
     raise HTTPException(
         status_code=401,
-        detail="Acesso não autorizado - API Key inválida ou ausente"
+        detail="Unauthorized access - invalid or missing API key"
     )
 
 
