@@ -1799,8 +1799,8 @@ def reset_data(db: Session = Depends(get_db)):
     
     try:
         print("Resetting database...")
-        clear_all_data()
-        load_sample_data()
+        clear_all_data(db)
+        load_sample_data(db)
         print("Database reset complete")
 
         print("Rebuilding grid...")
@@ -1815,7 +1815,7 @@ def reset_data(db: Session = Depends(get_db)):
     except Exception as e:
         print(f"Reset failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Reset failed: {str(e)}")
-
+    
 # ================== BATCH IMPORT ==================
 @app.post("/batch", status_code=201)
 def create_batch(data: BatchCreate, db: Session = Depends(get_db)):
