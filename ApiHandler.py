@@ -6,7 +6,7 @@ from networkx import edges, nodes
 from networkx import edges
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from typing import List, Optional, Annotated   # <-- adicionado Annotated
+from typing import List, Optional, Annotated
 from database import get_db, init_db
 from models import (
     Node, Edge, Closure, Tile, EmergencyRoute, Camera,
@@ -111,7 +111,7 @@ def get_map(db: Annotated[Session, Depends(get_db)]):
     }
 
 @app.get("/map/visualization")
-def get_map_visualization(level: int = None, db: Annotated[Session, Depends(get_db)]):
+def get_map_visualization(db: Annotated[Session, Depends(get_db)], level: int = None):
     """Get map data optimized for frontend visualization with grouped nodes by type."""
     query = db.query(Node)
     
@@ -440,7 +440,7 @@ def get_grid_config():
     }
 
 @app.get("/maps/grid/tiles")
-def get_all_tiles(level: Optional[int] = None, db: Annotated[Session, Depends(get_db)]):
+def get_all_tiles(db: Annotated[Session, Depends(get_db)], level: Optional[int] = None):
     """Get all tiles, optionally filtered by level."""
     query = db.query(Tile)
     if level is not None:
@@ -850,7 +850,7 @@ def delete_poi(poi_id: str, db: Annotated[Session, Depends(get_db)]):
 # Now handled via Node endpoints with type='seat'
 
 @app.get("/seats", response_model=List[NodeResponse])
-def get_seats(block: Optional[str] = None, db: Annotated[Session, Depends(get_db)]):
+def get_seats(db: Annotated[Session, Depends(get_db)], block: Optional[str] = None):
     """Get all seat nodes, optionally filtered by block."""
     query = db.query(Node).filter(Node.type == 'seat')
     if block:
@@ -1022,11 +1022,11 @@ def _calculate_bounds(nodes: list) -> Optional[dict]:
 
 @app.get("/map/geojson")
 def get_map_geojson(
+    db: Annotated[Session, Depends(get_db)],
     level: Optional[int] = Query(None, description="Filter by floor level (0, 1, 2)"),
     types: Optional[str] = Query(None, description="Comma-separated node types: gate,poi,stairs,corridor,seat"),
     include_edges: bool = Query(True, description="Include edges as LineStrings"),
-    include_seats: bool = Query(False, description="Include seat nodes (warning: many!)"),
-    db: Annotated[Session, Depends(get_db)]
+    include_seats: bool = Query(False, description="Include seat nodes (warning: many!)")
 ):
     """
     Get map data in GeoJSON format for frontend visualization.
@@ -1101,7 +1101,7 @@ def get_level_geojson(level: int, db: Annotated[Session, Depends(get_db)]):
     Shortcut endpoint to get GeoJSON for a specific floor level.
     Excludes seats for performance.
     """
-    return get_map_geojson(level=level, types=None, include_edges=True, include_seats=False, db=db)
+    return get_map_geojson(db=db, level=level, types=None, include_edges=True, include_seats=False)
 
 
 @app.get("/map/bounds")
@@ -1140,7 +1140,7 @@ def get_map_bounds(db: Annotated[Session, Depends(get_db)]):
 
 
 @app.get("/map/geojson/pois")
-def get_pois_geojson(level: Optional[int] = None, db: Annotated[Session, Depends(get_db)]):
+def get_pois_geojson(db: Annotated[Session, Depends(get_db)], level: Optional[int] = None):
     """
     Get only POI nodes in GeoJSON format (optimized for markers layer).
     
@@ -1153,11 +1153,11 @@ def get_pois_geojson(level: Optional[int] = None, db: Annotated[Session, Depends
         'departments',
     ]
     return get_map_geojson(
+        db=db,
         level=level, 
         types=','.join(poi_types), 
         include_edges=False,
-        include_seats=False,
-        db=db
+        include_seats=False
     )
 
 # ================== EMERGENCY ROUTES ==================
@@ -1176,10 +1176,10 @@ def list_emergency_routes(db: Annotated[Session, Depends(get_db)]):
 
 @app.get("/emergency-routes/nearest")
 def get_nearest_emergency_route(
+    db: Annotated[Session, Depends(get_db)],
     x: float = Query(..., description="Current X coordinate"),
     y: float = Query(..., description="Current Y coordinate"),
-    level: int = Query(0, description="Current floor level"),
-    db: Annotated[Session, Depends(get_db)]
+    level: int = Query(0, description="Current floor level")
 ):
     """
     Find the nearest emergency evacuation route based on current position.
