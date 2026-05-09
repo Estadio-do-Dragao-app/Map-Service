@@ -182,7 +182,10 @@ def get_node(
         raise HTTPException(status_code=404, detail="Node not found")
     return node
 
-@app.post("/nodes", response_model=NodeResponse, status_code=201)
+@app.post("/nodes", response_model=NodeResponse, status_code=201, responses={
+    400: {"description": "Node already exists"},
+    500: {"description": "Database error while creating node"}
+})
 def create_node(
     data: NodeCreate,
     db: Annotated[Session, Depends(get_db)]
@@ -201,7 +204,10 @@ def create_node(
     notify_routing_refresh()
     return node
 
-@app.put("/nodes/{node_id}", response_model=NodeResponse)
+@app.put("/nodes/{node_id}", response_model=NodeResponse, responses={
+    404: {"description": "Node not found"},
+    500: {"description": "Database error while updating node"}
+})
 def update_node(
     node_id: Annotated[str, Path(description="The ID of the node")],
     data: NodeUpdate,
@@ -222,7 +228,10 @@ def update_node(
     notify_routing_refresh()
     return node
 
-@app.delete("/nodes/{node_id}")
+@app.delete("/nodes/{node_id}", responses={
+    404: {"description": "Node not found"},
+    500: {"description": "Database error while deleting node"}
+})
 def delete_node(
     node_id: Annotated[str, Path(description="The ID of the node")],
     db: Annotated[Session, Depends(get_db)]
@@ -257,7 +266,10 @@ def get_edge(
         raise HTTPException(status_code=404, detail="Edge not found")
     return edge
 
-@app.post("/edges", response_model=EdgeResponse, status_code=201)
+@app.post("/edges", response_model=EdgeResponse, status_code=201, responses={
+    400: {"description": "Edge already exists or nodes do not exist"},
+    500: {"description": "Database error while creating edge"}
+})
 def create_edge(
     data: EdgeCreate,
     db: Annotated[Session, Depends(get_db)]
@@ -282,7 +294,10 @@ def create_edge(
     notify_routing_refresh()
     return edge
 
-@app.put("/edges/{edge_id}", response_model=EdgeResponse)
+@app.put("/edges/{edge_id}", response_model=EdgeResponse, responses={
+    404: {"description": "Edge not found"},
+    500: {"description": "Database error while updating edge"}
+})
 def update_edge(
     edge_id: Annotated[str, Path(description="The ID of the edge")],
     data: EdgeUpdate,
@@ -304,7 +319,10 @@ def update_edge(
     notify_routing_refresh()
     return edge
 
-@app.delete("/edges/{edge_id}")
+@app.delete("/edges/{edge_id}", responses={
+    404: {"description": "Edge not found"},
+    500: {"description": "Database error while deleting edge"}
+})
 def delete_edge(
     edge_id: Annotated[str, Path(description="The ID of the edge")],
     db: Annotated[Session, Depends(get_db)]
@@ -337,7 +355,10 @@ def get_closure(
         raise HTTPException(status_code=404, detail="Closure not found")
     return closure
 
-@app.post("/closures", response_model=ClosureResponse, status_code=201)
+@app.post("/closures", response_model=ClosureResponse, status_code=201, responses={
+    400: {"description": "Closure already exists, or invalid references, or neither edge_id nor node_id"},
+    500: {"description": "Database error while creating closure"}
+})
 def add_closure(
     data: ClosureCreate,
     db: Annotated[Session, Depends(get_db)]
@@ -366,7 +387,10 @@ def add_closure(
     notify_routing_refresh()
     return closure
 
-@app.delete("/closures/{closure_id}")
+@app.delete("/closures/{closure_id}", responses={
+    404: {"description": "Closure not found"},
+    500: {"description": "Database error while deleting closure"}
+})
 def delete_closure(
     closure_id: Annotated[str, Path(description="The ID of the closure")],
     db: Annotated[Session, Depends(get_db)]
@@ -416,7 +440,9 @@ def get_all_tiles(
         })
     return {"tiles": result, "total_tiles": len(result)}
 
-@app.post("/maps/grid/rebuild")
+@app.post("/maps/grid/rebuild", responses={
+    500: {"description": "Grid rebuild failed due to database error"}
+})
 def rebuild_grid(db: Annotated[Session, Depends(get_db)]):
     try:
         tile_count = grid_manager.rebuild_grid(db)
@@ -548,30 +574,29 @@ def _fetch_osm_data():
 
     return osm_data, entrance_nodes
 
-def _process_osm_element(el, entrance_nodes, walkable_nodes):
+def _create_poi_from_element(el, entrance_nodes, walkable_nodes):
+    """Process one OSM element, return POI dict or None."""
     tags = el.get("tags", {})
     name = tags.get("name") or tags.get("alt_name") or tags.get("short_name")
     if not name:
         return None
 
     # Get coordinates
-    coords = None
     if el["type"] == "node":
-        coords = (el["lon"], el["lat"])
+        lon, lat = el["lon"], el["lat"]
     elif el["type"] == "way" and "center" in el:
         center_lon, center_lat = el["center"]["lon"], el["center"]["lat"]
-        coords = (center_lon, center_lat)
-        best_entrance_dist = float("inf")
+        lon, lat = center_lon, center_lat
+        best_dist = float("inf")
         for ent in entrance_nodes:
-            ent_dist = _haversine(center_lon, center_lat, ent["lon"], ent["lat"])
-            if ent_dist < 50 and ent_dist < best_entrance_dist:
-                best_entrance_dist = ent_dist
-                coords = (ent["lon"], ent["lat"])
-    if not coords:
+            d = _haversine(center_lon, center_lat, ent["lon"], ent["lat"])
+            if d < 50 and d < best_dist:
+                best_dist = d
+                lon, lat = ent["lon"], ent["lat"]
+    else:
         return None
 
-    lon, lat = coords
-
+    # Find nearest walkable node
     nearest_id = None
     min_dist = float("inf")
     for wn in walkable_nodes:
@@ -613,7 +638,7 @@ def get_osm_pois(db: Annotated[Session, Depends(get_db)]):
         if not name or name.lower() in seen_names:
             continue
         seen_names.add(name.lower())
-        poi_dict = _process_osm_element(el, entrance_nodes, walkable_nodes)
+        poi_dict = _create_poi_from_element(el, entrance_nodes, walkable_nodes)
         if poi_dict:
             pois.append(poi_dict)
 
@@ -632,7 +657,10 @@ def get_poi(
         raise HTTPException(status_code=404, detail="POI not found")
     return poi
 
-@app.put("/pois/{poi_id}", response_model=NodeResponse)
+@app.put("/pois/{poi_id}", response_model=NodeResponse, responses={
+    404: {"description": "POI not found"},
+    500: {"description": "Database error while updating POI"}
+})
 def update_poi(
     poi_id: Annotated[str, Path(description="The ID of the POI")],
     data: NodeUpdate,
@@ -673,7 +701,9 @@ class POICreate(PydanticBaseModel):
     level: int = 0
     description: Optional[str] = None
 
-@app.post("/pois", response_model=NodeResponse, status_code=201)
+@app.post("/pois", response_model=NodeResponse, status_code=201, responses={
+    500: {"description": "Database error while creating POI"}
+})
 def create_poi(
     data: POICreate,
     db: Annotated[Session, Depends(get_db)]
@@ -691,7 +721,10 @@ def create_poi(
     print(f"[POI] Created custom POI '{data.name}' ({poi_id}) at ({data.x}, {data.y})")
     return new_poi
 
-@app.delete("/pois/{poi_id}")
+@app.delete("/pois/{poi_id}", responses={
+    404: {"description": "POI not found"},
+    500: {"description": "Database error while deleting POI"}
+})
 def delete_poi(
     poi_id: Annotated[str, Path(description="The ID of the POI")],
     db: Annotated[Session, Depends(get_db)]
@@ -724,7 +757,10 @@ def get_seat(
         raise HTTPException(status_code=404, detail="Seat not found")
     return seat
 
-@app.put("/seats/{seat_id}", response_model=NodeResponse)
+@app.put("/seats/{seat_id}", response_model=NodeResponse, responses={
+    404: {"description": "Seat not found"},
+    500: {"description": "Database error while updating seat"}
+})
 def update_seat(
     seat_id: Annotated[str, Path(description="The ID of the seat")],
     data: NodeUpdate,
@@ -768,7 +804,10 @@ def get_gate(
         raise HTTPException(status_code=404, detail="Gate not found")
     return gate
 
-@app.put("/gates/{gate_id}", response_model=NodeResponse)
+@app.put("/gates/{gate_id}", response_model=NodeResponse, responses={
+    404: {"description": "Gate not found"},
+    500: {"description": "Database error while updating gate"}
+})
 def update_gate(
     gate_id: Annotated[str, Path(description="The ID of the gate")],
     data: NodeUpdate,
@@ -969,7 +1008,13 @@ def get_emergency_route_geojson(
         node = path_nodes.get(node_id)
         if node:
             coordinates.append([node.x, node.y])
-            role = "start" if idx == 0 else ("exit" if idx == len(route.node_ids) - 1 else "waypoint")
+            # Determine role
+            if idx == 0:
+                role = "start"
+            elif idx == len(route.node_ids) - 1:
+                role = "exit"
+            else:
+                role = "waypoint"
             waypoint_features.append({
                 "type": "Feature",
                 "id": f"wp_{node_id}",
@@ -1003,7 +1048,10 @@ def get_camera(
         raise HTTPException(status_code=404, detail="Camera not found")
     return camera
 
-@app.post("/cameras", response_model=CameraResponse, status_code=201)
+@app.post("/cameras", response_model=CameraResponse, status_code=201, responses={
+    400: {"description": "Camera already exists or node not found"},
+    500: {"description": "Database error while creating camera"}
+})
 def create_camera(
     data: CameraCreate,
     db: Annotated[Session, Depends(get_db)]
@@ -1023,7 +1071,10 @@ def create_camera(
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     return camera
 
-@app.put("/cameras/{camera_id}", response_model=CameraResponse)
+@app.put("/cameras/{camera_id}", response_model=CameraResponse, responses={
+    404: {"description": "Camera not found"},
+    500: {"description": "Database error while updating camera"}
+})
 def update_camera(
     camera_id: Annotated[str, Path(description="The ID of the camera")],
     data: CameraUpdate,
@@ -1042,7 +1093,10 @@ def update_camera(
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     return camera
 
-@app.delete("/cameras/{camera_id}")
+@app.delete("/cameras/{camera_id}", responses={
+    404: {"description": "Camera not found"},
+    500: {"description": "Database error while deleting camera"}
+})
 def delete_camera(
     camera_id: Annotated[str, Path(description="The ID of the camera")],
     db: Annotated[Session, Depends(get_db)]
@@ -1064,7 +1118,9 @@ def health_check():
     return {"status": "ok"}
 
 # ================== DATA MANAGEMENT ==================
-@app.post("/reset")
+@app.post("/reset", responses={
+    500: {"description": "Reset failed due to database error"}
+})
 def reset_data(db: Annotated[Session, Depends(get_db)]):
     from load_data_db import clear_all_data, load_sample_data
     try:
@@ -1095,7 +1151,7 @@ def _insert_batch_nodes(db: Session, nodes_data: list, existing_nodes: set, resu
             results["nodes"]["errors"].append({"id": getattr(node_data, 'id', 'unknown'), "error": str(e)})
 
 def _insert_batch_edges(db: Session, edges_data: list, existing_nodes: set, results: dict):
-    existing_edges = set(r[0] for r in db.query(Edge.id).all())
+    existing_edges = {r[0] for r in db.query(Edge.id).all()}
     for edge_data in edges_data:
         try:
             if edge_data.id in existing_edges:
@@ -1112,7 +1168,7 @@ def _insert_batch_edges(db: Session, edges_data: list, existing_nodes: set, resu
             results["edges"]["errors"].append({"id": getattr(edge_data, 'id', 'unknown'), "error": str(e)})
 
 def _insert_batch_closures(db: Session, closures_data: list, results: dict):
-    existing_closures = set(r[0] for r in db.query(Closure.id).all())
+    existing_closures = {r[0] for r in db.query(Closure.id).all()}
     for closure_data in closures_data:
         try:
             if closure_data.id in existing_closures:
@@ -1125,7 +1181,9 @@ def _insert_batch_closures(db: Session, closures_data: list, results: dict):
         except Exception as e:
             results["closures"]["errors"].append({"id": getattr(closure_data, 'id', 'unknown'), "error": str(e)})
 
-@app.post("/batch", status_code=201)
+@app.post("/batch", status_code=201, responses={
+    500: {"description": "Database error during batch operation"}
+})
 def create_batch(
     data: BatchCreate,
     db: Annotated[Session, Depends(get_db)]
@@ -1135,7 +1193,7 @@ def create_batch(
         "edges": {"created": [], "errors": []},
         "closures": {"created": [], "errors": []},
     }
-    existing_nodes = set(r[0] for r in db.query(Node.id).all())
+    existing_nodes = {r[0] for r in db.query(Node.id).all()}
 
     _insert_batch_nodes(db, data.nodes, existing_nodes, results)
     try:
@@ -1163,7 +1221,9 @@ def create_batch(
     return results
 
 # ================== MAP SYNC ==================
-@app.post("/map/sync", status_code=200)
+@app.post("/map/sync", status_code=200, responses={
+    500: {"description": "Database error during map synchronization"}
+})
 def sync_map(
     data: BatchCreate,
     db: Annotated[Session, Depends(get_db)]
