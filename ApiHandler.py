@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, Query
+from fastapi import FastAPI, HTTPException, Depends, Query, Path
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.middleware.cors import CORSMiddleware
@@ -102,7 +102,10 @@ def get_map(db: Annotated[Session, Depends(get_db)]):
     }
 
 @app.get("/map/visualization")
-def get_map_visualization(db: Annotated[Session, Depends(get_db)], level: int = None):
+def get_map_visualization(
+    db: Annotated[Session, Depends(get_db)],
+    level: Optional[int] = None
+):
     query = db.query(Node)
     if level is not None:
         query = query.filter(Node.level == level)
@@ -154,7 +157,10 @@ def get_map_visualization(db: Annotated[Session, Depends(get_db)], level: int = 
     }
 
 @app.get("/seats/{seat_id}", response_model=NodeResponse)
-def get_seat(seat_id: str, db: Annotated[Session, Depends(get_db)]):
+def get_seat(
+    seat_id: Annotated[str, Path(description="The ID of the seat")],
+    db: Annotated[Session, Depends(get_db)]
+):
     seat = db.query(Node).filter(Node.id == seat_id).first()
     if not seat:
         raise HTTPException(status_code=404, detail="Seat not found")
@@ -167,14 +173,20 @@ def get_nodes(db: Annotated[Session, Depends(get_db)]):
     return db.query(Node).all()
 
 @app.get("/nodes/{node_id}", response_model=NodeResponse)
-def get_node(node_id: str, db: Annotated[Session, Depends(get_db)]):
+def get_node(
+    node_id: Annotated[str, Path(description="The ID of the node")],
+    db: Annotated[Session, Depends(get_db)]
+):
     node = db.query(Node).filter(Node.id == node_id).first()
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
     return node
 
 @app.post("/nodes", response_model=NodeResponse, status_code=201)
-def create_node(data: NodeCreate, db: Annotated[Session, Depends(get_db)]):
+def create_node(
+    data: NodeCreate,
+    db: Annotated[Session, Depends(get_db)]
+):
     existing = db.query(Node).filter(Node.id == data.id).first()
     if existing:
         raise HTTPException(status_code=400, detail="Node already exists")
@@ -190,7 +202,11 @@ def create_node(data: NodeCreate, db: Annotated[Session, Depends(get_db)]):
     return node
 
 @app.put("/nodes/{node_id}", response_model=NodeResponse)
-def update_node(node_id: str, data: NodeUpdate, db: Annotated[Session, Depends(get_db)]):
+def update_node(
+    node_id: Annotated[str, Path(description="The ID of the node")],
+    data: NodeUpdate,
+    db: Annotated[Session, Depends(get_db)]
+):
     node = db.query(Node).filter(Node.id == node_id).first()
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
@@ -207,7 +223,10 @@ def update_node(node_id: str, data: NodeUpdate, db: Annotated[Session, Depends(g
     return node
 
 @app.delete("/nodes/{node_id}")
-def delete_node(node_id: str, db: Annotated[Session, Depends(get_db)]):
+def delete_node(
+    node_id: Annotated[str, Path(description="The ID of the node")],
+    db: Annotated[Session, Depends(get_db)]
+):
     node = db.query(Node).filter(Node.id == node_id).first()
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
@@ -229,14 +248,20 @@ def get_edges(db: Annotated[Session, Depends(get_db)]):
     return db.query(Edge).all()
 
 @app.get("/edges/{edge_id}", response_model=EdgeResponse)
-def get_edge(edge_id: str, db: Annotated[Session, Depends(get_db)]):
+def get_edge(
+    edge_id: Annotated[str, Path(description="The ID of the edge")],
+    db: Annotated[Session, Depends(get_db)]
+):
     edge = db.query(Edge).filter(Edge.id == edge_id).first()
     if not edge:
         raise HTTPException(status_code=404, detail="Edge not found")
     return edge
 
 @app.post("/edges", response_model=EdgeResponse, status_code=201)
-def create_edge(data: EdgeCreate, db: Annotated[Session, Depends(get_db)]):
+def create_edge(
+    data: EdgeCreate,
+    db: Annotated[Session, Depends(get_db)]
+):
     existing = db.query(Edge).filter(Edge.id == data.id).first()
     if existing:
         raise HTTPException(status_code=400, detail="Edge already exists")
@@ -258,7 +283,11 @@ def create_edge(data: EdgeCreate, db: Annotated[Session, Depends(get_db)]):
     return edge
 
 @app.put("/edges/{edge_id}", response_model=EdgeResponse)
-def update_edge(edge_id: str, data: EdgeUpdate, db: Annotated[Session, Depends(get_db)]):
+def update_edge(
+    edge_id: Annotated[str, Path(description="The ID of the edge")],
+    data: EdgeUpdate,
+    db: Annotated[Session, Depends(get_db)]
+):
     edge = db.query(Edge).filter(Edge.id == edge_id).first()
     if not edge:
         raise HTTPException(status_code=404, detail="Edge not found")
@@ -276,7 +305,10 @@ def update_edge(edge_id: str, data: EdgeUpdate, db: Annotated[Session, Depends(g
     return edge
 
 @app.delete("/edges/{edge_id}")
-def delete_edge(edge_id: str, db: Annotated[Session, Depends(get_db)]):
+def delete_edge(
+    edge_id: Annotated[str, Path(description="The ID of the edge")],
+    db: Annotated[Session, Depends(get_db)]
+):
     edge = db.query(Edge).filter(Edge.id == edge_id).first()
     if not edge:
         raise HTTPException(status_code=404, detail="Edge not found")
@@ -296,14 +328,20 @@ def get_closures(db: Annotated[Session, Depends(get_db)]):
     return db.query(Closure).all()
 
 @app.get("/closures/{closure_id}", response_model=ClosureResponse)
-def get_closure(closure_id: str, db: Annotated[Session, Depends(get_db)]):
+def get_closure(
+    closure_id: Annotated[str, Path(description="The ID of the closure")],
+    db: Annotated[Session, Depends(get_db)]
+):
     closure = db.query(Closure).filter(Closure.id == closure_id).first()
     if not closure:
         raise HTTPException(status_code=404, detail="Closure not found")
     return closure
 
 @app.post("/closures", response_model=ClosureResponse, status_code=201)
-def add_closure(data: ClosureCreate, db: Annotated[Session, Depends(get_db)]):
+def add_closure(
+    data: ClosureCreate,
+    db: Annotated[Session, Depends(get_db)]
+):
     existing = db.query(Closure).filter(Closure.id == data.id).first()
     if existing:
         raise HTTPException(status_code=400, detail="Closure already exists")
@@ -329,7 +367,10 @@ def add_closure(data: ClosureCreate, db: Annotated[Session, Depends(get_db)]):
     return closure
 
 @app.delete("/closures/{closure_id}")
-def delete_closure(closure_id: str, db: Annotated[Session, Depends(get_db)]):
+def delete_closure(
+    closure_id: Annotated[str, Path(description="The ID of the closure")],
+    db: Annotated[Session, Depends(get_db)]
+):
     closure = db.query(Closure).filter(Closure.id == closure_id).first()
     if not closure:
         raise HTTPException(status_code=404, detail="Closure not found")
@@ -353,7 +394,10 @@ def get_grid_config():
     }
 
 @app.get("/maps/grid/tiles")
-def get_all_tiles(db: Annotated[Session, Depends(get_db)], level: Optional[int] = None):
+def get_all_tiles(
+    db: Annotated[Session, Depends(get_db)],
+    level: Optional[int] = None
+):
     query = db.query(Tile)
     if level is not None:
         query = query.filter(Tile.level == level)
@@ -381,7 +425,10 @@ def rebuild_grid(db: Annotated[Session, Depends(get_db)]):
         raise HTTPException(status_code=500, detail=f"Grid rebuild failed: {str(e)}")
 
 @app.post("/maps/grid/tiles/nodes")
-def get_nodes_from_tiles(tile_ids: List[str], db: Annotated[Session, Depends(get_db)]):
+def get_nodes_from_tiles(
+    tile_ids: List[str],
+    db: Annotated[Session, Depends(get_db)]
+):
     if not tile_ids:
         return {"node_ids": [], "tile_count": 0}
     tiles = db.query(Tile).filter(Tile.id.in_(tile_ids)).all()
@@ -473,7 +520,6 @@ def _haversine(lon1, lat1, lon2, lat2):
     return 6371000 * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 def _fetch_osm_data():
-    """Fetch OSM data and entrance nodes, return (osm_data, entrance_nodes). Handles cache."""
     now = time.time()
     if _osm_poi_cache["data"] is not None and (now - _osm_poi_cache["timestamp"]) < _OSM_CACHE_TTL:
         return _osm_poi_cache["data"]["pois"], _osm_poi_cache["data"].get("entrance_nodes", [])
@@ -503,7 +549,6 @@ def _fetch_osm_data():
     return osm_data, entrance_nodes
 
 def _process_osm_element(el, entrance_nodes, walkable_nodes):
-    """Process one OSM element into a POI dict or None."""
     tags = el.get("tags", {})
     name = tags.get("name") or tags.get("alt_name") or tags.get("short_name")
     if not name:
@@ -516,7 +561,6 @@ def _process_osm_element(el, entrance_nodes, walkable_nodes):
     elif el["type"] == "way" and "center" in el:
         center_lon, center_lat = el["center"]["lon"], el["center"]["lat"]
         coords = (center_lon, center_lat)
-        # Try to snap to entrance
         best_entrance_dist = float("inf")
         for ent in entrance_nodes:
             ent_dist = _haversine(center_lon, center_lat, ent["lon"], ent["lat"])
@@ -528,7 +572,6 @@ def _process_osm_element(el, entrance_nodes, walkable_nodes):
 
     lon, lat = coords
 
-    # Snap to nearest walkable node
     nearest_id = None
     min_dist = float("inf")
     for wn in walkable_nodes:
@@ -566,7 +609,6 @@ def get_osm_pois(db: Annotated[Session, Depends(get_db)]):
     pois = []
     seen_names = set()
     for el in osm_data.get("elements", []):
-        # Early skip: no name or duplicate
         name = el.get("tags", {}).get("name") or el.get("tags", {}).get("alt_name") or el.get("tags", {}).get("short_name")
         if not name or name.lower() in seen_names:
             continue
@@ -581,14 +623,21 @@ def get_osm_pois(db: Annotated[Session, Depends(get_db)]):
     return result
 
 @app.get("/pois/{poi_id}", response_model=NodeResponse)
-def get_poi(poi_id: str, db: Annotated[Session, Depends(get_db)]):
+def get_poi(
+    poi_id: Annotated[str, Path(description="The ID of the POI")],
+    db: Annotated[Session, Depends(get_db)]
+):
     poi = db.query(Node).filter(Node.id == poi_id).first()
     if not poi:
         raise HTTPException(status_code=404, detail="POI not found")
     return poi
 
 @app.put("/pois/{poi_id}", response_model=NodeResponse)
-def update_poi(poi_id: str, data: NodeUpdate, db: Annotated[Session, Depends(get_db)]):
+def update_poi(
+    poi_id: Annotated[str, Path(description="The ID of the POI")],
+    data: NodeUpdate,
+    db: Annotated[Session, Depends(get_db)]
+):
     poi = db.query(Node).filter(Node.id == poi_id).first()
     if not poi:
         raise HTTPException(status_code=404, detail="POI not found")
@@ -625,7 +674,10 @@ class POICreate(PydanticBaseModel):
     description: Optional[str] = None
 
 @app.post("/pois", response_model=NodeResponse, status_code=201)
-def create_poi(data: POICreate, db: Annotated[Session, Depends(get_db)]):
+def create_poi(
+    data: POICreate,
+    db: Annotated[Session, Depends(get_db)]
+):
     import uuid
     poi_id = f"CUSTOM-{uuid.uuid4().hex[:8]}"
     new_poi = Node(id=poi_id, name=data.name, type=data.type, x=data.x, y=data.y, level=data.level, description=data.description or data.name)
@@ -640,7 +692,10 @@ def create_poi(data: POICreate, db: Annotated[Session, Depends(get_db)]):
     return new_poi
 
 @app.delete("/pois/{poi_id}")
-def delete_poi(poi_id: str, db: Annotated[Session, Depends(get_db)]):
+def delete_poi(
+    poi_id: Annotated[str, Path(description="The ID of the POI")],
+    db: Annotated[Session, Depends(get_db)]
+):
     poi = db.query(Node).filter(Node.id == poi_id).first()
     if not poi:
         raise HTTPException(status_code=404, detail="POI not found")
@@ -650,21 +705,31 @@ def delete_poi(poi_id: str, db: Annotated[Session, Depends(get_db)]):
 
 # ================== SEATS ==================
 @app.get("/seats", response_model=List[NodeResponse])
-def get_seats(db: Annotated[Session, Depends(get_db)], block: Optional[str] = None):
+def get_seats(
+    db: Annotated[Session, Depends(get_db)],
+    block: Optional[str] = None
+):
     query = db.query(Node).filter(Node.type == 'seat')
     if block:
         query = query.filter(Node.block == block)
     return query.all()
 
 @app.get("/seats/{seat_id}", response_model=NodeResponse)
-def get_seat(seat_id: str, db: Annotated[Session, Depends(get_db)]):
+def get_seat(
+    seat_id: Annotated[str, Path(description="The ID of the seat")],
+    db: Annotated[Session, Depends(get_db)]
+):
     seat = db.query(Node).filter(Node.id == seat_id).first()
     if not seat:
         raise HTTPException(status_code=404, detail="Seat not found")
     return seat
 
 @app.put("/seats/{seat_id}", response_model=NodeResponse)
-def update_seat(seat_id: str, data: NodeUpdate, db: Annotated[Session, Depends(get_db)]):
+def update_seat(
+    seat_id: Annotated[str, Path(description="The ID of the seat")],
+    data: NodeUpdate,
+    db: Annotated[Session, Depends(get_db)]
+):
     seat = db.query(Node).filter(Node.id == seat_id).first()
     if not seat:
         raise HTTPException(status_code=404, detail="Seat not found")
@@ -694,14 +759,21 @@ def get_gates(db: Annotated[Session, Depends(get_db)]):
     return db.query(Node).filter(Node.type == 'gate').all()
 
 @app.get("/gates/{gate_id}", response_model=NodeResponse)
-def get_gate(gate_id: str, db: Annotated[Session, Depends(get_db)]):
+def get_gate(
+    gate_id: Annotated[str, Path(description="The ID of the gate")],
+    db: Annotated[Session, Depends(get_db)]
+):
     gate = db.query(Node).filter(Node.id == gate_id).first()
     if not gate:
         raise HTTPException(status_code=404, detail="Gate not found")
     return gate
 
 @app.put("/gates/{gate_id}", response_model=NodeResponse)
-def update_gate(gate_id: str, data: NodeUpdate, db: Annotated[Session, Depends(get_db)]):
+def update_gate(
+    gate_id: Annotated[str, Path(description="The ID of the gate")],
+    data: NodeUpdate,
+    db: Annotated[Session, Depends(get_db)]
+):
     gate = db.query(Node).filter(Node.id == gate_id).first()
     if not gate:
         raise HTTPException(status_code=404, detail="Gate not found")
@@ -783,10 +855,10 @@ def _build_geojson_features(db: Session, nodes: list, include_edges: bool, level
 @app.get("/map/geojson")
 def get_map_geojson(
     db: Annotated[Session, Depends(get_db)],
-    level: Annotated[Optional[int], Query(None, description="Filter by floor level (0, 1, 2)")] = None,
-    types: Annotated[Optional[str], Query(None, description="Comma-separated node types: gate,poi,stairs,corridor,seat")] = None,
-    include_edges: Annotated[bool, Query(True, description="Include edges as LineStrings")] = True,
-    include_seats: Annotated[bool, Query(False, description="Include seat nodes (warning: many!)")] = False
+    level: Annotated[Optional[int], Query(description="Filter by floor level (0, 1, 2)")] = None,
+    types: Annotated[Optional[str], Query(description="Comma-separated node types: gate,poi,stairs,corridor,seat")] = None,
+    include_edges: Annotated[bool, Query(description="Include edges as LineStrings")] = True,
+    include_seats: Annotated[bool, Query(description="Include seat nodes (warning: many!)")] = False
 ):
     query = db.query(Node)
     if level is not None:
@@ -815,7 +887,10 @@ def get_map_geojson(
     return JSONResponse(content=result, headers={"ETag": f'"{etag}"', "Cache-Control": "public, max-age=300"})
 
 @app.get("/map/geojson/level/{level}")
-def get_level_geojson(level: int, db: Annotated[Session, Depends(get_db)]):
+def get_level_geojson(
+    level: int,
+    db: Annotated[Session, Depends(get_db)]
+):
     return get_map_geojson(db=db, level=level, types=None, include_edges=True, include_seats=False)
 
 @app.get("/map/bounds")
@@ -831,7 +906,7 @@ def get_map_bounds(db: Annotated[Session, Depends(get_db)]):
 @app.get("/map/geojson/pois")
 def get_pois_geojson(
     db: Annotated[Session, Depends(get_db)],
-    level: Annotated[Optional[int], Query(None)] = None
+    level: Annotated[Optional[int], Query(description="Filter by floor level")] = None
 ):
     poi_types = ['gate', 'restroom', 'food', 'bar', 'stairs', 'ramp', 'emergency_exit', 'first_aid', 'information', 'merchandise', 'departments']
     return get_map_geojson(db=db, level=level, types=','.join(poi_types), include_edges=False, include_seats=False)
@@ -844,9 +919,9 @@ def list_emergency_routes(db: Annotated[Session, Depends(get_db)]):
 @app.get("/emergency-routes/nearest")
 def get_nearest_emergency_route(
     db: Annotated[Session, Depends(get_db)],
-    x: Annotated[float, Query(..., description="Current X coordinate")],
-    y: Annotated[float, Query(..., description="Current Y coordinate")],
-    level: Annotated[int, Query(0, description="Current floor level")]
+    x: Annotated[float, Query(description="Current X coordinate")],
+    y: Annotated[float, Query(description="Current Y coordinate")],
+    level: Annotated[int, Query(description="Current floor level")] = 0
 ):
     routes = db.query(EmergencyRoute).all()
     if not routes:
@@ -880,7 +955,10 @@ def get_nearest_emergency_route(
     }
 
 @app.get("/emergency-routes/{route_id}")
-def get_emergency_route_geojson(route_id: str, db: Annotated[Session, Depends(get_db)]):
+def get_emergency_route_geojson(
+    route_id: Annotated[str, Path(description="The ID of the emergency route")],
+    db: Annotated[Session, Depends(get_db)]
+):
     route = db.query(EmergencyRoute).filter(EmergencyRoute.id == route_id).first()
     if not route:
         raise HTTPException(status_code=404, detail=f"Emergency route '{route_id}' not found")
@@ -916,14 +994,20 @@ def get_cameras(db: Annotated[Session, Depends(get_db)]):
     return db.query(Camera).all()
 
 @app.get("/cameras/{camera_id}", response_model=CameraResponse)
-def get_camera(camera_id: str, db: Annotated[Session, Depends(get_db)]):
+def get_camera(
+    camera_id: Annotated[str, Path(description="The ID of the camera")],
+    db: Annotated[Session, Depends(get_db)]
+):
     camera = db.query(Camera).filter(Camera.id == camera_id).first()
     if not camera:
         raise HTTPException(status_code=404, detail="Camera not found")
     return camera
 
 @app.post("/cameras", response_model=CameraResponse, status_code=201)
-def create_camera(data: CameraCreate, db: Annotated[Session, Depends(get_db)]):
+def create_camera(
+    data: CameraCreate,
+    db: Annotated[Session, Depends(get_db)]
+):
     if db.query(Camera).filter(Camera.id == data.id).first():
         raise HTTPException(status_code=400, detail="Camera already exists")
     node = db.query(Node).filter(Node.id == data.node_id).first()
@@ -940,7 +1024,11 @@ def create_camera(data: CameraCreate, db: Annotated[Session, Depends(get_db)]):
     return camera
 
 @app.put("/cameras/{camera_id}", response_model=CameraResponse)
-def update_camera(camera_id: str, data: CameraUpdate, db: Annotated[Session, Depends(get_db)]):
+def update_camera(
+    camera_id: Annotated[str, Path(description="The ID of the camera")],
+    data: CameraUpdate,
+    db: Annotated[Session, Depends(get_db)]
+):
     camera = db.query(Camera).filter(Camera.id == camera_id).first()
     if not camera:
         raise HTTPException(status_code=404, detail="Camera not found")
@@ -955,7 +1043,10 @@ def update_camera(camera_id: str, data: CameraUpdate, db: Annotated[Session, Dep
     return camera
 
 @app.delete("/cameras/{camera_id}")
-def delete_camera(camera_id: str, db: Annotated[Session, Depends(get_db)]):
+def delete_camera(
+    camera_id: Annotated[str, Path(description="The ID of the camera")],
+    db: Annotated[Session, Depends(get_db)]
+):
     camera = db.query(Camera).filter(Camera.id == camera_id).first()
     if not camera:
         raise HTTPException(status_code=404, detail="Camera not found")
@@ -990,7 +1081,6 @@ def reset_data(db: Annotated[Session, Depends(get_db)]):
         raise HTTPException(status_code=500, detail=f"Reset failed: {str(e)}")
 
 # ================== BATCH IMPORT ==================
-
 def _insert_batch_nodes(db: Session, nodes_data: list, existing_nodes: set, results: dict):
     for node_data in nodes_data:
         try:
@@ -1036,7 +1126,10 @@ def _insert_batch_closures(db: Session, closures_data: list, results: dict):
             results["closures"]["errors"].append({"id": getattr(closure_data, 'id', 'unknown'), "error": str(e)})
 
 @app.post("/batch", status_code=201)
-def create_batch(data: BatchCreate, db: Annotated[Session, Depends(get_db)]):
+def create_batch(
+    data: BatchCreate,
+    db: Annotated[Session, Depends(get_db)]
+):
     results = {
         "nodes": {"created": [], "errors": []},
         "edges": {"created": [], "errors": []},
@@ -1071,7 +1164,10 @@ def create_batch(data: BatchCreate, db: Annotated[Session, Depends(get_db)]):
 
 # ================== MAP SYNC ==================
 @app.post("/map/sync", status_code=200)
-def sync_map(data: BatchCreate, db: Annotated[Session, Depends(get_db)]):
+def sync_map(
+    data: BatchCreate,
+    db: Annotated[Session, Depends(get_db)]
+):
     try:
         db.query(Camera).delete()
         db.query(Closure).delete()
