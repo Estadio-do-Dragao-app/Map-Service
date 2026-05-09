@@ -92,7 +92,6 @@ def serialize_closure(c: Closure) -> dict:
 
 @app.get("/map")
 def get_map(db: Annotated[Session, Depends(get_db)]):
-    """Get complete map with nodes, edges, and closures."""
     nodes = db.query(Node).all()
     edges = db.query(Edge).all()
     closures = db.query(Closure).all()
@@ -477,7 +476,7 @@ def _fetch_osm_data():
     """Fetch OSM data and entrance nodes, return (osm_data, entrance_nodes). Handles cache."""
     now = time.time()
     if _osm_poi_cache["data"] is not None and (now - _osm_poi_cache["timestamp"]) < _OSM_CACHE_TTL:
-        return _osm_poi_cache["data"]["pois"], _osm_poi_cache["data"]["entrance_nodes"]
+        return _osm_poi_cache["data"]["pois"], _osm_poi_cache["data"].get("entrance_nodes", [])
 
     try:
         data = urllib.parse.urlencode({"data": _OVERPASS_POI_QUERY}).encode("utf-8")
@@ -511,19 +510,23 @@ def _process_osm_element(el, entrance_nodes, walkable_nodes):
         return None
 
     # Get coordinates
+    coords = None
     if el["type"] == "node":
-        lon, lat = el["lon"], el["lat"]
+        coords = (el["lon"], el["lat"])
     elif el["type"] == "way" and "center" in el:
         center_lon, center_lat = el["center"]["lon"], el["center"]["lat"]
-        lon, lat = center_lon, center_lat
+        coords = (center_lon, center_lat)
+        # Try to snap to entrance
         best_entrance_dist = float("inf")
         for ent in entrance_nodes:
             ent_dist = _haversine(center_lon, center_lat, ent["lon"], ent["lat"])
             if ent_dist < 50 and ent_dist < best_entrance_dist:
                 best_entrance_dist = ent_dist
-                lon, lat = ent["lon"], ent["lat"]
-    else:
+                coords = (ent["lon"], ent["lat"])
+    if not coords:
         return None
+
+    lon, lat = coords
 
     # Snap to nearest walkable node
     nearest_id = None
@@ -563,6 +566,7 @@ def get_osm_pois(db: Annotated[Session, Depends(get_db)]):
     pois = []
     seen_names = set()
     for el in osm_data.get("elements", []):
+        # Early skip: no name or duplicate
         name = el.get("tags", {}).get("name") or el.get("tags", {}).get("alt_name") or el.get("tags", {}).get("short_name")
         if not name or name.lower() in seen_names:
             continue
@@ -779,10 +783,10 @@ def _build_geojson_features(db: Session, nodes: list, include_edges: bool, level
 @app.get("/map/geojson")
 def get_map_geojson(
     db: Annotated[Session, Depends(get_db)],
-    level: Optional[int] = Query(None, description="Filter by floor level (0, 1, 2)"),
-    types: Optional[str] = Query(None, description="Comma-separated node types: gate,poi,stairs,corridor,seat"),
-    include_edges: bool = Query(True, description="Include edges as LineStrings"),
-    include_seats: bool = Query(False, description="Include seat nodes (warning: many!)")
+    level: Annotated[Optional[int], Query(None, description="Filter by floor level (0, 1, 2)")] = None,
+    types: Annotated[Optional[str], Query(None, description="Comma-separated node types: gate,poi,stairs,corridor,seat")] = None,
+    include_edges: Annotated[bool, Query(True, description="Include edges as LineStrings")] = True,
+    include_seats: Annotated[bool, Query(False, description="Include seat nodes (warning: many!)")] = False
 ):
     query = db.query(Node)
     if level is not None:
@@ -825,7 +829,10 @@ def get_map_bounds(db: Annotated[Session, Depends(get_db)]):
     }
 
 @app.get("/map/geojson/pois")
-def get_pois_geojson(db: Annotated[Session, Depends(get_db)], level: Optional[int] = None):
+def get_pois_geojson(
+    db: Annotated[Session, Depends(get_db)],
+    level: Annotated[Optional[int], Query(None)] = None
+):
     poi_types = ['gate', 'restroom', 'food', 'bar', 'stairs', 'ramp', 'emergency_exit', 'first_aid', 'information', 'merchandise', 'departments']
     return get_map_geojson(db=db, level=level, types=','.join(poi_types), include_edges=False, include_seats=False)
 
@@ -837,9 +844,9 @@ def list_emergency_routes(db: Annotated[Session, Depends(get_db)]):
 @app.get("/emergency-routes/nearest")
 def get_nearest_emergency_route(
     db: Annotated[Session, Depends(get_db)],
-    x: float = Query(..., description="Current X coordinate"),
-    y: float = Query(..., description="Current Y coordinate"),
-    level: int = Query(0, description="Current floor level")
+    x: Annotated[float, Query(..., description="Current X coordinate")],
+    y: Annotated[float, Query(..., description="Current Y coordinate")],
+    level: Annotated[int, Query(0, description="Current floor level")]
 ):
     routes = db.query(EmergencyRoute).all()
     if not routes:
@@ -983,11 +990,9 @@ def reset_data(db: Annotated[Session, Depends(get_db)]):
         raise HTTPException(status_code=500, detail=f"Reset failed: {str(e)}")
 
 # ================== BATCH IMPORT ==================
-@app.post("/batch", status_code=201)
-def create_batch(data: BatchCreate, db: Annotated[Session, Depends(get_db)]):
-    results = {"nodes": {"created": [], "errors": []}, "edges": {"created": [], "errors": []}, "closures": {"created": [], "errors": []}}
-    existing_nodes = set(r[0] for r in db.query(Node.id).all())
-    for node_data in data.nodes:
+
+def _insert_batch_nodes(db: Session, nodes_data: list, existing_nodes: set, results: dict):
+    for node_data in nodes_data:
         try:
             if node_data.id in existing_nodes:
                 results["nodes"]["errors"].append({"id": node_data.id, "error": "Node already exists"})
@@ -998,13 +1003,10 @@ def create_batch(data: BatchCreate, db: Annotated[Session, Depends(get_db)]):
             existing_nodes.add(node.id)
         except Exception as e:
             results["nodes"]["errors"].append({"id": getattr(node_data, 'id', 'unknown'), "error": str(e)})
-    try:
-        db.commit()
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Database error committing nodes: {str(e)}")
+
+def _insert_batch_edges(db: Session, edges_data: list, existing_nodes: set, results: dict):
     existing_edges = set(r[0] for r in db.query(Edge.id).all())
-    for edge_data in data.edges:
+    for edge_data in edges_data:
         try:
             if edge_data.id in existing_edges:
                 results["edges"]["errors"].append({"id": edge_data.id, "error": "Edge already exists"})
@@ -1018,13 +1020,10 @@ def create_batch(data: BatchCreate, db: Annotated[Session, Depends(get_db)]):
             existing_edges.add(edge.id)
         except Exception as e:
             results["edges"]["errors"].append({"id": getattr(edge_data, 'id', 'unknown'), "error": str(e)})
-    try:
-        db.commit()
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Database error committing edges: {str(e)}")
+
+def _insert_batch_closures(db: Session, closures_data: list, results: dict):
     existing_closures = set(r[0] for r in db.query(Closure.id).all())
-    for closure_data in data.closures:
+    for closure_data in closures_data:
         try:
             if closure_data.id in existing_closures:
                 results["closures"]["errors"].append({"id": closure_data.id, "error": "Closure already exists"})
@@ -1035,11 +1034,37 @@ def create_batch(data: BatchCreate, db: Annotated[Session, Depends(get_db)]):
             existing_closures.add(closure.id)
         except Exception as e:
             results["closures"]["errors"].append({"id": getattr(closure_data, 'id', 'unknown'), "error": str(e)})
+
+@app.post("/batch", status_code=201)
+def create_batch(data: BatchCreate, db: Annotated[Session, Depends(get_db)]):
+    results = {
+        "nodes": {"created": [], "errors": []},
+        "edges": {"created": [], "errors": []},
+        "closures": {"created": [], "errors": []},
+    }
+    existing_nodes = set(r[0] for r in db.query(Node.id).all())
+
+    _insert_batch_nodes(db, data.nodes, existing_nodes, results)
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error committing nodes: {str(e)}")
+
+    _insert_batch_edges(db, data.edges, existing_nodes, results)
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error committing edges: {str(e)}")
+
+    _insert_batch_closures(db, data.closures, results)
     try:
         db.commit()
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Database error committing closures: {str(e)}")
+
     if results["nodes"]["created"] or results["edges"]["created"] or results["closures"]["created"]:
         notify_routing_refresh()
     return results
