@@ -695,7 +695,6 @@ class TestMapVisualization:
         data = response.json()
         assert data["level"] == 0
         assert data["stats"]["total"] == 1
-        # Verify edges are filtered (no edges in test)
         assert isinstance(data["edges"], list)
 
     def test_visualization_with_edges(self, client, test_db, auth_headers):

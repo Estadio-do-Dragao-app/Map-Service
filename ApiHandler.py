@@ -115,24 +115,17 @@ def _classify_node(node: Node) -> tuple[str, dict]:
     }
     node_type = node.type
     if node_type in ("corridor", "normal"):
-        group = "navigation"
-        data = node_data
-    elif node_type == "gate":
-        group = "gates"
-        data = {**node_data, "num_servers": node.num_servers, "service_rate": node.service_rate}
-    elif node_type == "stairs":
-        group = "stairs"
-        data = node_data
-    elif node_type == "seat":
-        group = "seats"
-        data = {**node_data, "block": node.block, "row": node.row, "number": node.number}
-    elif node_type == "departments":
-        group = "departments"
-        data = {**node_data, "type": node_type}
-    else:
-        group = "pois"
-        data = {**node_data, "type": node_type, "num_servers": node.num_servers, "service_rate": node.service_rate}
-    return group, data
+        return "navigation", node_data
+    if node_type == "gate":
+        return "gates", {**node_data, "num_servers": node.num_servers, "service_rate": node.service_rate}
+    if node_type == "stairs":
+        return "stairs", node_data
+    if node_type == "seat":
+        return "seats", {**node_data, "block": node.block, "row": node.row, "number": node.number}
+    if node_type == "departments":
+        return "departments", {**node_data, "type": node_type}
+    # Default: POI (restroom, food, bar, etc.)
+    return "pois", {**node_data, "type": node_type, "num_servers": node.num_servers, "service_rate": node.service_rate}
 
 
 def _get_edges_for_level(db: Session, level: Optional[int]) -> list:
