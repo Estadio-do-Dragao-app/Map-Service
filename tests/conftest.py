@@ -9,6 +9,10 @@ from database import get_db
 from models import Base
 from ApiHandler import app
 
+@pytest.fixture
+def auth_headers():
+    """Provide API authentication headers for protected endpoints."""
+    return {"X-API-Key": "dragao_secret_key_2026"}
 
 # ================== DATABASE FIXTURES ==================
 
@@ -69,12 +73,6 @@ def client(override_get_db):
     client = TestClient(app)
     yield client
     app.dependency_overrides.clear()
-
-
-@pytest.fixture(scope="function")
-def auth_headers():
-    """Provide API authentication headers for protected endpoints."""
-    return {"X-API-Key": "dragao_secret_key_2026"}
 
 
 # ================== TEST DATA FIXTURES ==================
