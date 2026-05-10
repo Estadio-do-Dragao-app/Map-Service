@@ -101,11 +101,11 @@ def get_map(db: Annotated[Session, Depends(get_db)]):
         "closures": [serialize_closure(c) for c in closures]
     }
 
-def _classify_node(node: Node) -> tuple[str, dict]:
+def _get_node_group_and_data(node: Node) -> tuple[str, dict]:
     """
-    Classify a node into a group and return the group name and the node data dict.
+    Retorna (grupo, dados_do_nó) para um nó, usando um mapa de tipos.
     """
-    node_data = {
+    base = {
         "id": node.id,
         "x": node.x,
         "y": node.y,
@@ -113,23 +113,23 @@ def _classify_node(node: Node) -> tuple[str, dict]:
         "name": node.name,
         "description": node.description,
     }
-    node_type = node.type
-    if node_type in ("corridor", "normal"):
-        return "navigation", node_data
-    if node_type == "gate":
-        return "gates", {**node_data, "num_servers": node.num_servers, "service_rate": node.service_rate}
-    if node_type == "stairs":
-        return "stairs", node_data
-    if node_type == "seat":
-        return "seats", {**node_data, "block": node.block, "row": node.row, "number": node.number}
-    if node_type == "departments":
-        return "departments", {**node_data, "type": node_type}
-    # Default: POI (restroom, food, bar, etc.)
-    return "pois", {**node_data, "type": node_type, "num_servers": node.num_servers, "service_rate": node.service_rate}
+    # Mapeamento: tipo -> (grupo, transformador)
+    type_mapping = {
+        "corridor": ("navigation", lambda: base),
+        "normal": ("navigation", lambda: base),
+        "gate": ("gates", lambda: {**base, "num_servers": node.num_servers, "service_rate": node.service_rate}),
+        "stairs": ("stairs", lambda: base),
+        "seat": ("seats", lambda: {**base, "block": node.block, "row": node.row, "number": node.number}),
+        "departments": ("departments", lambda: {**base, "type": node.type}),
+    }
+    if node.type in type_mapping:
+        group, transformer = type_mapping[node.type]
+        return group, transformer()
+    # POI por defeito
+    return "pois", {**base, "type": node.type, "num_servers": node.num_servers, "service_rate": node.service_rate}
 
 
 def _get_edges_for_level(db: Session, level: Optional[int]) -> list:
-    """Get edges for a given level (or all edges if level is None)."""
     if level is not None:
         return db.query(Edge).join(Node, Edge.from_id == Node.id).filter(Node.level == level).all()
     return db.query(Edge).all()
@@ -150,7 +150,7 @@ def get_map_visualization(
     }
 
     for node in nodes:
-        group, data = _classify_node(node)
+        group, data = _get_node_group_and_data(node)
         grouped_nodes[group].append(data)
 
     edges = _get_edges_for_level(db, level)
