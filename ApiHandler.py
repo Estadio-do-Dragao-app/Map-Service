@@ -101,6 +101,47 @@ def get_map(db: Annotated[Session, Depends(get_db)]):
         "closures": [serialize_closure(c) for c in closures]
     }
 
+def _classify_node(node: Node) -> tuple[str, dict]:
+    """
+    Classify a node into a group and return the group name and the node data dict.
+    """
+    node_data = {
+        "id": node.id,
+        "x": node.x,
+        "y": node.y,
+        "level": node.level,
+        "name": node.name,
+        "description": node.description,
+    }
+    node_type = node.type
+    if node_type in ("corridor", "normal"):
+        group = "navigation"
+        data = node_data
+    elif node_type == "gate":
+        group = "gates"
+        data = {**node_data, "num_servers": node.num_servers, "service_rate": node.service_rate}
+    elif node_type == "stairs":
+        group = "stairs"
+        data = node_data
+    elif node_type == "seat":
+        group = "seats"
+        data = {**node_data, "block": node.block, "row": node.row, "number": node.number}
+    elif node_type == "departments":
+        group = "departments"
+        data = {**node_data, "type": node_type}
+    else:
+        group = "pois"
+        data = {**node_data, "type": node_type, "num_servers": node.num_servers, "service_rate": node.service_rate}
+    return group, data
+
+
+def _get_edges_for_level(db: Session, level: Optional[int]) -> list:
+    """Get edges for a given level (or all edges if level is None)."""
+    if level is not None:
+        return db.query(Edge).join(Node, Edge.from_id == Node.id).filter(Node.level == level).all()
+    return db.query(Edge).all()
+
+
 @app.get("/map/visualization")
 def get_map_visualization(
     db: Annotated[Session, Depends(get_db)],
@@ -114,32 +155,12 @@ def get_map_visualization(
     grouped_nodes = {
         "navigation": [], "gates": [], "pois": [], "seats": [], "stairs": [], "departments": [],
     }
-    for node in nodes:
-        node_data = {
-            "id": node.id,
-            "x": node.x,
-            "y": node.y,
-            "level": node.level,
-            "name": node.name,
-            "description": node.description
-        }
-        if node.type in ["corridor", "normal"]:
-            grouped_nodes["navigation"].append(node_data)
-        elif node.type == "gate":
-            grouped_nodes["gates"].append({**node_data, "num_servers": node.num_servers, "service_rate": node.service_rate})
-        elif node.type == "stairs":
-            grouped_nodes["stairs"].append(node_data)
-        elif node.type == "seat":
-            grouped_nodes["seats"].append({**node_data, "block": node.block, "row": node.row, "number": node.number})
-        elif node.type == "departments":
-            grouped_nodes["departments"].append({**node_data, "type": node.type})
-        else:
-            grouped_nodes["pois"].append({**node_data, "type": node.type, "num_servers": node.num_servers, "service_rate": node.service_rate})
 
-    if level is not None:
-        edges = db.query(Edge).join(Node, Edge.from_id == Node.id).filter(Node.level == level).all()
-    else:
-        edges = db.query(Edge).all()
+    for node in nodes:
+        group, data = _classify_node(node)
+        grouped_nodes[group].append(data)
+
+    edges = _get_edges_for_level(db, level)
 
     return {
         "level": level if level is not None else "all",

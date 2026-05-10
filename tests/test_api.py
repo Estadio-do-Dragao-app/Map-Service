@@ -611,3 +611,101 @@ class TestErrorHandling:
             headers={"Content-Type": "application/json"}
         )
         assert response.status_code == 422
+
+class TestMapVisualization:
+    def test_visualization_empty(self, client, auth_headers):
+        response = client.get("/map/visualization", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["level"] == "all"
+        assert all(len(data["nodes"][key]) == 0 for key in data["nodes"])
+        assert data["stats"]["total"] == 0
+
+    def test_visualization_with_corridor(self, client, test_db, auth_headers):
+        node = Node(id="CORR", x=0, y=0, type="corridor", level=0)
+        test_db.add(node)
+        test_db.commit()
+        response = client.get("/map/visualization", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["nodes"]["navigation"]) == 1
+        assert data["stats"]["navigation"] == 1
+        assert data["stats"]["total"] == 1
+
+    def test_visualization_with_gate(self, client, test_db, auth_headers):
+        node = Node(id="GATE", x=0, y=0, type="gate", num_servers=2, service_rate=5.0)
+        test_db.add(node)
+        test_db.commit()
+        response = client.get("/map/visualization", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["nodes"]["gates"]) == 1
+        assert data["nodes"]["gates"][0]["num_servers"] == 2
+        assert data["stats"]["gates"] == 1
+
+    def test_visualization_with_stairs(self, client, test_db, auth_headers):
+        node = Node(id="STAIR", x=0, y=0, type="stairs")
+        test_db.add(node)
+        test_db.commit()
+        response = client.get("/map/visualization", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["nodes"]["stairs"]) == 1
+        assert data["stats"]["stairs"] == 1
+
+    def test_visualization_with_seat(self, client, test_db, auth_headers):
+        node = Node(id="SEAT", x=0, y=0, type="seat", block="A", row=1, number=5)
+        test_db.add(node)
+        test_db.commit()
+        response = client.get("/map/visualization", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["nodes"]["seats"]) == 1
+        assert data["nodes"]["seats"][0]["block"] == "A"
+        assert data["stats"]["seats"] == 1
+
+    def test_visualization_with_department(self, client, test_db, auth_headers):
+        node = Node(id="DEPT", x=0, y=0, type="departments")
+        test_db.add(node)
+        test_db.commit()
+        response = client.get("/map/visualization", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["nodes"]["departments"]) == 1
+        assert data["stats"]["departments"] == 1
+
+    def test_visualization_with_poi(self, client, test_db, auth_headers):
+        node = Node(id="REST", x=0, y=0, type="restroom", num_servers=2, service_rate=1.5)
+        test_db.add(node)
+        test_db.commit()
+        response = client.get("/map/visualization", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["nodes"]["pois"]) == 1
+        assert data["nodes"]["pois"][0]["type"] == "restroom"
+        assert data["stats"]["pois"] == 1
+
+    def test_visualization_filter_level(self, client, test_db, auth_headers):
+        node0 = Node(id="N0", x=0, y=0, level=0, type="corridor")
+        node1 = Node(id="N1", x=10, y=10, level=1, type="corridor")
+        test_db.add_all([node0, node1])
+        test_db.commit()
+        response = client.get("/map/visualization?level=0", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["level"] == 0
+        assert data["stats"]["total"] == 1
+        # Verify edges are filtered (no edges in test)
+        assert isinstance(data["edges"], list)
+
+    def test_visualization_with_edges(self, client, test_db, auth_headers):
+        n1 = Node(id="N1", x=0, y=0, level=0, type="corridor")
+        n2 = Node(id="N2", x=10, y=10, level=0, type="corridor")
+        e = Edge(id="E", from_id="N1", to_id="N2", weight=5.0)
+        test_db.add_all([n1, n2, e])
+        test_db.commit()
+        response = client.get("/map/visualization?level=0", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["edges"]) == 1
+        assert data["edges"][0]["id"] == "E"
