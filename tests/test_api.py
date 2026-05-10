@@ -36,7 +36,7 @@ class TestMapEndpoints:
 
 class TestNodeEndpoints:
     def test_get_all_nodes(self, client, test_db):
-        nodes = [Node(id=f"N{i}", x=float(i*10), y=float(i*10)) for i in range(5)]
+        nodes = [Node(id=f"N{i}", x=float(i*10), y=float(i*10), type="corridor") for i in range(5)]
         test_db.add_all(nodes)
         test_db.commit()
         response = client.get("/nodes")
@@ -56,23 +56,38 @@ class TestNodeEndpoints:
         assert response.status_code == 404
 
     def test_create_node_success(self, client, auth_headers, test_db):
-        data = {"id": "NEW-NODE", "x": 500, "y": 600, "type": "corridor"}
+        data = {
+            "id": "NEW-NODE",
+            "name": "Test Node",
+            "x": 500,
+            "y": 600,
+            "level": 0,
+            "type": "corridor",
+            "description": "A test node"
+        }
         response = client.post("/nodes", json=data, headers=auth_headers)
         assert response.status_code == 201
         assert response.json()["id"] == "NEW-NODE"
         assert test_db.query(Node).filter_by(id="NEW-NODE").first() is not None
 
     def test_create_node_duplicate(self, client, auth_headers, test_db):
-        node = Node(id="DUPE", x=0, y=0)
+        node = Node(id="DUPE", x=0, y=0, type="corridor")
         test_db.add(node)
         test_db.commit()
-        data = {"id": "DUPE", "x": 10, "y": 10}
+        data = {
+            "id": "DUPE",
+            "name": "Duplicate",
+            "x": 10,
+            "y": 10,
+            "level": 0,
+            "type": "corridor"
+        }
         response = client.post("/nodes", json=data, headers=auth_headers)
         assert response.status_code == 400
         assert "already exists" in response.json()["detail"]
 
     def test_update_node_success(self, client, auth_headers, test_db):
-        node = Node(id="UPDATE", x=0, y=0, name="Old")
+        node = Node(id="UPDATE", x=0, y=0, name="Old", type="corridor")
         test_db.add(node)
         test_db.commit()
         data = {"name": "New", "x": 100, "y": 200}
@@ -86,7 +101,7 @@ class TestNodeEndpoints:
         assert response.status_code == 404
 
     def test_delete_node_success(self, client, auth_headers, test_db):
-        node = Node(id="DELETE", x=0, y=0)
+        node = Node(id="DELETE", x=0, y=0, type="corridor")
         test_db.add(node)
         test_db.commit()
         response = client.delete("/nodes/DELETE", headers=auth_headers)
@@ -94,8 +109,8 @@ class TestNodeEndpoints:
         assert test_db.query(Node).filter_by(id="DELETE").first() is None
 
     def test_delete_node_with_edges(self, client, auth_headers, test_db):
-        n1 = Node(id="N_A", x=0, y=0)
-        n2 = Node(id="N_B", x=10, y=10)
+        n1 = Node(id="N_A", x=0, y=0, type="corridor")
+        n2 = Node(id="N_B", x=10, y=10, type="corridor")
         e = Edge(id="E", from_id="N_A", to_id="N_B", weight=1)
         test_db.add_all([n1, n2, e])
         test_db.commit()
@@ -109,8 +124,8 @@ class TestNodeEndpoints:
 
 class TestEdgeEndpoints:
     def test_get_all_edges(self, client, test_db):
-        n1 = Node(id="E_N1", x=0, y=0)
-        n2 = Node(id="E_N2", x=10, y=10)
+        n1 = Node(id="E_N1", x=0, y=0, type="corridor")
+        n2 = Node(id="E_N2", x=10, y=10, type="corridor")
         e = Edge(id="E1", from_id="E_N1", to_id="E_N2", weight=5.0)
         test_db.add_all([n1, n2, e])
         test_db.commit()
@@ -119,8 +134,8 @@ class TestEdgeEndpoints:
         assert len(response.json()) == 1
 
     def test_create_edge_success(self, client, auth_headers, test_db):
-        n1 = Node(id="A", x=0, y=0)
-        n2 = Node(id="B", x=10, y=10)
+        n1 = Node(id="A", x=0, y=0, type="corridor")
+        n2 = Node(id="B", x=10, y=10, type="corridor")
         test_db.add_all([n1, n2])
         test_db.commit()
         data = {"id": "NEW-EDGE", "from_id": "A", "to_id": "B", "weight": 7.5}
@@ -135,8 +150,8 @@ class TestEdgeEndpoints:
         assert "does not exist" in response.json()["detail"]
 
     def test_update_edge(self, client, auth_headers, test_db):
-        n1 = Node(id="U1", x=0, y=0)
-        n2 = Node(id="U2", x=10, y=10)
+        n1 = Node(id="U1", x=0, y=0, type="corridor")
+        n2 = Node(id="U2", x=10, y=10, type="corridor")
         e = Edge(id="EDGE", from_id="U1", to_id="U2", weight=5.0)
         test_db.add_all([n1, n2, e])
         test_db.commit()
@@ -145,8 +160,8 @@ class TestEdgeEndpoints:
         assert response.json()["weight"] == 20.0
 
     def test_delete_edge(self, client, auth_headers, test_db):
-        n1 = Node(id="D1", x=0, y=0)
-        n2 = Node(id="D2", x=10, y=10)
+        n1 = Node(id="D1", x=0, y=0, type="corridor")
+        n2 = Node(id="D2", x=10, y=10, type="corridor")
         e = Edge(id="DEL", from_id="D1", to_id="D2", weight=1)
         test_db.add_all([n1, n2, e])
         test_db.commit()
@@ -159,7 +174,7 @@ class TestEdgeEndpoints:
 
 class TestClosureEndpoints:
     def test_get_all_closures(self, client, test_db):
-        node = Node(id="C_NODE", x=0, y=0)
+        node = Node(id="C_NODE", x=0, y=0, type="corridor")
         test_db.add(node)
         test_db.commit()
         closure = Closure(id="CL1", node_id="C_NODE", reason="maintenance")
@@ -170,7 +185,7 @@ class TestClosureEndpoints:
         assert len(response.json()) == 1
 
     def test_create_node_closure(self, client, auth_headers, test_db):
-        node = Node(id="CLOSED_NODE", x=0, y=0)
+        node = Node(id="CLOSED_NODE", x=0, y=0, type="corridor")
         test_db.add(node)
         test_db.commit()
         data = {"id": "NEW-CL", "node_id": "CLOSED_NODE", "reason": "emergency"}
@@ -179,8 +194,8 @@ class TestClosureEndpoints:
         assert response.json()["reason"] == "emergency"
 
     def test_create_edge_closure(self, client, auth_headers, test_db):
-        n1 = Node(id="CE1", x=0, y=0)
-        n2 = Node(id="CE2", x=10, y=10)
+        n1 = Node(id="CE1", x=0, y=0, type="corridor")
+        n2 = Node(id="CE2", x=10, y=10, type="corridor")
         e = Edge(id="E_CL", from_id="CE1", to_id="CE2", weight=1)
         test_db.add_all([n1, n2, e])
         test_db.commit()
@@ -195,7 +210,7 @@ class TestClosureEndpoints:
         assert response.status_code == 400
 
     def test_delete_closure(self, client, auth_headers, test_db):
-        node = Node(id="DEL_CL", x=0, y=0)
+        node = Node(id="DEL_CL", x=0, y=0, type="corridor")
         test_db.add(node)
         test_db.commit()
         closure = Closure(id="DEL-CL", node_id="DEL_CL", reason="test")
@@ -228,7 +243,7 @@ class TestGridEndpoints:
         assert "total_tiles" in response.json()
 
     def test_rebuild_grid(self, client, auth_headers, test_db):
-        node = Node(id="GRID_NODE", x=5, y=5, level=0)
+        node = Node(id="GRID_NODE", x=5, y=5, level=0, type="corridor")
         test_db.add(node)
         test_db.commit()
         response = client.post("/maps/grid/rebuild", headers=auth_headers)
@@ -251,8 +266,10 @@ class TestGridEndpoints:
 
 class TestPOIEndpoints:
     def test_get_all_pois(self, client, test_db):
-        pois = [Node(id="R1", x=100, y=100, type="restroom"),
-                Node(id="F1", x=200, y=200, type="food")]
+        pois = [
+            Node(id="R1", x=100, y=100, type="restroom"),
+            Node(id="F1", x=200, y=200, type="food")
+        ]
         test_db.add_all(pois)
         test_db.commit()
         response = client.get("/pois")
@@ -268,7 +285,7 @@ class TestPOIEndpoints:
         assert test_db.query(Node).filter_by(id=poi_id).first() is not None
 
     def test_update_poi(self, client, auth_headers, test_db):
-        poi = Node(id="POI_UPDATE", name="Old", type="restroom", x=0, y=0)
+        poi = Node(id="POI_UPDATE", name="Old", type="restroom", x=0, y=0, level=0)
         test_db.add(poi)
         test_db.commit()
         data = {"name": "New Name", "type": "food"}
@@ -278,7 +295,7 @@ class TestPOIEndpoints:
         assert response.json()["type"] == "food"
 
     def test_delete_poi(self, client, auth_headers, test_db):
-        poi = Node(id="POI_DEL", name="ToDelete", type="restroom", x=0, y=0)
+        poi = Node(id="POI_DEL", name="ToDelete", type="restroom", x=0, y=0, level=0)
         test_db.add(poi)
         test_db.commit()
         response = client.delete("/pois/POI_DEL", headers=auth_headers)
@@ -302,12 +319,10 @@ class TestPOIEndpoints:
             mock_response = MagicMock()
             mock_response.read.return_value = json.dumps(fake_osm_response).encode()
             mock_urlopen.return_value.__enter__.return_value = mock_response
-            # Also need to mock the entrance query; we can let it fail but still return cached
             response = client.get("/pois/osm", headers=auth_headers)
             assert response.status_code == 200
             data = response.json()
             assert "pois" in data
-            # At least one POI should be found (or empty if snapping fails, but it should work)
 
 
 # ==================== SEATS ====================
@@ -371,7 +386,7 @@ class TestEmergencyRouteEndpoints:
         assert response.json() == []
 
     def test_create_and_get_route(self, client, test_db):
-        nodes = [Node(id=f"N{i}", x=i*10, y=i*10) for i in range(3)]
+        nodes = [Node(id=f"N{i}", x=i*10, y=i*10, type="corridor") for i in range(3)]
         exit_node = Node(id="EXIT", x=100, y=100, type="emergency_exit")
         test_db.add_all(nodes + [exit_node])
         test_db.commit()
@@ -386,7 +401,7 @@ class TestEmergencyRouteEndpoints:
         assert response.json()[0]["id"] == "ER1"
 
     def test_get_route_geojson(self, client, test_db):
-        nodes = [Node(id=f"N{i}", x=i*10, y=i*10) for i in range(2)]
+        nodes = [Node(id=f"N{i}", x=i*10, y=i*10, type="corridor") for i in range(2)]
         exit_node = Node(id="EXIT2", x=50, y=50, type="emergency_exit")
         test_db.add_all(nodes + [exit_node])
         test_db.commit()
@@ -402,7 +417,7 @@ class TestEmergencyRouteEndpoints:
         assert len(data["features"]) > 0
 
     def test_nearest_emergency_route(self, client, test_db):
-        nodes = [Node(id=f"N{i}", x=i*10, y=i*10) for i in range(3)]
+        nodes = [Node(id=f"N{i}", x=i*10, y=i*10, type="corridor") for i in range(3)]
         exit_node = Node(id="EXIT3", x=100, y=100, type="emergency_exit")
         test_db.add_all(nodes + [exit_node])
         test_db.commit()
@@ -473,7 +488,16 @@ class TestCameraEndpoints:
 class TestBatchEndpoints:
     def test_create_batch(self, client, auth_headers, test_db):
         batch_data = {
-            "nodes": [{"id": "BATCH_NODE", "x": 0, "y": 0, "type": "corridor"}],
+            "nodes": [
+                {
+                    "id": "BATCH_NODE",
+                    "name": "Batch Node",
+                    "x": 0,
+                    "y": 0,
+                    "level": 0,
+                    "type": "corridor"
+                }
+            ],
             "edges": [],
             "closures": []
         }
@@ -483,7 +507,16 @@ class TestBatchEndpoints:
 
     def test_sync_map(self, client, auth_headers, test_db):
         sync_data = {
-            "nodes": [{"id": "SYNC_NODE", "x": 10, "y": 20, "type": "gate"}],
+            "nodes": [
+                {
+                    "id": "SYNC_NODE",
+                    "name": "Sync Node",
+                    "x": 10,
+                    "y": 20,
+                    "level": 0,
+                    "type": "gate"
+                }
+            ],
             "edges": [],
             "closures": []
         }
@@ -503,7 +536,7 @@ class TestUtilityEndpoints:
         assert response.json()["status"] == "ok"
 
     def test_reset_database(self, client, auth_headers, test_db):
-        node = Node(id="RESET_NODE", x=0, y=0)
+        node = Node(id="RESET_NODE", x=0, y=0, type="corridor")
         test_db.add(node)
         test_db.commit()
         response = client.post("/reset", headers=auth_headers)
@@ -530,8 +563,8 @@ class TestGeoJSONEndpoints:
         assert len(response.json()["features"]) >= 1
 
     def test_get_geojson_filtered_by_level(self, client, test_db):
-        node0 = Node(id="L0", x=0, y=0, level=0)
-        node1 = Node(id="L1", x=10, y=10, level=1)
+        node0 = Node(id="L0", x=0, y=0, level=0, type="corridor")
+        node1 = Node(id="L1", x=10, y=10, level=1, type="corridor")
         test_db.add_all([node0, node1])
         test_db.commit()
         response = client.get("/map/geojson?level=0")
@@ -541,7 +574,7 @@ class TestGeoJSONEndpoints:
         assert all(f["properties"]["level"] == 0 for f in features if f["geometry"]["type"] == "Point")
 
     def test_get_map_bounds(self, client, test_db):
-        nodes = [Node(id="B1", x=0, y=10), Node(id="B2", x=100, y=50)]
+        nodes = [Node(id="B1", x=0, y=10, type="corridor"), Node(id="B2", x=100, y=50, type="corridor")]
         test_db.add_all(nodes)
         test_db.commit()
         response = client.get("/map/bounds")
