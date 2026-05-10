@@ -80,7 +80,8 @@ class TestNodeEndpoints:
             "x": 10,
             "y": 10,
             "level": 0,
-            "type": "corridor"
+            "type": "corridor",
+            "description": "Duplicate node"
         }
         response = client.post("/nodes", json=data, headers=auth_headers)
         assert response.status_code == 400
@@ -277,7 +278,14 @@ class TestPOIEndpoints:
         assert len(response.json()) >= 2
 
     def test_create_poi(self, client, auth_headers, test_db):
-        data = {"name": "Custom POI", "type": "food", "x": 300, "y": 400, "level": 0}
+        data = {
+            "name": "Custom POI",
+            "type": "food",
+            "x": 300,
+            "y": 400,
+            "level": 0,
+            "description": "A custom POI"
+        }
         response = client.post("/pois", json=data, headers=auth_headers)
         assert response.status_code == 201
         poi_id = response.json()["id"]
@@ -495,7 +503,8 @@ class TestBatchEndpoints:
                     "x": 0,
                     "y": 0,
                     "level": 0,
-                    "type": "corridor"
+                    "type": "corridor",
+                    "description": "Batch node description"
                 }
             ],
             "edges": [],
@@ -514,7 +523,8 @@ class TestBatchEndpoints:
                     "x": 10,
                     "y": 20,
                     "level": 0,
-                    "type": "gate"
+                    "type": "gate",
+                    "description": "Sync node description"
                 }
             ],
             "edges": [],
