@@ -154,6 +154,8 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           args: >
+            -Dsonar.organization=fanapp-estadio-dragao
+            -Dsonar.projectKey=Estadio-do-Dragao-app_Map-Service
             -Dsonar.sources=.
             -Dsonar.exclusions=tests/**,test_*.py,conftest.py,load_data_db.py,load_from_config.py,visualize.py,db/**,**/__pycache__/**,**/*.pyc
             -Dsonar.tests=tests
