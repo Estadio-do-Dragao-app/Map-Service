@@ -10,6 +10,7 @@ services:
       - "8015:8000"   # Host 8015 -> container 8000 (evita conflito com outros servicos)
     environment:
       MAP_SERVICE_URL: http://host.docker.internal:8000
+      API_KEY: ${API_KEY}
     # Para Linux, é necessário adicionar isto para que host.docker.internal funcione:
     extra_hosts:
       - "host.docker.internal:host-gateway"

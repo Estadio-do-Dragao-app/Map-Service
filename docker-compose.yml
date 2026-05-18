@@ -7,7 +7,7 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: estadio_do_dragao
+      POSTGRES_DB: campus_map
     ports:
       - "5434:5432"  # Port 5434 to avoid conflicts (5433 is WaitTime-Service)
     volumes:
@@ -29,7 +29,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URI: postgresql://postgres:postgres@postgres:5432/estadio_do_dragao
+      DATABASE_URI: postgresql://postgres:postgres@postgres:5432/campus_map
       DEBUG: "false"
     ports:
       - "8000:8000"

@@ -133,7 +133,7 @@ class TestLoadGraph:
         assert n1.x == 10.0
         assert n1.y == 20.0
         assert n1.level == 0
-        assert n1.type == "corridor"
+        assert n1.type == "normal"
 
     def test_edge_attributes(self, db_session, sample_graph_data):
         load_graph(db_session, sample_graph_data)

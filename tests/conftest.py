@@ -211,11 +211,11 @@ def create_test_edges(test_db, create_test_nodes):
 
 
 @pytest.fixture
-def create_stadium_graph(test_db):
-    """Create a small stadium-like graph structure for testing."""
+def create_campus_graph(test_db):
+    """Create a small campus-like graph structure for testing."""
     from models import Node, Edge
-    
-    # Create nodes in a simple stadium structure
+
+    # Create nodes in a simple campus structure
     nodes = [
         # Gates
         Node(id="GATE-1", name="Gate 1", x=50, y=400, level=0, type="gate", 

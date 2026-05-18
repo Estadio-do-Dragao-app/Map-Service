@@ -96,7 +96,7 @@ def process_ways(osm_data: dict) -> tuple[dict, list]:
     return nodes_map, edges
 
 
-def _poi_type(tags: dict, name: str = "") -> str:
+def _poi_type(tags: dict, name: str = None) -> str | None:
     """Map OSM tags to a simple internal POI type.
     Returns None for POIs that should be skipped (irrelevant clutter)."""
     amenity = tags.get("amenity", "")
@@ -166,6 +166,50 @@ def _poi_type(tags: dict, name: str = "") -> str:
     return "poi"
 
 
+def _add_poi_to_graph(poi_id: str, name: str, lon: float, lat: float, tags: dict, nodes_map: dict, edges: list, connect_radius_m: float) -> tuple[bool, bool]:
+    nearest_id = None
+    min_dist = float("inf")
+    for nid, node in nodes_map.items():
+        if node["type"] != "normal":
+            continue
+        d = haversine(lon, lat, node["x"], node["y"])
+        if d < min_dist:
+            min_dist = d
+            nearest_id = nid
+
+    if nearest_id is None or min_dist > connect_radius_m:
+        print(f"  [SKIP] '{name}' — nearest node {min_dist:.0f}m away (limit {connect_radius_m}m)")
+        return False, True # Added=False, TooFar=True
+
+    poi_type = _poi_type(tags)
+    if poi_type is None:
+        return False, False
+
+    nodes_map[poi_id] = {
+        "id": poi_id,
+        "x": lon,
+        "y": lat,
+        "level": 0,
+        "type": poi_type,
+        "name": name,
+        "description": tags.get("description", name),
+        "osm_tags": {k: v for k, v in tags.items() if k in ("amenity", "building", "shop")},
+    }
+
+    for src, dst in [(poi_id, nearest_id), (nearest_id, poi_id)]:
+        edges.append({
+            "id": f"EDGE-{poi_id}-{'TO' if src == poi_id else 'FROM'}",
+            "from_id": src,
+            "to_id": dst,
+            "weight": round(max(0.1, min_dist), 2),
+            "accessible": True,
+        })
+
+    print(f"  [POI] '{name}' ({poi_type}) connected at {min_dist:.1f}m")
+    return True, False
+
+
+
 def process_pois(poi_data: dict, nodes_map: dict, edges: list, connect_radius_m: float = 100.0):
     """
     FIX 3: Extract POIs from OSM response (both node and way center),
@@ -211,48 +255,11 @@ def process_pois(poi_data: dict, nodes_map: dict, edges: list, connect_radius_m:
         if poi_id in nodes_map:
             continue
 
-        # Find nearest walkable node
-        nearest_id = None
-        min_dist = float("inf")
-        for nid, node in nodes_map.items():
-            if node["type"] != "normal":
-                continue  # skip other POIs during search
-            d = haversine(lon, lat, node["x"], node["y"])
-            if d < min_dist:
-                min_dist = d
-                nearest_id = nid
-
-        if nearest_id is None or min_dist > connect_radius_m:
+        added_poi, too_far = _add_poi_to_graph(poi_id, name, lon, lat, tags, nodes_map, edges, connect_radius_m)
+        if added_poi:
+            added += 1
+        elif too_far:
             skipped_too_far += 1
-            print(f"  [SKIP] '{name}' — nearest node {min_dist:.0f}m away (limit {connect_radius_m}m)")
-            continue
-
-        poi_type = _poi_type(tags, name=name)
-        if poi_type is None:
-            # Irrelevant POI (waste baskets, benches, etc.) — skip
-            continue
-        nodes_map[poi_id] = {
-            "id": poi_id,
-            "x": lon,
-            "y": lat,
-            "level": 0,
-            "type": poi_type,
-            "name": name,
-            "description": tags.get("description", name),
-            "osm_tags": {k: v for k, v in tags.items() if k in ("amenity", "building", "shop")},
-        }
-
-        for src, dst in [(poi_id, nearest_id), (nearest_id, poi_id)]:
-            edges.append({
-                "id": f"EDGE-{poi_id}-{'TO' if src == poi_id else 'FROM'}",
-                "from_id": src,
-                "to_id": dst,
-                "weight": round(max(0.1, min_dist), 2),
-                "accessible": True,
-            })
-
-        added += 1
-        print(f"  [POI] '{name}' ({poi_type}) connected at {min_dist:.1f}m")
 
     print(f"\nPOI summary: {added} added, {skipped_no_name} unnamed skipped, {skipped_too_far} too far skipped.")
 
