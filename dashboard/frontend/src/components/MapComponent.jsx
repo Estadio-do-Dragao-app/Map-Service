@@ -44,6 +44,165 @@ function getNodePopupHTML(node, isNewNode) {
   `;
 }
 
+function getFillColorAndRadius(isSelectingDoor, isInDelete, isListSelected, isPartOfEdgeSel, isEdgeSelected, isQueue, showQueues, baseColor) {
+  if (isSelectingDoor) return { fillColor: '#9c27b0', radius: 9 };
+  if (isInDelete) return { fillColor: '#ffa500', radius: 10 };
+  if (isListSelected) return { fillColor: '#ff6b6b', radius: 14 };
+  if (isPartOfEdgeSel) return { fillColor: '#ff6b6b', radius: 12 };
+  if (isEdgeSelected) return { fillColor: '#ffc107', radius: 10 };
+  if (isQueue && showQueues) return { fillColor: '#e3b341', radius: 9 };
+  return { fillColor: baseColor, radius: 7 };
+}
+
+function getMarkerKind(node, cameras, editingCamera, draggedPosition, editingNode, isCamera, isPoi) {
+  if ((node.id === editingNode || (isCamera && cameras.find(c => c.id === editingCamera)?.node_id === node.id)) && draggedPosition) {
+    return 'edit';
+  }
+  if (isCamera) return 'camera';
+  if (isPoi) return 'poi';
+  return 'circle';
+}
+
+function createNewMarker(kind, node, {
+  draggedPosition, cameras, isInDelete, isListSelected, isPartOfEdgeSel, isEdgeSelected,
+  radius, fillColor, matchesSearch, isNewNode, mapCurrent, setDraggedPosition
+}) {
+  if (kind === 'edit') {
+    const editMarker = L.marker([draggedPosition.lat, draggedPosition.lng], {
+      draggable: true,
+      icon: L.divIcon({
+        className: 'editing-marker',
+        html: '<div style="background-color:#ff6b6b;width:24px;height:24px;border-radius:50%;border:3px solid white;box-shadow:0 0 10px rgba(255,107,107,0.5);"></div>',
+        iconSize: [24, 24], iconAnchor: [12, 12],
+      }),
+    }).addTo(mapCurrent);
+    editMarker.on('drag',    (e) => { const p = e.target.getLatLng(); setDraggedPosition({ lat: p.lat, lng: p.lng }); });
+    editMarker.on('dragend', (e) => { const p = e.target.getLatLng(); setDraggedPosition({ lat: p.lat, lng: p.lng }); });
+    editMarker.bindPopup(`<strong>Editing: ${node.name || node.id}</strong><br/>Drag to move`);
+    return editMarker;
+  }
+
+  if (kind === 'camera') {
+    const camData = cameras.find(c => c.node_id === node.id);
+    let bg = '#bc8cff';
+    if (isInDelete) {
+      bg = '#ffa500';
+    } else if (isListSelected) {
+      bg = '#ff6b6b';
+    }
+    const camMarker = L.marker([node.y, node.x], {
+      icon: L.divIcon({
+        className: 'camera-marker',
+        html: `<div class="camera-marker-inner" style="background:${bg}"><svg viewBox="0 0 24 24" fill="white" width="14" height="14"><path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4z"/></svg></div>`,
+        iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -16],
+      }),
+    }).addTo(mapCurrent);
+    camMarker.bindPopup(`
+      <strong>${node.name || node.id}</strong><br/>
+      ${camData ? `H: ${camData.pos_z}m · Pan: ${camData.pan}° · Tilt: ${camData.tilt}°<br/>FOV: ${camData.fov_horizontal}°×${camData.fov_vertical}°` : ''}
+    `);
+    return camMarker;
+  }
+
+  if (kind === 'poi') {
+    let poiStateClass = '';
+    if (isInDelete) {
+      poiStateClass = 'poi-delete';
+    } else if (isListSelected || isPartOfEdgeSel || isEdgeSelected) {
+      poiStateClass = 'poi-selected';
+    }
+    const poiMarker = L.marker([node.y, node.x], {
+      icon: L.divIcon({
+        className: `poi-marker ${poiStateClass}`,
+        html: '<div class="poi-marker-pin"></div><div class="poi-marker-dot"></div>',
+        iconSize: [22, 30],
+        iconAnchor: [11, 30],
+        popupAnchor: [0, -24],
+      }),
+    }).addTo(mapCurrent);
+    poiMarker.bindPopup(getNodePopupHTML(node, isNewNode));
+    return poiMarker;
+  }
+
+  const circleMarker = L.circleMarker([node.y, node.x], {
+    radius, fill: true, fillColor,
+    fillOpacity: matchesSearch ? 0.9 : 0.4,
+    stroke: true, color: fillColor, weight: 2,
+    opacity: 1,
+  }).addTo(mapCurrent);
+  circleMarker.bindPopup(getNodePopupHTML(node, isNewNode));
+  return circleMarker;
+}
+
+function updateExistingMarker(entry, node, {
+  radius, fillColor, matchesSearch, isInDelete, isListSelected, isPartOfEdgeSel, isEdgeSelected, draggedPosition
+}) {
+  if (entry.kind === 'circle') {
+    entry.marker.setLatLng([node.y, node.x]);
+    entry.marker.setRadius(radius);
+    entry.marker.setStyle({
+      fillColor,
+      color: fillColor,
+      opacity: 1,
+      fillOpacity: matchesSearch ? 0.9 : 0.4,
+    });
+  } else if (entry.kind === 'poi') {
+    let poiStateClass = '';
+    if (isInDelete) {
+      poiStateClass = 'poi-delete';
+    } else if (isListSelected || isPartOfEdgeSel || isEdgeSelected) {
+      poiStateClass = 'poi-selected';
+    }
+    entry.marker.setLatLng([node.y, node.x]);
+    entry.marker.setIcon(L.divIcon({
+      className: `poi-marker ${poiStateClass}`,
+      html: '<div class="poi-marker-pin"></div><div class="poi-marker-dot"></div>',
+      iconSize: [22, 30],
+      iconAnchor: [11, 30],
+      popupAnchor: [0, -24],
+    }));
+  } else if (entry.kind === 'edit' && draggedPosition) {
+    entry.marker.setLatLng([draggedPosition.lat, draggedPosition.lng]);
+  }
+}
+
+function setupMarkerClick(marker, node, {
+  creatingEdge, deleteMode, deleteNode, setPointsForEdge, nodes, setError, selectNode
+}) {
+  marker.off('click');
+  marker.on('click', (e) => {
+    L.DomEvent.stopPropagation(e);
+    if (!creatingEdge) marker.openPopup();
+    if (deleteMode) {
+      deleteNode(node.id);
+      return;
+    }
+    if (creatingEdge) {
+      setPointsForEdge((prev) => {
+        const clickedNode = nodes.find(n => n.id === node.id);
+        const clickedType = clickedNode?.type;
+
+        if (clickedType === 'camera') {
+          setError('Camera nodes cannot be connected to any other node.');
+          return prev;
+        }
+
+        if (!prev.from) {
+          return { ...prev, from: node.id };
+        }
+
+        if (!prev.to && node.id !== prev.from) {
+          return { ...prev, to: node.id };
+        }
+
+        return prev;
+      });
+      return;
+    }
+    selectNode(node);
+  });
+}
+
 // Helper to render a single node on the Leaflet map (decoupled to reduce cognitive complexity and nesting)
 function renderNodeOnMap(node, {
   nodes,
@@ -112,24 +271,11 @@ function renderNodeOnMap(node, {
   const isSelectingDoor  = selectingDoor && editingNode;
 
   const baseColor = isNewNode ? '#4CAF50' : '#313b84';
-  let fillColor = baseColor;
-  let radius = 7;
+  const { fillColor, radius } = getFillColorAndRadius(
+    isSelectingDoor, isInDelete, isListSelected, isPartOfEdgeSel, isEdgeSelected, isQueue, showQueues, baseColor
+  );
 
-  if (isSelectingDoor)              { fillColor = '#9c27b0'; radius = 9; }
-  else if (isInDelete)              { fillColor = '#ffa500'; radius = 10; }
-  else if (isListSelected)          { fillColor = '#ff6b6b'; radius = 14; }
-  else if (isPartOfEdgeSel)         { fillColor = '#ff6b6b'; radius = 12; }
-  else if (isEdgeSelected)          { fillColor = '#ffc107'; radius = 10; }
-  else if (isQueue && showQueues)   { fillColor = '#e3b341'; radius = 9; }
-
-  let markerKind = 'circle';
-  if ((node.id === editingNode || (isCamera && cameras.find(c => c.id === editingCamera)?.node_id === node.id)) && draggedPosition) {
-    markerKind = 'edit';
-  } else if (isCamera) {
-    markerKind = 'camera';
-  } else if (isPoi) {
-    markerKind = 'poi';
-  }
+  const markerKind = getMarkerKind(node, cameras, editingCamera, draggedPosition, editingNode, isCamera, isPoi);
 
   const existingEntry = markersRefCurrent[node.id];
   let entry = existingEntry;
@@ -137,133 +283,23 @@ function renderNodeOnMap(node, {
   if (entry?.kind !== markerKind) {
     if (entry) entry.marker.remove();
 
-    if (markerKind === 'edit') {
-      const editMarker = L.marker([draggedPosition.lat, draggedPosition.lng], {
-        draggable: true,
-        icon: L.divIcon({
-          className: 'editing-marker',
-          html: '<div style="background-color:#ff6b6b;width:24px;height:24px;border-radius:50%;border:3px solid white;box-shadow:0 0 10px rgba(255,107,107,0.5);"></div>',
-          iconSize: [24, 24], iconAnchor: [12, 12],
-        }),
-      }).addTo(mapCurrent);
-      editMarker.on('drag',    (e) => { const p = e.target.getLatLng(); setDraggedPosition({ lat: p.lat, lng: p.lng }); });
-      editMarker.on('dragend', (e) => { const p = e.target.getLatLng(); setDraggedPosition({ lat: p.lat, lng: p.lng }); });
-      editMarker.bindPopup(`<strong>Editing: ${node.name || node.id}</strong><br/>Drag to move`);
-      entry = { marker: editMarker, kind: 'edit' };
-    } else if (markerKind === 'camera') {
-      const camData = cameras.find(c => c.node_id === node.id);
-      let bg = '#bc8cff';
-      if (isInDelete) {
-        bg = '#ffa500';
-      } else if (isListSelected) {
-        bg = '#ff6b6b';
-      }
-      const camMarker = L.marker([node.y, node.x], {
-        icon: L.divIcon({
-          className: 'camera-marker',
-          html: `<div class="camera-marker-inner" style="background:${bg}"><svg viewBox="0 0 24 24" fill="white" width="14" height="14"><path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4z"/></svg></div>`,
-          iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -16],
-        }),
-      }).addTo(mapCurrent);
-      camMarker.bindPopup(`
-        <strong>${node.name || node.id}</strong><br/>
-        ${camData ? `H: ${camData.pos_z}m · Pan: ${camData.pan}° · Tilt: ${camData.tilt}°<br/>FOV: ${camData.fov_horizontal}°×${camData.fov_vertical}°` : ''}
-      `);
-      entry = { marker: camMarker, kind: 'camera' };
-    } else if (markerKind === 'poi') {
-      let poiStateClass = '';
-      if (isInDelete) {
-        poiStateClass = 'poi-delete';
-      } else if (isListSelected || isPartOfEdgeSel || isEdgeSelected) {
-        poiStateClass = 'poi-selected';
-      }
-      const poiMarker = L.marker([node.y, node.x], {
-        icon: L.divIcon({
-          className: `poi-marker ${poiStateClass}`,
-          html: '<div class="poi-marker-pin"></div><div class="poi-marker-dot"></div>',
-          iconSize: [22, 30],
-          iconAnchor: [11, 30],
-          popupAnchor: [0, -24],
-        }),
-      }).addTo(mapCurrent);
-      poiMarker.bindPopup(getNodePopupHTML(node, isNewNode));
-      entry = { marker: poiMarker, kind: 'poi' };
-    } else {
-      const circleMarker = L.circleMarker([node.y, node.x], {
-        radius, fill: true, fillColor,
-        fillOpacity: matchesSearch ? 0.9 : 0.4,
-        stroke: true, color: fillColor, weight: 2,
-        opacity: 1,
-      }).addTo(mapCurrent);
-      circleMarker.bindPopup(getNodePopupHTML(node, isNewNode));
-      entry = { marker: circleMarker, kind: 'circle' };
-    }
-
+    const marker = createNewMarker(markerKind, node, {
+      draggedPosition, cameras, isInDelete, isListSelected, isPartOfEdgeSel, isEdgeSelected,
+      radius, fillColor, matchesSearch, isNewNode, mapCurrent, setDraggedPosition
+    });
+    entry = { marker, kind: markerKind };
     markersRefCurrent[node.id] = entry;
   }
 
-  entry.marker.off('click');
-  entry.marker.on('click', (e) => {
-    L.DomEvent.stopPropagation(e);
-    if (!creatingEdge) entry.marker.openPopup();
-    if (deleteMode) {
-      deleteNode(node.id);
-      return;
-    }
-    if (creatingEdge) {
-      setPointsForEdge((prev) => {
-        const clickedNode = nodes.find(n => n.id === node.id);
-        const clickedType = clickedNode?.type;
-
-        if (clickedType === 'camera') {
-          setError('Camera nodes cannot be connected to any other node.');
-          return prev;
-        }
-
-        if (!prev.from) {
-          return { ...prev, from: node.id };
-        }
-
-        if (!prev.to && node.id !== prev.from) {
-          return { ...prev, to: node.id };
-        }
-
-        return prev;
-      });
-      return;
-    }
-    selectNode(node);
+  setupMarkerClick(entry.marker, node, {
+    creatingEdge, deleteMode, deleteNode, setPointsForEdge, nodes, setError, selectNode
   });
 
   clearMarkerTimer(node.id);
 
-  if (entry.kind === 'circle') {
-    entry.marker.setLatLng([node.y, node.x]);
-    entry.marker.setRadius(radius);
-    entry.marker.setStyle({
-      fillColor,
-      color: fillColor,
-      opacity: 1,
-      fillOpacity: matchesSearch ? 0.9 : 0.4,
-    });
-  } else if (entry.kind === 'poi') {
-    let poiStateClass = '';
-    if (isInDelete) {
-      poiStateClass = 'poi-delete';
-    } else if (isListSelected || isPartOfEdgeSel || isEdgeSelected) {
-      poiStateClass = 'poi-selected';
-    }
-    entry.marker.setLatLng([node.y, node.x]);
-    entry.marker.setIcon(L.divIcon({
-      className: `poi-marker ${poiStateClass}`,
-      html: '<div class="poi-marker-pin"></div><div class="poi-marker-dot"></div>',
-      iconSize: [22, 30],
-      iconAnchor: [11, 30],
-      popupAnchor: [0, -24],
-    }));
-  } else if (entry.kind === 'edit' && draggedPosition) {
-    entry.marker.setLatLng([draggedPosition.lat, draggedPosition.lng]);
-  }
+  updateExistingMarker(entry, node, {
+    radius, fillColor, matchesSearch, isInDelete, isListSelected, isPartOfEdgeSel, isEdgeSelected, draggedPosition
+  });
 
   if (fadeInOnZoom) {
     if (entry.kind === 'circle') setMarkerVisible(entry, false, 0);
@@ -274,6 +310,7 @@ function renderNodeOnMap(node, {
     }, 0);
   }
 }
+
 
 export function MapComponent() {
   const mapContainer     = useRef(null);

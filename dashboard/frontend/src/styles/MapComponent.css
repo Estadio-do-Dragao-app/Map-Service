@@ -617,7 +617,7 @@
 .node-type-pill[data-type="corridor"]    { color: var(--accent-green);  border-color: rgba(63,185,80,.4);   background: rgba(63,185,80,.08); }
 .node-type-pill[data-type="stairs"]      { color: var(--accent-yellow); border-color: rgba(227,179,65,.4);  background: rgba(227,179,65,.08); }
 .node-type-pill[data-type="exit"]        { color: var(--accent-red);    border-color: rgba(248,81,73,.4);   background: rgba(248,81,73,.08); }
-.node-type-pill[data-type="departments"] { color: #2dd4bf;              border-color: rgba(45,212,191,.4);  background: rgba(45,212,191,.08); }
+.node-type-pill[data-type="departments"] { color: #2dd4bf;              border-color: #14b8a6;              background-color: #0b2e2a; }
 .node-type-pill[data-type="queue"]       { color: var(--accent-yellow); border-color: rgba(227,179,65,.5);  background: rgba(227,179,65,.12); font-weight: 700; }
 .node-type-pill[data-type="camera"]      { color: var(--accent-purple); border-color: rgba(188,140,255,.4); background: rgba(188,140,255,.08); }
 
