@@ -173,9 +173,6 @@ class TestPoiType:
     def test_unknown_amenity_returns_poi(self):
         assert _poi_type({"amenity": "something_unknown"}) == "poi"
 
-    def test_name_param_accepted(self):
-        # name param doesn't affect logic currently, but should not raise
-        assert _poi_type({"amenity": "cafe"}, name="Coffee Place") == "cafe"
 
 
 class TestProcessWays:

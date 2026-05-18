@@ -91,7 +91,7 @@ async def get_node(node_id: str):
         raise HTTPException(status_code=e.response.status_code, detail=e.response.text)
 
 
-@app.post("/nodes", response_model=NodeResponse, status_code=201, tags=["nodes"], responses={503: {"description": ERR_MAP_UNREACHABLE}})
+@app.post("/nodes", response_model=NodeResponse, status_code=201, tags=["nodes"], responses={503: {"description": ERR_MAP_UNREACHABLE}, 400: {"description": "Tipo de node inválido"}})
 async def create_node(data: NodeCreate):
     """
     Cria um novo node no mapa.
@@ -119,7 +119,7 @@ async def delete_node(node_id: str):
     except httpx.HTTPStatusError as e:
         raise HTTPException(status_code=e.response.status_code, detail=e.response.text)
     
-@app.put("/nodes/{node_id}", response_model=NodeResponse, tags=["nodes"], responses={503: {"description": ERR_MAP_UNREACHABLE}})
+@app.put("/nodes/{node_id}", response_model=NodeResponse, tags=["nodes"], responses={503: {"description": ERR_MAP_UNREACHABLE}, 400: {"description": "Tipo de node inválido"}})
 async def update_node(node_id: str, data: NodeUpdate):
     """
     Atualiza um node existente.
