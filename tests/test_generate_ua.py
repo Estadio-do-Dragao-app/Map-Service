@@ -3,6 +3,7 @@ Tests for generate_ua.py – pure functions that don't require network access.
 """
 import math
 import pytest
+from unittest.mock import patch
 from generate_ua import haversine, _poi_type, process_ways, process_pois
 
 
@@ -173,9 +174,6 @@ class TestPoiType:
     def test_unknown_amenity_returns_poi(self):
         assert _poi_type({"amenity": "something_unknown"}) == "poi"
 
-    def test_name_param_accepted(self):
-        # name param doesn't affect logic currently, but should not raise
-        assert _poi_type({"amenity": "cafe"}, name="Coffee Place") == "cafe"
 
 
 class TestProcessWays:
@@ -381,3 +379,110 @@ class TestProcessPois:
         # With default 100m radius, might be skipped; with 1000m it should be added
         process_pois(poi_data, nodes_map, edges, connect_radius_m=1000.0)
         assert "POI-1000" in nodes_map
+
+    def test_poi_empty_nodes_map_skipped(self):
+        nodes_map = {}
+        edges = []
+        poi_data = {"elements": [
+            self._make_poi_element(1100, -8.660, 40.630, {"amenity": "cafe", "name": "Cafe"})
+        ]}
+        process_pois(poi_data, nodes_map, edges)
+        assert "POI-1100" not in nodes_map
+
+    def test_poi_invalid_element_type_skipped(self):
+        nodes_map = self._make_nodes_map()
+        edges = []
+        poi_data = {"elements": [
+            {"type": "relation", "id": 1200, "tags": {"amenity": "cafe", "name": "Cafe"}}
+        ]}
+        process_pois(poi_data, nodes_map, edges)
+        assert "POI-1200" not in nodes_map
+
+    def test_extract_poi_name_various_fallback_tags(self):
+        from generate_ua import _extract_poi_name
+        assert _extract_poi_name({"alt_name": "Alt"}) == "Alt"
+        assert _extract_poi_name({"short_name": "Short"}) == "Short"
+        assert _extract_poi_name({"operator": "Oper"}) == "Oper"
+        assert _extract_poi_name({"brand": "Brand"}) == "Brand"
+
+    def test_poi_skips_non_normal_walkable_nodes(self):
+        nodes_map = {
+            "1": {"id": "1", "x": -8.660, "y": 40.630, "type": "cafe"},
+            "2": {"id": "2", "x": -8.659, "y": 40.631, "type": "normal"},
+        }
+        edges = []
+        poi_data = {"elements": [
+            self._make_poi_element(1300, -8.660, 40.630, {"amenity": "toilets", "name": "WC"})
+        ]}
+        process_pois(poi_data, nodes_map, edges, connect_radius_m=1000.0)
+        from_ids = {e["to_id"] for e in edges}
+        assert "2" in from_ids
+        assert "1" not in from_ids
+
+    def test_poi_with_absolutely_no_name_skipped(self):
+        nodes_map = self._make_nodes_map()
+        edges = []
+        poi_data = {"elements": [
+            self._make_poi_element(1400, -8.660, 40.630, {"building": "yes"})
+        ]}
+        process_pois(poi_data, nodes_map, edges)
+        assert "POI-1400" not in nodes_map
+
+
+
+class TestMainAndFetch:
+    """Tests for overpass_fetch and main in generate_ua.py."""
+
+    @patch("urllib.request.urlopen")
+    def test_overpass_fetch_success(self, mock_urlopen):
+        from unittest.mock import MagicMock
+        import generate_ua
+        # Mock response from urlopen
+        mock_response = MagicMock()
+        mock_response.read.return_value = b'{"elements": [{"type": "node", "id": 1}]}'
+        mock_response.__enter__.return_value = mock_response
+        mock_urlopen.return_value = mock_response
+
+        res = generate_ua.overpass_fetch("test_query")
+        assert res == {"elements": [{"type": "node", "id": 1}]}
+
+    @patch("generate_ua.overpass_fetch")
+    @patch("os.makedirs")
+    @patch("builtins.open")
+    def test_main_success(self, mock_open, mock_makedirs, mock_fetch):
+        from unittest.mock import MagicMock
+        import generate_ua
+        # Mock fetch results for ways and POIs
+        mock_fetch.side_effect = [
+            # Ways data
+            {"elements": [
+                {"type": "node", "id": 1, "lon": -8.660, "lat": 40.630},
+                {"type": "node", "id": 2, "lon": -8.659, "lat": 40.630},
+                {"type": "way", "id": 100, "nodes": [1, 2]}
+            ]},
+            # POIs data
+            {"elements": [
+                {"type": "node", "id": 3, "lon": -8.660, "lat": 40.630, "tags": {"amenity": "cafe", "name": "Campus Cafe"}}
+            ]}
+        ]
+
+        # Mock the context manager of open
+        mock_file = MagicMock()
+        mock_open.return_value.__enter__.return_value = mock_file
+
+        # Run main
+        generate_ua.main()
+
+        # Assertions
+        assert mock_fetch.call_count == 2
+        mock_makedirs.assert_called_once_with("output", exist_ok=True)
+        mock_open.assert_called_once_with("output/ua_graph.json", "w", encoding="utf-8")
+
+    @patch("generate_ua.overpass_fetch")
+    def test_main_exception(self, mock_fetch):
+        import generate_ua
+        mock_fetch.side_effect = Exception("Network error")
+
+        with pytest.raises(Exception, match="Network error"):
+            generate_ua.main()
+

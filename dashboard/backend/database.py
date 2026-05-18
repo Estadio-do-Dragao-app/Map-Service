@@ -11,10 +11,15 @@ API_KEY = os.environ.get("API_KEY", "dragao_secret_key_2026")
 _parsed_base = urlparse(MAP_SERVICE_URL)
 
 
+import re
+
 def _build_safe_url(path: str) -> str:
     """Construct a URL ensuring the host always matches the configured MAP_SERVICE_URL."""
+    # Ensure the path is a relative path starting with '/' and only contains safe characters
     if not path.startswith("/"):
         path = "/" + path
+    if not re.match(r"^/[a-zA-Z0-9_\-\.\/]+$", path) or ".." in path:
+        raise ValueError(f"Potential directory traversal or invalid path: '{path}'")
     url = f"{MAP_SERVICE_URL}{path}"
     parsed = urlparse(url)
     if parsed.hostname != _parsed_base.hostname or parsed.port != _parsed_base.port:
