@@ -96,7 +96,7 @@ def process_ways(osm_data: dict) -> tuple[dict, list]:
     return nodes_map, edges
 
 
-def _poi_type(tags: dict) -> str | None:
+def _poi_type(tags: dict, name: str = None) -> str | None:
     """Map OSM tags to a simple internal POI type.
     Returns None for POIs that should be skipped (irrelevant clutter)."""
     amenity = tags.get("amenity", "")
