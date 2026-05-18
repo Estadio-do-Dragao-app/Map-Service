@@ -333,9 +333,8 @@ class TestConstants:
     def test_node_types_defined(self):
         """Test that NODE_TYPES constant is defined."""
         assert isinstance(NODE_TYPES, list)
-        assert "corridor" in NODE_TYPES
-        assert "seat" in NODE_TYPES
-        assert "gate" in NODE_TYPES
+        # Core campus-relevant types should be present
+        assert "normal" in NODE_TYPES
         assert "stairs" in NODE_TYPES
     
     def test_closure_reasons_defined(self):

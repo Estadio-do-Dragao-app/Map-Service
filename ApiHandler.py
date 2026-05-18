@@ -41,16 +41,18 @@ def notify_routing_refresh():
     """Trigger a silent background refresh in the routing service after a map change."""
     def _send():
         try:
-            httpx.post("http://routing-service:8002/api/refresh_map", timeout=2.0)
+            httpx.post("https://routing-service:8002/api/refresh_map", timeout=2.0)
             print("[WEBHOOK] Notified routing service of map change")
         except Exception as e:
             print(f"[WEBHOOK] Failed to notify routing service: {e}")
     threading.Thread(target=_send).start()
 
-app = FastAPI(title="Smart Stadium Map Backend")
+app = FastAPI(title="Campus Map Backend")
 
 from prometheus_fastapi_instrumentator import Instrumentator
 Instrumentator().instrument(app).expose(app)
+
+app.add_middleware(GZipMiddleware, minimum_size=500)
 
 app.add_middleware(
     CORSMiddleware,
@@ -60,14 +62,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.add_middleware(GZipMiddleware, minimum_size=500)
-
 @app.on_event("startup")
 def startup():
     init_db()
     print("Database initialized")
 
+
+ERR_NODE_NOT_FOUND = "Node not found"
+ERR_EDGE_NOT_FOUND = "Edge not found"
+ERR_POI_NOT_FOUND = "POI not found"
+ERR_SEAT_NOT_FOUND = "Seat not found"
+ERR_CAMERA_NOT_FOUND = "Camera not found"
+ERR_GATE_NOT_FOUND = "Gate not found"
+ERR_CLOSURE_NOT_FOUND = "Closure not found"
+
 # ================== HELPERS ==================
+
 
 def serialize_node(n: Node) -> dict:
     return {
@@ -185,14 +195,14 @@ def get_map_visualization(
         }
     }
 
-@app.get("/seats/{seat_id}", response_model=NodeResponse)
+@app.get("/seats/{seat_id}", response_model=NodeResponse, responses={404: {"description": ERR_SEAT_NOT_FOUND}})
 def get_seat(
     seat_id: Annotated[str, Path(description="The ID of the seat")],
     db: Annotated[Session, Depends(get_db)]
 ):
     seat = db.query(Node).filter(Node.id == seat_id).first()
     if not seat:
-        raise HTTPException(status_code=404, detail="Seat not found")
+        raise HTTPException(status_code=404, detail=ERR_SEAT_NOT_FOUND)
     return seat
 
 # ================== NODES ==================
@@ -201,14 +211,14 @@ def get_seat(
 def get_nodes(db: Annotated[Session, Depends(get_db)]):
     return db.query(Node).all()
 
-@app.get("/nodes/{node_id}", response_model=NodeResponse)
+@app.get("/nodes/{node_id}", response_model=NodeResponse, responses={404: {"description": ERR_NODE_NOT_FOUND}})
 def get_node(
     node_id: Annotated[str, Path(description="The ID of the node")],
     db: Annotated[Session, Depends(get_db)]
 ):
     node = db.query(Node).filter(Node.id == node_id).first()
     if not node:
-        raise HTTPException(status_code=404, detail="Node not found")
+        raise HTTPException(status_code=404, detail=ERR_NODE_NOT_FOUND)
     return node
 
 @app.post("/nodes", response_model=NodeResponse, status_code=201, responses={
@@ -235,7 +245,7 @@ def create_node(
     return node
 
 @app.put("/nodes/{node_id}", response_model=NodeResponse, responses={
-    404: {"description": "Node not found"},
+    404: {"description": ERR_NODE_NOT_FOUND},
     500: {"description": "Database error while updating node"}
 })
 def update_node(
@@ -246,7 +256,7 @@ def update_node(
 ):
     node = db.query(Node).filter(Node.id == node_id).first()
     if not node:
-        raise HTTPException(status_code=404, detail="Node not found")
+        raise HTTPException(status_code=404, detail=ERR_NODE_NOT_FOUND)
     update_data = data.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(node, field, value)
@@ -260,7 +270,7 @@ def update_node(
     return node
 
 @app.delete("/nodes/{node_id}", responses={
-    404: {"description": "Node not found"},
+    404: {"description": ERR_NODE_NOT_FOUND},
     500: {"description": "Database error while deleting node"}
 })
 def delete_node(
@@ -270,7 +280,7 @@ def delete_node(
 ):
     node = db.query(Node).filter(Node.id == node_id).first()
     if not node:
-        raise HTTPException(status_code=404, detail="Node not found")
+        raise HTTPException(status_code=404, detail=ERR_NODE_NOT_FOUND)
     try:
         db.query(Edge).filter((Edge.from_id == node_id) | (Edge.to_id == node_id)).delete(synchronize_session=False)
         db.query(Closure).filter(Closure.node_id == node_id).delete(synchronize_session=False)
@@ -288,14 +298,14 @@ def delete_node(
 def get_edges(db: Annotated[Session, Depends(get_db)]):
     return db.query(Edge).all()
 
-@app.get("/edges/{edge_id}", response_model=EdgeResponse)
+@app.get("/edges/{edge_id}", response_model=EdgeResponse, responses={404: {"description": ERR_EDGE_NOT_FOUND}})
 def get_edge(
     edge_id: Annotated[str, Path(description="The ID of the edge")],
     db: Annotated[Session, Depends(get_db)]
 ):
     edge = db.query(Edge).filter(Edge.id == edge_id).first()
     if not edge:
-        raise HTTPException(status_code=404, detail="Edge not found")
+        raise HTTPException(status_code=404, detail=ERR_EDGE_NOT_FOUND)
     return edge
 
 @app.post("/edges", response_model=EdgeResponse, status_code=201, responses={
@@ -328,7 +338,7 @@ def create_edge(
     return edge
 
 @app.put("/edges/{edge_id}", response_model=EdgeResponse, responses={
-    404: {"description": "Edge not found"},
+    404: {"description": ERR_EDGE_NOT_FOUND},
     500: {"description": "Database error while updating edge"}
 })
 def update_edge(
@@ -339,7 +349,7 @@ def update_edge(
 ):
     edge = db.query(Edge).filter(Edge.id == edge_id).first()
     if not edge:
-        raise HTTPException(status_code=404, detail="Edge not found")
+        raise HTTPException(status_code=404, detail=ERR_EDGE_NOT_FOUND)
     if data.weight is not None:
         edge.weight = data.weight
     if data.accessible is not None:
@@ -354,7 +364,7 @@ def update_edge(
     return edge
 
 @app.delete("/edges/{edge_id}", responses={
-    404: {"description": "Edge not found"},
+    404: {"description": ERR_EDGE_NOT_FOUND},
     500: {"description": "Database error while deleting edge"}
 })
 def delete_edge(
@@ -364,7 +374,7 @@ def delete_edge(
 ):
     edge = db.query(Edge).filter(Edge.id == edge_id).first()
     if not edge:
-        raise HTTPException(status_code=404, detail="Edge not found")
+        raise HTTPException(status_code=404, detail=ERR_EDGE_NOT_FOUND)
     try:
         db.delete(edge)
         db.commit()
@@ -380,14 +390,14 @@ def delete_edge(
 def get_closures(db: Annotated[Session, Depends(get_db)]):
     return db.query(Closure).all()
 
-@app.get("/closures/{closure_id}", response_model=ClosureResponse)
+@app.get("/closures/{closure_id}", response_model=ClosureResponse, responses={404: {"description": ERR_CLOSURE_NOT_FOUND}})
 def get_closure(
     closure_id: Annotated[str, Path(description="The ID of the closure")],
     db: Annotated[Session, Depends(get_db)]
 ):
     closure = db.query(Closure).filter(Closure.id == closure_id).first()
     if not closure:
-        raise HTTPException(status_code=404, detail="Closure not found")
+        raise HTTPException(status_code=404, detail=ERR_CLOSURE_NOT_FOUND)
     return closure
 
 @app.post("/closures", response_model=ClosureResponse, status_code=201, responses={
@@ -424,7 +434,7 @@ def add_closure(
     return closure
 
 @app.delete("/closures/{closure_id}", responses={
-    404: {"description": "Closure not found"},
+    404: {"description": ERR_CLOSURE_NOT_FOUND},
     500: {"description": "Database error while deleting closure"}
 })
 def delete_closure(
@@ -434,7 +444,7 @@ def delete_closure(
 ):
     closure = db.query(Closure).filter(Closure.id == closure_id).first()
     if not closure:
-        raise HTTPException(status_code=404, detail="Closure not found")
+        raise HTTPException(status_code=404, detail=ERR_CLOSURE_NOT_FOUND)
     try:
         db.delete(closure)
         db.commit()
@@ -685,18 +695,18 @@ def get_osm_pois(db: Annotated[Session, Depends(get_db)]):
     print(f"[OSM POIs] Fetched {len(pois)} POIs from Overpass API")
     return result
 
-@app.get("/pois/{poi_id}", response_model=NodeResponse)
+@app.get("/pois/{poi_id}", response_model=NodeResponse, responses={404: {"description": ERR_POI_NOT_FOUND}})
 def get_poi(
     poi_id: Annotated[str, Path(description="The ID of the POI")],
     db: Annotated[Session, Depends(get_db)]
 ):
     poi = db.query(Node).filter(Node.id == poi_id).first()
     if not poi:
-        raise HTTPException(status_code=404, detail="POI not found")
+        raise HTTPException(status_code=404, detail=ERR_POI_NOT_FOUND)
     return poi
 
 @app.put("/pois/{poi_id}", response_model=NodeResponse, responses={
-    404: {"description": "POI not found"},
+    404: {"description": ERR_POI_NOT_FOUND},
     500: {"description": "Database error while updating POI"}
 })
 def update_poi(
@@ -707,7 +717,7 @@ def update_poi(
 ):
     poi = db.query(Node).filter(Node.id == poi_id).first()
     if not poi:
-        raise HTTPException(status_code=404, detail="POI not found")
+        raise HTTPException(status_code=404, detail=ERR_POI_NOT_FOUND)
     if data.name is not None:
         poi.name = data.name
     if data.type is not None:
@@ -762,7 +772,7 @@ def create_poi(
     return new_poi
 
 @app.delete("/pois/{poi_id}", responses={
-    404: {"description": "POI not found"},
+    404: {"description": ERR_POI_NOT_FOUND},
     500: {"description": "Database error while deleting POI"}
 })
 def delete_poi(
@@ -772,7 +782,7 @@ def delete_poi(
 ):
     poi = db.query(Node).filter(Node.id == poi_id).first()
     if not poi:
-        raise HTTPException(status_code=404, detail="POI not found")
+        raise HTTPException(status_code=404, detail=ERR_POI_NOT_FOUND)
     db.delete(poi)
     db.commit()
     return {"status": "deleted", "id": poi_id}
@@ -788,18 +798,18 @@ def get_seats(
         query = query.filter(Node.block == block)
     return query.all()
 
-@app.get("/seats/{seat_id}", response_model=NodeResponse)
+@app.get("/seats/{seat_id}", response_model=NodeResponse, responses={404: {"description": ERR_SEAT_NOT_FOUND}})
 def get_seat(
     seat_id: Annotated[str, Path(description="The ID of the seat")],
     db: Annotated[Session, Depends(get_db)]
 ):
     seat = db.query(Node).filter(Node.id == seat_id).first()
     if not seat:
-        raise HTTPException(status_code=404, detail="Seat not found")
+        raise HTTPException(status_code=404, detail=ERR_SEAT_NOT_FOUND)
     return seat
 
 @app.put("/seats/{seat_id}", response_model=NodeResponse, responses={
-    404: {"description": "Seat not found"},
+    404: {"description": ERR_SEAT_NOT_FOUND},
     500: {"description": "Database error while updating seat"}
 })
 def update_seat(
@@ -810,7 +820,7 @@ def update_seat(
 ):
     seat = db.query(Node).filter(Node.id == seat_id).first()
     if not seat:
-        raise HTTPException(status_code=404, detail="Seat not found")
+        raise HTTPException(status_code=404, detail=ERR_SEAT_NOT_FOUND)
     if data.block is not None:
         seat.block = data.block
     if data.row is not None:
@@ -836,18 +846,18 @@ def update_seat(
 def get_gates(db: Annotated[Session, Depends(get_db)]):
     return db.query(Node).filter(Node.type == 'gate').all()
 
-@app.get("/gates/{gate_id}", response_model=NodeResponse)
+@app.get("/gates/{gate_id}", response_model=NodeResponse, responses={404: {"description": ERR_GATE_NOT_FOUND}})
 def get_gate(
     gate_id: Annotated[str, Path(description="The ID of the gate")],
     db: Annotated[Session, Depends(get_db)]
 ):
     gate = db.query(Node).filter(Node.id == gate_id).first()
     if not gate:
-        raise HTTPException(status_code=404, detail="Gate not found")
+        raise HTTPException(status_code=404, detail=ERR_GATE_NOT_FOUND)
     return gate
 
 @app.put("/gates/{gate_id}", response_model=NodeResponse, responses={
-    404: {"description": "Gate not found"},
+    404: {"description": ERR_GATE_NOT_FOUND},
     500: {"description": "Database error while updating gate"}
 })
 def update_gate(
@@ -858,7 +868,7 @@ def update_gate(
 ):
     gate = db.query(Node).filter(Node.id == gate_id).first()
     if not gate:
-        raise HTTPException(status_code=404, detail="Gate not found")
+        raise HTTPException(status_code=404, detail=ERR_GATE_NOT_FOUND)
     if data.name is not None:
         gate.name = data.name
     if data.x is not None:
@@ -1036,7 +1046,7 @@ def get_nearest_emergency_route(
         "num_waypoints": len(nearest_route.node_ids)
     }
 
-@app.get("/emergency-routes/{route_id}")
+@app.get("/emergency-routes/{route_id}", responses={404: {"description": "Emergency route not found"}})
 def get_emergency_route_geojson(
     route_id: Annotated[str, Path(description="The ID of the emergency route")],
     db: Annotated[Session, Depends(get_db)]
@@ -1081,14 +1091,14 @@ def get_emergency_route_geojson(
 def get_cameras(db: Annotated[Session, Depends(get_db)]):
     return db.query(Camera).all()
 
-@app.get("/cameras/{camera_id}", response_model=CameraResponse)
+@app.get("/cameras/{camera_id}", response_model=CameraResponse, responses={404: {"description": ERR_CAMERA_NOT_FOUND}})
 def get_camera(
     camera_id: Annotated[str, Path(description="The ID of the camera")],
     db: Annotated[Session, Depends(get_db)]
 ):
     camera = db.query(Camera).filter(Camera.id == camera_id).first()
     if not camera:
-        raise HTTPException(status_code=404, detail="Camera not found")
+        raise HTTPException(status_code=404, detail=ERR_CAMERA_NOT_FOUND)
     return camera
 
 @app.post("/cameras", response_model=CameraResponse, status_code=201, responses={
@@ -1116,7 +1126,7 @@ def create_camera(
     return camera
 
 @app.put("/cameras/{camera_id}", response_model=CameraResponse, responses={
-    404: {"description": "Camera not found"},
+    404: {"description": ERR_CAMERA_NOT_FOUND},
     500: {"description": "Database error while updating camera"}
 })
 def update_camera(
@@ -1127,7 +1137,7 @@ def update_camera(
 ):
     camera = db.query(Camera).filter(Camera.id == camera_id).first()
     if not camera:
-        raise HTTPException(status_code=404, detail="Camera not found")
+        raise HTTPException(status_code=404, detail=ERR_CAMERA_NOT_FOUND)
     for field, value in data.model_dump(exclude_none=True).items():
         setattr(camera, field, value)
     try:
@@ -1139,7 +1149,7 @@ def update_camera(
     return camera
 
 @app.delete("/cameras/{camera_id}", responses={
-    404: {"description": "Camera not found"},
+    404: {"description": ERR_CAMERA_NOT_FOUND},
     500: {"description": "Database error while deleting camera"}
 })
 def delete_camera(
@@ -1149,7 +1159,7 @@ def delete_camera(
 ):
     camera = db.query(Camera).filter(Camera.id == camera_id).first()
     if not camera:
-        raise HTTPException(status_code=404, detail="Camera not found")
+        raise HTTPException(status_code=404, detail=ERR_CAMERA_NOT_FOUND)
     try:
         db.delete(camera)
         db.commit()

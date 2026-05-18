@@ -708,3 +708,4 @@ class TestMapVisualization:
         data = response.json()
         assert len(data["edges"]) == 1
         assert data["edges"][0]["id"] == "E"
+

@@ -15,18 +15,14 @@ CASCADE_ALL_DELETE_ORPHAN = "all, delete-orphan"
 NODES_ID_FK = "nodes.id"
 NODES_TABLE_ID = "nodes.id"  # Constant for ForeignKey references
 
-# Valid node types used in the stadium map
+# Valid node types used in the navigation map
 NODE_TYPES = [
-    "corridor",       # Navigation node in corridors/concourses
-    "row_aisle",      # Aisle between seat rows (for accessing seats)
-    "seat",           # Individual seat in the stands (endpoint only)
-    "gate",           # Stadium entrance/exit gate
     "stairs",         # Stairs connecting levels
     "ramp",           # Accessible ramp connecting levels
     "restroom",       # WC/Bathroom facilities
     "food",           # Food court/restaurant
     "bar",            # Bar/drinks area
-    "merchandise",    # FC Porto store/merchandise shop
+    "merchandise",    # Store/merchandise shop
     "first_aid",      # Medical/first aid station
     "emergency_exit", # Emergency exit point
     "information",    # Information desk
@@ -47,27 +43,35 @@ CLOSURE_REASONS = [
     "weather",        # Weather-related closure
 ]
 
-# Stadium levels (0 = ground/lower, 1 = upper for Este/Oeste)
+# Map levels (0 = ground/lower, 1 = upper)
 LEVELS = [0, 1]
 
-# Stadium stands/sections
+# Sections used in some datasets; kept for compatibility with existing tests and imports
 STANDS = [
-    "Norte",   # North stand (Coca-Cola) - Single tier, Ultras Colectivo 95
-    "Sul",     # South stand (Super Bock) - Single tier, Super Dragões
-    "Este",    # East stand (tmn) - Double tier, Away fans upper
-    "Oeste",   # West stand (meo) - Double tier, VIP boxes, players tunnel
+    "Norte",
+    "Sul",
+    "Este",
+    "Oeste",
+]
+
+# Deprecated node types kept for compatibility with older datasets (mapped to `normal`).
+DEPRECATED_NODE_TYPES = [
+    "corridor",
+    "row_aisle",
+    "seat",
+    "gate",
 ]
 
 # ================== SQLAlchemy Models ==================
 
 class Node(Base):
     """
-    Represents a point in the stadium navigation graph.
-    
+    Represents a point in the navigation graph.
+
     Nodes can be:
     - Navigation points (corridors, stairs, ramps)
     - Points of Interest (gates, restrooms, bars, etc.)
-    - Seats (individual stadium seats)
+    - Seats (individual seats)
     """
     __tablename__ = "nodes"
     
@@ -92,13 +96,13 @@ class Node(Base):
     service_rate = Column(Float, nullable=True)    # Average service rate (people/min)
     
     # Seat-specific fields (only for type="seat")
-    # Block format: "{Stand}-T{Tier}" e.g., "Norte-T0", "Este-T1"
+    # Block format: "{Section}-T{Tier}" e.g., "SectionA-T0"
     block = Column(String, nullable=True)
     row = Column(Integer, nullable=True)     # Row number (1 = closest to corridor)
     number = Column(Integer, nullable=True)  # Seat number within row
     
     # Door reference (for building nodes): points to the actual entry point node
-    door_id = Column(String, ForeignKey("nodes.id"), nullable=True)
+    door_id = Column(String, ForeignKey(NODES_TABLE_ID), nullable=True)
     
     # Relationships
     edges_from = relationship("Edge", foreign_keys="Edge.from_id", back_populates="from_node", cascade=CASCADE_ALL_DELETE_ORPHAN)
@@ -169,7 +173,7 @@ class Closure(Base):
     
     # Either edge_id OR node_id should be set, not both
     edge_id = Column(String, ForeignKey("edges.id", ondelete="CASCADE"), nullable=True)
-    node_id = Column(String, ForeignKey("nodes.id", ondelete="CASCADE"), nullable=True)
+    node_id = Column(String, ForeignKey(NODES_TABLE_ID, ondelete="CASCADE"), nullable=True)
     
     # Relationships
     edge = relationship("Edge", back_populates="closures")
@@ -181,7 +185,7 @@ class EmergencyRoute(Base):
     Predefined evacuation route for emergencies.
     
     Each route is a sequence of navigation nodes leading from
-    various parts of the stadium to an emergency exit.
+    various parts of the map to an emergency exit.
     
     Endpoints:
     - GET /emergency-routes: List all routes
@@ -195,7 +199,7 @@ class EmergencyRoute(Base):
     description = Column(String, nullable=True)     # Additional info
     
     # The emergency exit node this route leads to
-    exit_id = Column(String, ForeignKey("nodes.id"), nullable=False)
+    exit_id = Column(String, ForeignKey(NODES_TABLE_ID), nullable=False)
     
     # Ordered list of navigation node IDs forming the evacuation path
     # Format: ["N1", "N2", "N3", ..., "Exit-Norte-1"]
@@ -227,14 +231,14 @@ class Tile(Base):
 
 class Camera(Base):
     """
-    Surveillance camera node in the stadium.
+    Surveillance camera node.
     Extends the concept of a Node with camera-specific calibration fields.
     The camera is also registered as a Node (type="camera") for map display.
     """
     __tablename__ = "cameras"
 
     id = Column(String, primary_key=True)          # e.g., "CAM_001"
-    node_id = Column(String, ForeignKey("nodes.id", ondelete="CASCADE"), nullable=False)  # linked map node
+    node_id = Column(String, ForeignKey(NODES_TABLE_ID, ondelete="CASCADE"), nullable=False)  # linked map node
 
     # Physical position (metres)
     pos_x = Column(Float, nullable=False)          # X position in real-world metres
@@ -272,7 +276,7 @@ class NodeBase(BaseModel):
     y: float
     level: int = 0
     type: str = "normal"
-    description: Optional[str]
+    description: Optional[str] = None
     num_servers: Optional[int] = None
     service_rate: Optional[float] = None
     block: Optional[str] = None
@@ -287,7 +291,7 @@ class NodeCreate(BaseModel):
     y: float
     level: int = 0
     type: str = "normal"
-    description: Optional[str]
+    description: Optional[str] = None
     num_servers: Optional[int] = None
     service_rate: Optional[float] = None
     block: Optional[str] = None
@@ -311,18 +315,18 @@ class NodeUpdate(BaseModel):
 
 class NodeResponse(BaseModel):
     id: str
-    name: Optional[str]
+    name: Optional[str] = None
     x: float
     y: float
     level: int
     type: str
-    description: Optional[str]
-    num_servers: Optional[int]
-    service_rate: Optional[float]
-    block: Optional[str]
-    row: Optional[int]
-    number: Optional[int]
-    door_id: Optional[str]
+    description: Optional[str] = None
+    num_servers: Optional[int] = None
+    service_rate: Optional[float] = None
+    block: Optional[str] = None
+    row: Optional[int] = None
+    number: Optional[int] = None
+    door_id: Optional[str] = None
     
     class Config:
         from_attributes = True
@@ -372,8 +376,8 @@ class ClosureCreate(BaseModel):
 class ClosureResponse(BaseModel):
     id: str
     reason: str
-    edge_id: Optional[str]
-    node_id: Optional[str]
+    edge_id: Optional[str] = None
+    node_id: Optional[str] = None
     
     class Config:
         from_attributes = True
@@ -431,7 +435,7 @@ class EmergencyRouteCreate(BaseModel):
 class EmergencyRouteResponse(BaseModel):
     id: str
     name: str
-    description: Optional[str]
+    description: Optional[str] = None
     exit_id: str
     node_ids: list[str]
     
@@ -485,10 +489,10 @@ class CameraResponse(BaseModel):
     tilt: float
     fov_horizontal: float
     fov_vertical: float
-    coverage_x_min: Optional[float]
-    coverage_x_max: Optional[float]
-    coverage_y_min: Optional[float]
-    coverage_y_max: Optional[float]
+    coverage_x_min: Optional[float] = None
+    coverage_x_max: Optional[float] = None
+    coverage_y_min: Optional[float] = None
+    coverage_y_max: Optional[float] = None
     coverage_polygon: Optional[list] = None  # [{x, y}, ...] free-form polygon
 
     class Config:

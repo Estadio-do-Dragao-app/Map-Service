@@ -8,11 +8,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends bash dos2unix c
     useradd -m -u 1000 appuser
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --only-binary :all: -r requirements.txt
 
 # Copy only necessary files instead of entire directory
 COPY *.py ./
-COPY stadiums/ ./stadiums/
+# stadiums/ removed — project targets campus navigation
 COPY output/ ./output/
 COPY entrypoint.sh ./
 
