@@ -97,6 +97,17 @@ def load_graph(session, graph_data: dict):
     print("\n✅ Database loaded successfully!")
 
 
+def _find_nodes_in_tile(nodes_by_pos, min_x, max_x, min_y, max_y):
+    node_in_tile = None
+    poi_in_tile = None
+    for nd in nodes_by_pos:
+        if min_x <= nd["x"] < max_x and min_y <= nd["y"] < max_y:
+            if nd["id"].startswith("POI-"):
+                poi_in_tile = nd["id"]
+            elif node_in_tile is None:
+                node_in_tile = nd["id"]
+    return node_in_tile, poi_in_tile
+
 def generate_tiles(session, nodes_data: list, svg_width: float, svg_height: float,
                    grid_size: int = 10):
     """
@@ -131,14 +142,7 @@ def generate_tiles(session, nodes_data: list, svg_width: float, svg_height: floa
             tile_id = f"tile_{gx}_{gy}_L0"
             
             # Find nodes in this tile
-            node_in_tile = None
-            poi_in_tile = None
-            for nd in nodes_by_pos:
-                if min_x <= nd["x"] < max_x and min_y <= nd["y"] < max_y:
-                    if nd["id"].startswith("POI-"):
-                        poi_in_tile = nd["id"]
-                    elif node_in_tile is None:
-                        node_in_tile = nd["id"]
+            node_in_tile, poi_in_tile = _find_nodes_in_tile(nodes_by_pos, min_x, max_x, min_y, max_y)
             
             tile = Tile(
                 id=tile_id,

@@ -7,6 +7,7 @@ load_dotenv()
 
 # URL base do Map-Service principal
 MAP_SERVICE_URL = os.environ.get("MAP_SERVICE_URL", "http://localhost:8000")
+API_KEY = os.environ.get("API_KEY", "dragao_secret_key_2026")
 _parsed_base = urlparse(MAP_SERVICE_URL)
 
 
@@ -39,8 +40,9 @@ async def call_map_service(method: str, path: str, json: dict | None = None) -> 
     """
     url = _build_safe_url(path)
     timeout = 60.0 if "/batch" in path else 10.0
+    headers = {"X-API-Key": API_KEY}
     async with httpx.AsyncClient(timeout=timeout) as client:
-        response = await client.request(method, url, json=json)
+        response = await client.request(method, url, json=json, headers=headers)
         response.raise_for_status()
         # DELETE pode não ter corpo
         if response.status_code == 204 or not response.content:

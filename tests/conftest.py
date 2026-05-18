@@ -12,7 +12,7 @@ from ApiHandler import app
 @pytest.fixture
 def auth_headers():
     """Provide API authentication headers for protected endpoints."""
-    return {"X-API-Key": "campus_secret_key_2026"}
+    return {"X-API-Key": "dragao_secret_key_2026"}
 
 # ================== DATABASE FIXTURES ==================
 

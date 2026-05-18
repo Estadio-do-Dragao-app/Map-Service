@@ -102,7 +102,7 @@ class Node(Base):
     number = Column(Integer, nullable=True)  # Seat number within row
     
     # Door reference (for building nodes): points to the actual entry point node
-    door_id = Column(String, ForeignKey("nodes.id"), nullable=True)
+    door_id = Column(String, ForeignKey(NODES_TABLE_ID), nullable=True)
     
     # Relationships
     edges_from = relationship("Edge", foreign_keys="Edge.from_id", back_populates="from_node", cascade=CASCADE_ALL_DELETE_ORPHAN)
@@ -173,7 +173,7 @@ class Closure(Base):
     
     # Either edge_id OR node_id should be set, not both
     edge_id = Column(String, ForeignKey("edges.id", ondelete="CASCADE"), nullable=True)
-    node_id = Column(String, ForeignKey("nodes.id", ondelete="CASCADE"), nullable=True)
+    node_id = Column(String, ForeignKey(NODES_TABLE_ID, ondelete="CASCADE"), nullable=True)
     
     # Relationships
     edge = relationship("Edge", back_populates="closures")
@@ -199,7 +199,7 @@ class EmergencyRoute(Base):
     description = Column(String, nullable=True)     # Additional info
     
     # The emergency exit node this route leads to
-    exit_id = Column(String, ForeignKey("nodes.id"), nullable=False)
+    exit_id = Column(String, ForeignKey(NODES_TABLE_ID), nullable=False)
     
     # Ordered list of navigation node IDs forming the evacuation path
     # Format: ["N1", "N2", "N3", ..., "Exit-Norte-1"]
@@ -238,7 +238,7 @@ class Camera(Base):
     __tablename__ = "cameras"
 
     id = Column(String, primary_key=True)          # e.g., "CAM_001"
-    node_id = Column(String, ForeignKey("nodes.id", ondelete="CASCADE"), nullable=False)  # linked map node
+    node_id = Column(String, ForeignKey(NODES_TABLE_ID, ondelete="CASCADE"), nullable=False)  # linked map node
 
     # Physical position (metres)
     pos_x = Column(Float, nullable=False)          # X position in real-world metres
@@ -276,7 +276,7 @@ class NodeBase(BaseModel):
     y: float
     level: int = 0
     type: str = "normal"
-    description: Optional[str]
+    description: Optional[str] = None
     num_servers: Optional[int] = None
     service_rate: Optional[float] = None
     block: Optional[str] = None
@@ -291,7 +291,7 @@ class NodeCreate(BaseModel):
     y: float
     level: int = 0
     type: str = "normal"
-    description: Optional[str]
+    description: Optional[str] = None
     num_servers: Optional[int] = None
     service_rate: Optional[float] = None
     block: Optional[str] = None
@@ -315,18 +315,18 @@ class NodeUpdate(BaseModel):
 
 class NodeResponse(BaseModel):
     id: str
-    name: Optional[str]
+    name: Optional[str] = None
     x: float
     y: float
     level: int
     type: str
-    description: Optional[str]
-    num_servers: Optional[int]
-    service_rate: Optional[float]
-    block: Optional[str]
-    row: Optional[int]
-    number: Optional[int]
-    door_id: Optional[str]
+    description: Optional[str] = None
+    num_servers: Optional[int] = None
+    service_rate: Optional[float] = None
+    block: Optional[str] = None
+    row: Optional[int] = None
+    number: Optional[int] = None
+    door_id: Optional[str] = None
     
     class Config:
         from_attributes = True
@@ -376,8 +376,8 @@ class ClosureCreate(BaseModel):
 class ClosureResponse(BaseModel):
     id: str
     reason: str
-    edge_id: Optional[str]
-    node_id: Optional[str]
+    edge_id: Optional[str] = None
+    node_id: Optional[str] = None
     
     class Config:
         from_attributes = True
@@ -435,7 +435,7 @@ class EmergencyRouteCreate(BaseModel):
 class EmergencyRouteResponse(BaseModel):
     id: str
     name: str
-    description: Optional[str]
+    description: Optional[str] = None
     exit_id: str
     node_ids: list[str]
     
@@ -489,10 +489,10 @@ class CameraResponse(BaseModel):
     tilt: float
     fov_horizontal: float
     fov_vertical: float
-    coverage_x_min: Optional[float]
-    coverage_x_max: Optional[float]
-    coverage_y_min: Optional[float]
-    coverage_y_max: Optional[float]
+    coverage_x_min: Optional[float] = None
+    coverage_x_max: Optional[float] = None
+    coverage_y_min: Optional[float] = None
+    coverage_y_max: Optional[float] = None
     coverage_polygon: Optional[list] = None  # [{x, y}, ...] free-form polygon
 
     class Config:
