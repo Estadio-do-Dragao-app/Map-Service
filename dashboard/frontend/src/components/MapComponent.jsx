@@ -19,7 +19,7 @@ import '../styles/MapComponent.css';
 
 // Dashboard backend URL (override with VITE_DASHBOARD_API_BASE if needed)
 const API_BASE =
-  import.meta.env.VITE_DASHBOARD_API_BASE || 'http://localhost:8015';
+  import.meta.env.VITE_DASHBOARD_API_BASE || '/api';
 
 const AVEIRO_CENTER = [
   (40.628 + 40.635) / 2,
@@ -1325,9 +1325,17 @@ export function MapComponent() {
                 {cameras.map((cam) => {
                   const camNode = nodes.find(n => n.id === cam.node_id);
                   return (
-                    <li key={cam.id} onClick={() => {
-                      if (camNode) { selectNode(camNode); map.current?.setView([camNode.y, camNode.x], map.current.getZoom()); }
-                    }}>
+                    <li key={cam.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => {
+                        if (camNode) { selectNode(camNode); map.current?.setView([camNode.y, camNode.x], map.current.getZoom()); }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          if (camNode) { selectNode(camNode); map.current?.setView([camNode.y, camNode.x], map.current.getZoom()); }
+                        }
+                      }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <FontAwesomeIcon icon={faVideo} style={{ color: 'var(--accent-purple)', fontSize: '11px' }} />
                         <strong>{cam.id}</strong>
@@ -1683,7 +1691,10 @@ export function MapComponent() {
                 return (
                   <li key={node.id}
                     className={`${isEdgePt ? 'selected' : ''} ${isNewNode ? 'new-node' : ''} ${isSelected ? 'list-selected' : ''}`}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => selectNode(node)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') selectNode(node); }}
                     style={{ cursor: 'pointer' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <strong>{node.name || 'Unnamed'}</strong>
@@ -1718,7 +1729,10 @@ export function MapComponent() {
                 return (
                   <li key={edge.id}
                     className={`edge-row ${isSel ? 'list-selected' : ''}`}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => selectEdge(edge.id)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') selectEdge(edge.id); }}
                     style={{ cursor: 'pointer' }}>
                     <small style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {fromNode?.name || edge.from_id} → {toNode?.name || edge.to_id}

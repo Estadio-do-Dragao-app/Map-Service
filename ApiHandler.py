@@ -37,6 +37,9 @@ def notify_routing_refresh():
 
 app = FastAPI(title="Campus Map Backend")
 
+from prometheus_fastapi_instrumentator import Instrumentator
+Instrumentator().instrument(app).expose(app)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
