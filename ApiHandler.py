@@ -1,4 +1,5 @@
-from fastapi import FastAPI, HTTPException, Depends, Query, Path
+from fastapi import FastAPI, HTTPException, Depends, Query, Path, Security
+from fastapi.security import APIKeyHeader
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,6 +25,17 @@ import urllib.request
 import urllib.parse
 import httpx
 import threading
+import os
+import secrets
+
+API_KEY = os.getenv("API_KEY", "dragao_secret_key_2026")
+_api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+def get_api_key(api_key: Optional[str] = Security(_api_key_header)):
+    if api_key and secrets.compare_digest(api_key, API_KEY):
+        return api_key
+    raise HTTPException(status_code=401, detail="Unauthorized: invalid or missing API key")
+
 
 def notify_routing_refresh():
     """Trigger a silent background refresh in the routing service after a map change."""
@@ -205,7 +217,8 @@ def get_node(
 })
 def create_node(
     data: NodeCreate,
-    db: Annotated[Session, Depends(get_db)]
+    db: Annotated[Session, Depends(get_db)],
+    _: str = Depends(get_api_key)
 ):
     existing = db.query(Node).filter(Node.id == data.id).first()
     if existing:
@@ -228,7 +241,8 @@ def create_node(
 def update_node(
     node_id: Annotated[str, Path(description="The ID of the node")],
     data: NodeUpdate,
-    db: Annotated[Session, Depends(get_db)]
+    db: Annotated[Session, Depends(get_db)],
+    _: str = Depends(get_api_key)
 ):
     node = db.query(Node).filter(Node.id == node_id).first()
     if not node:
@@ -251,7 +265,8 @@ def update_node(
 })
 def delete_node(
     node_id: Annotated[str, Path(description="The ID of the node")],
-    db: Annotated[Session, Depends(get_db)]
+    db: Annotated[Session, Depends(get_db)],
+    _: str = Depends(get_api_key)
 ):
     node = db.query(Node).filter(Node.id == node_id).first()
     if not node:
@@ -289,7 +304,8 @@ def get_edge(
 })
 def create_edge(
     data: EdgeCreate,
-    db: Annotated[Session, Depends(get_db)]
+    db: Annotated[Session, Depends(get_db)],
+    _: str = Depends(get_api_key)
 ):
     existing = db.query(Edge).filter(Edge.id == data.id).first()
     if existing:
@@ -318,7 +334,8 @@ def create_edge(
 def update_edge(
     edge_id: Annotated[str, Path(description="The ID of the edge")],
     data: EdgeUpdate,
-    db: Annotated[Session, Depends(get_db)]
+    db: Annotated[Session, Depends(get_db)],
+    _: str = Depends(get_api_key)
 ):
     edge = db.query(Edge).filter(Edge.id == edge_id).first()
     if not edge:
@@ -342,7 +359,8 @@ def update_edge(
 })
 def delete_edge(
     edge_id: Annotated[str, Path(description="The ID of the edge")],
-    db: Annotated[Session, Depends(get_db)]
+    db: Annotated[Session, Depends(get_db)],
+    _: str = Depends(get_api_key)
 ):
     edge = db.query(Edge).filter(Edge.id == edge_id).first()
     if not edge:
@@ -378,7 +396,8 @@ def get_closure(
 })
 def add_closure(
     data: ClosureCreate,
-    db: Annotated[Session, Depends(get_db)]
+    db: Annotated[Session, Depends(get_db)],
+    _: str = Depends(get_api_key)
 ):
     existing = db.query(Closure).filter(Closure.id == data.id).first()
     if existing:
@@ -410,7 +429,8 @@ def add_closure(
 })
 def delete_closure(
     closure_id: Annotated[str, Path(description="The ID of the closure")],
-    db: Annotated[Session, Depends(get_db)]
+    db: Annotated[Session, Depends(get_db)],
+    _: str = Depends(get_api_key)
 ):
     closure = db.query(Closure).filter(Closure.id == closure_id).first()
     if not closure:
@@ -460,7 +480,7 @@ def get_all_tiles(
 @app.post("/maps/grid/rebuild", responses={
     500: {"description": "Grid rebuild failed due to database error"}
 })
-def rebuild_grid(db: Annotated[Session, Depends(get_db)]):
+def rebuild_grid(db: Annotated[Session, Depends(get_db)], _: str = Depends(get_api_key)):
     try:
         tile_count = grid_manager.rebuild_grid(db)
         return {"status": "success", "message": f"Grid rebuilt with {tile_count} tiles.", "tiles_created": tile_count}
@@ -470,7 +490,8 @@ def rebuild_grid(db: Annotated[Session, Depends(get_db)]):
 @app.post("/maps/grid/tiles/nodes")
 def get_nodes_from_tiles(
     tile_ids: List[str],
-    db: Annotated[Session, Depends(get_db)]
+    db: Annotated[Session, Depends(get_db)],
+    _: str = Depends(get_api_key)
 ):
     if not tile_ids:
         return {"node_ids": [], "tile_count": 0}
@@ -681,7 +702,8 @@ def get_poi(
 def update_poi(
     poi_id: Annotated[str, Path(description="The ID of the POI")],
     data: NodeUpdate,
-    db: Annotated[Session, Depends(get_db)]
+    db: Annotated[Session, Depends(get_db)],
+    _: str = Depends(get_api_key)
 ):
     poi = db.query(Node).filter(Node.id == poi_id).first()
     if not poi:
@@ -723,7 +745,8 @@ class POICreate(PydanticBaseModel):
 })
 def create_poi(
     data: POICreate,
-    db: Annotated[Session, Depends(get_db)]
+    db: Annotated[Session, Depends(get_db)],
+    _: str = Depends(get_api_key)
 ):
     import uuid
     poi_id = f"CUSTOM-{uuid.uuid4().hex[:8]}"
@@ -744,7 +767,8 @@ def create_poi(
 })
 def delete_poi(
     poi_id: Annotated[str, Path(description="The ID of the POI")],
-    db: Annotated[Session, Depends(get_db)]
+    db: Annotated[Session, Depends(get_db)],
+    _: str = Depends(get_api_key)
 ):
     poi = db.query(Node).filter(Node.id == poi_id).first()
     if not poi:
@@ -781,7 +805,8 @@ def get_seat(
 def update_seat(
     seat_id: Annotated[str, Path(description="The ID of the seat")],
     data: NodeUpdate,
-    db: Annotated[Session, Depends(get_db)]
+    db: Annotated[Session, Depends(get_db)],
+    _: str = Depends(get_api_key)
 ):
     seat = db.query(Node).filter(Node.id == seat_id).first()
     if not seat:
@@ -828,7 +853,8 @@ def get_gate(
 def update_gate(
     gate_id: Annotated[str, Path(description="The ID of the gate")],
     data: NodeUpdate,
-    db: Annotated[Session, Depends(get_db)]
+    db: Annotated[Session, Depends(get_db)],
+    _: str = Depends(get_api_key)
 ):
     gate = db.query(Node).filter(Node.id == gate_id).first()
     if not gate:
@@ -1071,7 +1097,8 @@ def get_camera(
 })
 def create_camera(
     data: CameraCreate,
-    db: Annotated[Session, Depends(get_db)]
+    db: Annotated[Session, Depends(get_db)],
+    _: str = Depends(get_api_key)
 ):
     if db.query(Camera).filter(Camera.id == data.id).first():
         raise HTTPException(status_code=400, detail="Camera already exists")
@@ -1095,7 +1122,8 @@ def create_camera(
 def update_camera(
     camera_id: Annotated[str, Path(description="The ID of the camera")],
     data: CameraUpdate,
-    db: Annotated[Session, Depends(get_db)]
+    db: Annotated[Session, Depends(get_db)],
+    _: str = Depends(get_api_key)
 ):
     camera = db.query(Camera).filter(Camera.id == camera_id).first()
     if not camera:
@@ -1116,7 +1144,8 @@ def update_camera(
 })
 def delete_camera(
     camera_id: Annotated[str, Path(description="The ID of the camera")],
-    db: Annotated[Session, Depends(get_db)]
+    db: Annotated[Session, Depends(get_db)],
+    _: str = Depends(get_api_key)
 ):
     camera = db.query(Camera).filter(Camera.id == camera_id).first()
     if not camera:
@@ -1138,7 +1167,7 @@ def health_check():
 @app.post("/reset", responses={
     500: {"description": "Reset failed due to database error"}
 })
-def reset_data(db: Annotated[Session, Depends(get_db)]):
+def reset_data(db: Annotated[Session, Depends(get_db)], _: str = Depends(get_api_key)):
     from load_data_db import clear_all_data, load_sample_data
     try:
         print("Resetting database...")
@@ -1203,7 +1232,8 @@ def _insert_batch_closures(db: Session, closures_data: list, results: dict):
 })
 def create_batch(
     data: BatchCreate,
-    db: Annotated[Session, Depends(get_db)]
+    db: Annotated[Session, Depends(get_db)],
+    _: str = Depends(get_api_key)
 ):
     results = {
         "nodes": {"created": [], "errors": []},
@@ -1243,7 +1273,8 @@ def create_batch(
 })
 def sync_map(
     data: BatchCreate,
-    db: Annotated[Session, Depends(get_db)]
+    db: Annotated[Session, Depends(get_db)],
+    _: str = Depends(get_api_key)
 ):
     try:
         db.query(Camera).delete()
