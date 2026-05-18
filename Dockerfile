@@ -12,7 +12,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy only necessary files instead of entire directory
 COPY *.py ./
-COPY stadiums/ ./stadiums/
+# stadiums/ removed — project targets campus navigation
 COPY output/ ./output/
 COPY entrypoint.sh ./
 

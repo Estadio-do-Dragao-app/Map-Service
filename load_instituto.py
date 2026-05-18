@@ -21,7 +21,7 @@ import uuid
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from database import engine, SessionLocal, init_db
-from models import Node, Edge, Tile, Base
+from models import Node, Edge, Tile, Base, DEPRECATED_NODE_TYPES
 
 
 def clear_database(session):
@@ -49,13 +49,18 @@ def load_graph(session, graph_data: dict):
     print("\n📍 Loading nodes...")
     node_count = 0
     for nd in nodes_data:
+        node_type = nd.get("type", "normal")
+        # Normalize deprecated types to `normal` for campus context
+        if node_type in DEPRECATED_NODE_TYPES:
+            node_type = "normal"
+
         node = Node(
             id=nd["id"],
             name=nd.get("name"),
             x=nd["x"],
             y=nd["y"],
             level=nd.get("level", 0),
-            type=nd.get("type", "normal"),
+            type=node_type,
             description=nd.get("description"),
             num_servers=nd.get("num_servers"),
             service_rate=nd.get("service_rate"),

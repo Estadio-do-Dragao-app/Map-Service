@@ -15,18 +15,14 @@ CASCADE_ALL_DELETE_ORPHAN = "all, delete-orphan"
 NODES_ID_FK = "nodes.id"
 NODES_TABLE_ID = "nodes.id"  # Constant for ForeignKey references
 
-# Valid node types used in the stadium map
+# Valid node types used in the navigation map
 NODE_TYPES = [
-    "corridor",       # Navigation node in corridors/concourses
-    "row_aisle",      # Aisle between seat rows (for accessing seats)
-    "seat",           # Individual seat in the stands (endpoint only)
-    "gate",           # Stadium entrance/exit gate
     "stairs",         # Stairs connecting levels
     "ramp",           # Accessible ramp connecting levels
     "restroom",       # WC/Bathroom facilities
     "food",           # Food court/restaurant
     "bar",            # Bar/drinks area
-    "merchandise",    # FC Porto store/merchandise shop
+    "merchandise",    # Store/merchandise shop
     "first_aid",      # Medical/first aid station
     "emergency_exit", # Emergency exit point
     "information",    # Information desk
@@ -47,27 +43,35 @@ CLOSURE_REASONS = [
     "weather",        # Weather-related closure
 ]
 
-# Stadium levels (0 = ground/lower, 1 = upper for Este/Oeste)
+# Map levels (0 = ground/lower, 1 = upper)
 LEVELS = [0, 1]
 
-# Stadium stands/sections
+# Sections used in some datasets; kept for compatibility with existing tests and imports
 STANDS = [
-    "Norte",   # North stand (Coca-Cola) - Single tier, Ultras Colectivo 95
-    "Sul",     # South stand (Super Bock) - Single tier, Super Dragões
-    "Este",    # East stand (tmn) - Double tier, Away fans upper
-    "Oeste",   # West stand (meo) - Double tier, VIP boxes, players tunnel
+    "Norte",
+    "Sul",
+    "Este",
+    "Oeste",
+]
+
+# Deprecated node types kept for compatibility with older datasets (mapped to `normal`).
+DEPRECATED_NODE_TYPES = [
+    "corridor",
+    "row_aisle",
+    "seat",
+    "gate",
 ]
 
 # ================== SQLAlchemy Models ==================
 
 class Node(Base):
     """
-    Represents a point in the stadium navigation graph.
-    
+    Represents a point in the navigation graph.
+
     Nodes can be:
     - Navigation points (corridors, stairs, ramps)
     - Points of Interest (gates, restrooms, bars, etc.)
-    - Seats (individual stadium seats)
+    - Seats (individual seats)
     """
     __tablename__ = "nodes"
     
@@ -92,7 +96,7 @@ class Node(Base):
     service_rate = Column(Float, nullable=True)    # Average service rate (people/min)
     
     # Seat-specific fields (only for type="seat")
-    # Block format: "{Stand}-T{Tier}" e.g., "Norte-T0", "Este-T1"
+    # Block format: "{Section}-T{Tier}" e.g., "SectionA-T0"
     block = Column(String, nullable=True)
     row = Column(Integer, nullable=True)     # Row number (1 = closest to corridor)
     number = Column(Integer, nullable=True)  # Seat number within row
@@ -181,7 +185,7 @@ class EmergencyRoute(Base):
     Predefined evacuation route for emergencies.
     
     Each route is a sequence of navigation nodes leading from
-    various parts of the stadium to an emergency exit.
+    various parts of the map to an emergency exit.
     
     Endpoints:
     - GET /emergency-routes: List all routes
@@ -227,7 +231,7 @@ class Tile(Base):
 
 class Camera(Base):
     """
-    Surveillance camera node in the stadium.
+    Surveillance camera node.
     Extends the concept of a Node with camera-specific calibration fields.
     The camera is also registered as a Node (type="camera") for map display.
     """

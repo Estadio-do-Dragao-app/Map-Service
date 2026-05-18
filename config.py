@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class Config:
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URI') or 'postgresql://localhost/estadio_do_dragao'
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URI') or 'postgresql://localhost/campus_map'
     
     # Additional optional configurations
     SQLALCHEMY_TRACK_MODIFICATIONS = False

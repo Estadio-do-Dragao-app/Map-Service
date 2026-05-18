@@ -1,6 +1,6 @@
 # Map-Service
 
-Backend API para gestão de mapas indoor do Estádio do Dragão.
+Backend API for campus outdoor navigation (campus_map scenario).
 
 ### 1. Start PostgreSQL (Docker)
 ```bash

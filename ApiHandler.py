@@ -35,7 +35,7 @@ def notify_routing_refresh():
             print(f"[WEBHOOK] Failed to notify routing service: {e}")
     threading.Thread(target=_send).start()
 
-app = FastAPI(title="Smart Stadium Map Backend")
+app = FastAPI(title="Campus Map Backend")
 
 app.add_middleware(
     CORSMiddleware,

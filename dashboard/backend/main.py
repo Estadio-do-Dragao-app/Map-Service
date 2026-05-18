@@ -15,7 +15,7 @@ from database import call_map_service, check_map_service_health
 
 app = FastAPI(
     title="Dashboard Backend — Map-Service",
-    description="Backend do dashboard para gerir o mapa do estádio. Comunica com o Map-Service em modo proxy.",
+    description="Backend do dashboard para gerir o mapa do campus. Comunica com o Map-Service em modo proxy.",
     version="1.0.0",
 )
 
