@@ -594,10 +594,6 @@ def _haversine(lon1, lat1, lon2, lat2):
     return 6371000 * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 def _fetch_osm_data():
-    now = time.time()
-    if _osm_poi_cache["data"] is not None and (now - _osm_poi_cache["timestamp"]) < _OSM_CACHE_TTL:
-        return _osm_poi_cache["data"]["pois"], _osm_poi_cache["data"].get("entrance_nodes", [])
-
     try:
         data = urllib.parse.urlencode({"data": _OVERPASS_POI_QUERY}).encode("utf-8")
         req = urllib.request.Request(_OVERPASS_URL, data=data)
@@ -605,9 +601,7 @@ def _fetch_osm_data():
             osm_data = json_module.loads(resp.read().decode("utf-8"))
     except Exception as e:
         print(f"[OSM POIs] Main query failed: {e}")
-        if _osm_poi_cache["data"]:
-            return _osm_poi_cache["data"]["pois"], _osm_poi_cache["data"].get("entrance_nodes", [])
-        return [], []
+        return {"elements": []}, []
 
     entrance_nodes = []
     try:
@@ -677,6 +671,10 @@ def get_osm_pois(db: Annotated[Session, Depends(get_db)]):
         return _osm_poi_cache["data"]
 
     osm_data, entrance_nodes = _fetch_osm_data()
+    if not osm_data.get("elements") and _osm_poi_cache["data"] is not None:
+        print("[OSM POIs] Network query failed, falling back to expired cached data")
+        return _osm_poi_cache["data"]
+        
     walkable_nodes = db.query(Node).filter(Node.type == "normal").all()
 
     pois = []
