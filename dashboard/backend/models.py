@@ -28,18 +28,18 @@ class NodeCreate(BaseModel):
 
 class NodeResponse(BaseModel):
     id: str
-    name: Optional[str]
+    name: Optional[str] = None
     x: float
     y: float
     level: int
     type: str
-    description: Optional[str]
-    num_servers: Optional[int]
-    service_rate: Optional[float]
-    block: Optional[str]
-    row: Optional[int]
-    number: Optional[int]
-    door_id: Optional[str]
+    description: Optional[str] = None
+    num_servers: Optional[int] = None
+    service_rate: Optional[float] = None
+    block: Optional[str] = None
+    row: Optional[int] = None
+    number: Optional[int] = None
+    door_id: Optional[str] = None
 
 
 class NodeUpdate(BaseModel):
@@ -92,8 +92,8 @@ class ClosureCreate(BaseModel):
 class ClosureResponse(BaseModel):
     id: str
     reason: str
-    edge_id: Optional[str]
-    node_id: Optional[str]
+    edge_id: Optional[str] = None
+    node_id: Optional[str] = None
 
 
 # ================== BATCH SCHEMAS ==================
@@ -155,8 +155,8 @@ class CameraResponse(BaseModel):
     tilt: float
     fov_horizontal: float
     fov_vertical: float
-    coverage_x_min: Optional[float]
-    coverage_x_max: Optional[float]
-    coverage_y_min: Optional[float]
-    coverage_y_max: Optional[float]
+    coverage_x_min: Optional[float] = None
+    coverage_x_max: Optional[float] = None
+    coverage_y_min: Optional[float] = None
+    coverage_y_max: Optional[float] = None
     coverage_polygon: Optional[list] = None
