@@ -2,12 +2,18 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Copiar o ficheiro de dependências e instalar
+# Install dependencies first (layer cache optimization)
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --only-binary :all: -r requirements.txt \
+    && useradd -m -u 1000 appuser
 
-# Copiar todo o código da aplicação
-COPY . .
+# Copy only necessary application files (avoid sensitive data leakage)
+COPY main.py database.py models.py ./
+
+RUN chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
 
 # Variável de ambiente para localizar o Map-Service (ajusta se necessário)
 ENV MAP_SERVICE_URL=http://host.docker.internal:8000
