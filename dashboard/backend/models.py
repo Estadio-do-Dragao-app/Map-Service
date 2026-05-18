@@ -89,11 +89,8 @@ class ClosureCreate(BaseModel):
     node_id: Optional[str] = None
 
 
-class ClosureResponse(BaseModel):
-    id: str
-    reason: str
-    edge_id: Optional[str] = None
-    node_id: Optional[str] = None
+class ClosureResponse(ClosureCreate):
+    pass
 
 
 # ================== BATCH SCHEMAS ==================

@@ -32,6 +32,18 @@ const NODE_TYPE_OPTIONS = [
   'departments', 'queue',
 ];
 
+function getNodePopupHTML(node, isNewNode) {
+  return `
+    <strong>${node.name || 'Unnamed'}</strong><br/>
+    ID: ${node.id}<br/>
+    Tipo: ${node.type || 'normal'}<br/>
+    ${node.description ? `Desc: ${node.description}<br/>` : ''}
+    Lat: ${node.y.toFixed(6)}<br/>
+    Lng: ${node.x.toFixed(6)}<br/>
+    ${isNewNode ? '<em>New</em>' : ''}
+  `;
+}
+
 // Helper to render a single node on the Leaflet map (decoupled to reduce cognitive complexity and nesting)
 function renderNodeOnMap(node, {
   nodes,
@@ -174,15 +186,7 @@ function renderNodeOnMap(node, {
           popupAnchor: [0, -24],
         }),
       }).addTo(mapCurrent);
-      poiMarker.bindPopup(`
-        <strong>${node.name || 'Unnamed'}</strong><br/>
-        ID: ${node.id}<br/>
-        Tipo: ${node.type || 'normal'}<br/>
-        ${node.description ? `Desc: ${node.description}<br/>` : ''}
-        Lat: ${node.y.toFixed(6)}<br/>
-        Lng: ${node.x.toFixed(6)}<br/>
-        ${isNewNode ? '<em>New</em>' : ''}
-      `);
+      poiMarker.bindPopup(getNodePopupHTML(node, isNewNode));
       entry = { marker: poiMarker, kind: 'poi' };
     } else {
       const circleMarker = L.circleMarker([node.y, node.x], {
@@ -191,15 +195,7 @@ function renderNodeOnMap(node, {
         stroke: true, color: fillColor, weight: 2,
         opacity: 1,
       }).addTo(mapCurrent);
-      circleMarker.bindPopup(`
-        <strong>${node.name || 'Unnamed'}</strong><br/>
-        ID: ${node.id}<br/>
-        Tipo: ${node.type || 'normal'}<br/>
-        ${node.description ? `Desc: ${node.description}<br/>` : ''}
-        Lat: ${node.y.toFixed(6)}<br/>
-        Lng: ${node.x.toFixed(6)}<br/>
-        ${isNewNode ? '<em>New</em>' : ''}
-      `);
+      circleMarker.bindPopup(getNodePopupHTML(node, isNewNode));
       entry = { marker: circleMarker, kind: 'circle' };
     }
 
