@@ -248,12 +248,13 @@ async def create_batch(data: BatchCreate):
 # ================== MAP SYNC ==================
 
 @app.post("/map/sync", status_code=200, tags=["map"])
+@app.post("/api/map/sync", status_code=200, tags=["map"])
 async def sync_map(data: BatchCreate):
     """
     Sincroniza o mapa completo. Lê o estado atual do dashboard e sobrescreve o mapa no backend principal.
     """
     try:
-        return await call_map_service("POST", "/map/sync", json=data.model_dump(exclude_none=True))
+        return await call_map_service("POST", "/map/sync", json=data.model_dump())
     except httpx.ConnectError:
         raise HTTPException(status_code=503, detail="Map-Service não está acessível")
     except httpx.HTTPStatusError as e:
@@ -343,6 +344,22 @@ async def delete_camera(camera_id: str):
     """Apaga uma câmara pelo ID."""
     try:
         return await call_map_service("DELETE", f"/cameras/{camera_id}")
+    except httpx.ConnectError:
+        raise HTTPException(status_code=503, detail="Map-Service não está acessível")
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=e.response.status_code, detail=e.response.text)
+
+
+# ================== GRID TILES ==================
+
+@app.get("/maps/grid/tiles", tags=["grid"])
+async def get_grid_tiles(level: Optional[int] = None):
+    """Lista todos os tiles do grid, opcionalmente filtrados por nível."""
+    try:
+        params = {}
+        if level is not None:
+            params["level"] = level
+        return await call_map_service("GET", "/maps/grid/tiles", params=params if params else None)
     except httpx.ConnectError:
         raise HTTPException(status_code=503, detail="Map-Service não está acessível")
     except httpx.HTTPStatusError as e:

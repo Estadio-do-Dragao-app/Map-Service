@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from models import Tile, Node
 from typing import Tuple, Dict
 import math
@@ -111,6 +112,7 @@ class GridManager:
         - seat: Also added to seat_id
         - POI types (restroom, food, bar, etc.): Also added to poi_id
         """
+        db.execute(text("DROP INDEX IF EXISTS idx_tiles_node_id"))
         db.query(Tile).delete()
         db.commit()
 
