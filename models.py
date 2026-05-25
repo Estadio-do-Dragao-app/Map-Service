@@ -472,11 +472,6 @@ class EmergencyRouteResponse(BaseModel):
     class Config:
         from_attributes = True
 
-class BatchCreate(BaseModel):
-    nodes: list[NodeCreate] = []
-    edges: list[EdgeCreate] = []
-    closures: list[ClosureCreate] = []
-    cameras: list[CameraCreate] = []
 
 # ================== Camera Schemas ==================
 
@@ -528,3 +523,8 @@ class CameraResponse(BaseModel):
 
     class Config:
         from_attributes = True
+class BatchCreate(BaseModel):
+    nodes: list[NodeCreate] = []
+    edges: list[EdgeCreate] = []
+    closures: list[ClosureCreate] = []
+    cameras: list[CameraCreate] = []
