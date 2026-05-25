@@ -335,7 +335,7 @@ def get_node(
 def create_node(
     data: NodeCreate,
     db: Annotated[Session, Depends(get_db)],
-    _: str = Depends(get_api_key)
+    _: Annotated[str, Depends(get_api_key)]
 ):
     existing = db.query(Node).filter(Node.id == data.id).first()
     if existing:
@@ -359,7 +359,7 @@ def update_node(
     node_id: Annotated[str, Path(description="The ID of the node")],
     data: NodeUpdate,
     db: Annotated[Session, Depends(get_db)],
-    _: str = Depends(get_api_key)
+    _: Annotated[str, Depends(get_api_key)]
 ):
     node = db.query(Node).filter(Node.id == node_id).first()
     if not node:
@@ -383,7 +383,7 @@ def update_node(
 def delete_node(
     node_id: Annotated[str, Path(description="The ID of the node")],
     db: Annotated[Session, Depends(get_db)],
-    _: str = Depends(get_api_key)
+    _: Annotated[str, Depends(get_api_key)]
 ):
     node = db.query(Node).filter(Node.id == node_id).first()
     if not node:
@@ -437,7 +437,7 @@ def get_edge(
 def create_edge(
     data: EdgeCreate,
     db: Annotated[Session, Depends(get_db)],
-    _: str = Depends(get_api_key)
+    _: Annotated[str, Depends(get_api_key)]
 ):
     existing = db.query(Edge).filter(Edge.id == data.id).first()
     if existing:
@@ -467,7 +467,7 @@ def update_edge(
     edge_id: Annotated[str, Path(description="The ID of the edge")],
     data: EdgeUpdate,
     db: Annotated[Session, Depends(get_db)],
-    _: str = Depends(get_api_key)
+    _: Annotated[str, Depends(get_api_key)]
 ):
     edge = db.query(Edge).filter(Edge.id == edge_id).first()
     if not edge:
@@ -492,7 +492,7 @@ def update_edge(
 def delete_edge(
     edge_id: Annotated[str, Path(description="The ID of the edge")],
     db: Annotated[Session, Depends(get_db)],
-    _: str = Depends(get_api_key)
+    _: Annotated[str, Depends(get_api_key)]
 ):
     edge = db.query(Edge).filter(Edge.id == edge_id).first()
     if not edge:
@@ -544,7 +544,7 @@ def get_closure(
 def add_closure(
     data: ClosureCreate,
     db: Annotated[Session, Depends(get_db)],
-    _: str = Depends(get_api_key)
+    _: Annotated[str, Depends(get_api_key)]
 ):
     existing = db.query(Closure).filter(Closure.id == data.id).first()
     if existing:
@@ -577,7 +577,7 @@ def add_closure(
 def delete_closure(
     closure_id: Annotated[str, Path(description="The ID of the closure")],
     db: Annotated[Session, Depends(get_db)],
-    _: str = Depends(get_api_key)
+    _: Annotated[str, Depends(get_api_key)]
 ):
     closure = db.query(Closure).filter(Closure.id == closure_id).first()
     if not closure:
@@ -638,7 +638,7 @@ def get_all_tiles(
 @app.post("/maps/grid/rebuild", responses={
     500: {"description": "Grid rebuild failed due to database error"}
 })
-def rebuild_grid(db: Annotated[Session, Depends(get_db)], _: str = Depends(get_api_key)):
+def rebuild_grid(db: Annotated[Session, Depends(get_db)], _: Annotated[str, Depends(get_api_key)]):
     try:
         tile_count = grid_manager.rebuild_grid(db)
         return {"status": "success", "message": f"Grid rebuilt with {tile_count} tiles.", "tiles_created": tile_count}
@@ -649,7 +649,7 @@ def rebuild_grid(db: Annotated[Session, Depends(get_db)], _: str = Depends(get_a
 def get_nodes_from_tiles(
     tile_ids: List[str],
     db: Annotated[Session, Depends(get_db)],
-    _: str = Depends(get_api_key)
+    _: Annotated[str, Depends(get_api_key)]
 ):
     if not tile_ids:
         return {"node_ids": [], "tile_count": 0}
@@ -784,17 +784,10 @@ def _fetch_osm_data():
 
     return osm_data, entrance_nodes
 
-def _create_poi_from_element(el, entrance_nodes, walkable_nodes):
-    """Process one OSM element, return POI dict or None."""
-    tags = el.get("tags", {})
-    name = tags.get("name") or tags.get("alt_name") or tags.get("short_name")
-    if not name:
-        return None
-
-    # Get coordinates
+def _get_coordinates(el, entrance_nodes):
     if el["type"] == "node":
-        lon, lat = el["lon"], el["lat"]
-    elif el["type"] == "way" and "center" in el:
+        return el["lon"], el["lat"]
+    if el["type"] == "way" and "center" in el:
         center_lon, center_lat = el["center"]["lon"], el["center"]["lat"]
         lon, lat = center_lon, center_lat
         best_dist = float("inf")
@@ -803,10 +796,10 @@ def _create_poi_from_element(el, entrance_nodes, walkable_nodes):
             if d < 50 and d < best_dist:
                 best_dist = d
                 lon, lat = ent["lon"], ent["lat"]
-    else:
-        return None
+        return lon, lat
+    return None, None
 
-    # Find nearest walkable node
+def _find_nearest_walkable(lon, lat, walkable_nodes):
     nearest_id = None
     min_dist = float("inf")
     for wn in walkable_nodes:
@@ -814,6 +807,20 @@ def _create_poi_from_element(el, entrance_nodes, walkable_nodes):
         if d < min_dist:
             min_dist = d
             nearest_id = wn.id
+    return nearest_id, min_dist
+
+def _create_poi_from_element(el, entrance_nodes, walkable_nodes):
+    """Process one OSM element, return POI dict or None."""
+    tags = el.get("tags", {})
+    name = tags.get("name") or tags.get("alt_name") or tags.get("short_name")
+    if not name:
+        return None
+
+    lon, lat = _get_coordinates(el, entrance_nodes)
+    if lon is None:
+        return None
+
+    nearest_id, min_dist = _find_nearest_walkable(lon, lat, walkable_nodes)
     if nearest_id is None or min_dist > 100:
         return None
 
@@ -879,7 +886,7 @@ def update_poi(
     poi_id: Annotated[str, Path(description="The ID of the POI")],
     data: NodeUpdate,
     db: Annotated[Session, Depends(get_db)],
-    _: str = Depends(get_api_key)
+    _: Annotated[str, Depends(get_api_key)]
 ):
     poi = db.query(Node).filter(Node.id == poi_id).first()
     if not poi:
@@ -922,7 +929,7 @@ class POICreate(PydanticBaseModel):
 def create_poi(
     data: POICreate,
     db: Annotated[Session, Depends(get_db)],
-    _: str = Depends(get_api_key)
+    _: Annotated[str, Depends(get_api_key)]
 ):
     import uuid
     poi_id = f"CUSTOM-{uuid.uuid4().hex[:8]}"
@@ -944,7 +951,7 @@ def create_poi(
 def delete_poi(
     poi_id: Annotated[str, Path(description="The ID of the POI")],
     db: Annotated[Session, Depends(get_db)],
-    _: str = Depends(get_api_key)
+    _: Annotated[str, Depends(get_api_key)]
 ):
     poi = db.query(Node).filter(Node.id == poi_id).first()
     if not poi:
@@ -982,7 +989,7 @@ def update_seat(
     seat_id: Annotated[str, Path(description="The ID of the seat")],
     data: NodeUpdate,
     db: Annotated[Session, Depends(get_db)],
-    _: str = Depends(get_api_key)
+    _: Annotated[str, Depends(get_api_key)]
 ):
     seat = db.query(Node).filter(Node.id == seat_id).first()
     if not seat:
@@ -1030,7 +1037,7 @@ def update_gate(
     gate_id: Annotated[str, Path(description="The ID of the gate")],
     data: NodeUpdate,
     db: Annotated[Session, Depends(get_db)],
-    _: str = Depends(get_api_key)
+    _: Annotated[str, Depends(get_api_key)]
 ):
     gate = db.query(Node).filter(Node.id == gate_id).first()
     if not gate:
@@ -1321,7 +1328,7 @@ def get_camera(
 def create_camera(
     data: CameraCreate,
     db: Annotated[Session, Depends(get_db)],
-    _: str = Depends(get_api_key)
+    _: Annotated[str, Depends(get_api_key)]
 ):
     if db.query(Camera).filter(Camera.id == data.id).first():
         raise HTTPException(status_code=400, detail="Camera already exists")
@@ -1346,7 +1353,7 @@ def update_camera(
     camera_id: Annotated[str, Path(description="The ID of the camera")],
     data: CameraUpdate,
     db: Annotated[Session, Depends(get_db)],
-    _: str = Depends(get_api_key)
+    _: Annotated[str, Depends(get_api_key)]
 ):
     camera = db.query(Camera).filter(Camera.id == camera_id).first()
     if not camera:
@@ -1368,7 +1375,7 @@ def update_camera(
 def delete_camera(
     camera_id: Annotated[str, Path(description="The ID of the camera")],
     db: Annotated[Session, Depends(get_db)],
-    _: str = Depends(get_api_key)
+    _: Annotated[str, Depends(get_api_key)]
 ):
     camera = db.query(Camera).filter(Camera.id == camera_id).first()
     if not camera:
@@ -1390,7 +1397,7 @@ def health_check():
 @app.post("/reset", responses={
     500: {"description": "Reset failed due to database error"}
 })
-def reset_data(db: Annotated[Session, Depends(get_db)], _: str = Depends(get_api_key)):
+def reset_data(db: Annotated[Session, Depends(get_db)], _: Annotated[str, Depends(get_api_key)]):
     from load_data_db import clear_all_data, load_sample_data
     try:
         print("Resetting database...")
@@ -1456,7 +1463,7 @@ def _insert_batch_closures(db: Session, closures_data: list, results: dict):
 def create_batch(
     data: BatchCreate,
     db: Annotated[Session, Depends(get_db)],
-    _: str = Depends(get_api_key)
+    _: Annotated[str, Depends(get_api_key)]
 ):
     results = {
         "nodes": {"created": [], "errors": []},
@@ -1497,7 +1504,7 @@ def create_batch(
 def sync_map(
     data: BatchCreate,
     db: Annotated[Session, Depends(get_db)],
-    _: str = Depends(get_api_key)
+    _: Annotated[str, Depends(get_api_key)]
 ):
     try:
         # Preserve existing cameras before wiping the DB
