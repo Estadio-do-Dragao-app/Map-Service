@@ -1,10 +1,10 @@
-from fastapi import FastAPI, HTTPException, Depends, Query, Path, Security
+from fastapi import FastAPI, HTTPException, Depends, Query, Path, Security, Response
 from fastapi.security import APIKeyHeader
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, event
 from typing import List, Optional, Annotated
 from database import get_db, init_db
 from models import (
@@ -41,7 +41,11 @@ def notify_routing_refresh():
     """Trigger a silent background refresh in the routing service after a map change."""
     def _send():
         try:
-            httpx.post("https://routing-service:8002/api/refresh_map", timeout=2.0)
+            httpx.post(
+                "http://routing-service:8002/api/refresh_map",
+                headers={"X-API-Key": API_KEY},
+                timeout=2.0,
+            )
             print("[WEBHOOK] Notified routing service of map change")
         except Exception as e:
             print(f"[WEBHOOK] Failed to notify routing service: {e}")
@@ -61,6 +65,58 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+_MAP_CACHE: dict[str, dict] = {}
+_MAP_CACHE_TTL_SECONDS = 10
+_MAP_CACHE_LOCK = threading.Lock()
+
+
+def _cache_key(name: str, **params) -> str:
+    return f"{name}:{json_module.dumps(params, sort_keys=True, default=str)}"
+
+
+def invalidate_map_cache() -> None:
+    with _MAP_CACHE_LOCK:
+        _MAP_CACHE.clear()
+
+
+@event.listens_for(Session, "after_commit")
+def _invalidate_map_cache_after_commit(_session):
+    invalidate_map_cache()
+
+
+def _cache_get(key: str):
+    now = time.time()
+    with _MAP_CACHE_LOCK:
+        entry = _MAP_CACHE.get(key)
+        if not entry:
+            return None
+        if now - entry["timestamp"] > _MAP_CACHE_TTL_SECONDS:
+            _MAP_CACHE.pop(key, None)
+            return None
+        return entry["value"]
+
+
+def _cache_set(key: str, value):
+    with _MAP_CACHE_LOCK:
+        _MAP_CACHE[key] = {"timestamp": time.time(), "value": value}
+
+
+def _cached_read(key: str, builder):
+    cached = _cache_get(key)
+    if cached is not None:
+        return cached
+    value = builder()
+    _cache_set(key, value)
+    return value
+
+
+def _set_pagination_headers(response: Response, total: int, limit: int, offset: int) -> None:
+    response.headers["X-Total-Count"] = str(total)
+    response.headers["X-Limit"] = str(limit)
+    response.headers["X-Offset"] = str(offset)
+    response.headers["X-Has-More"] = "true" if offset + limit < total else "false"
 
 @app.on_event("startup")
 def startup():
@@ -113,18 +169,49 @@ def serialize_closure(c: Closure) -> dict:
         "reason": c.reason
     }
 
+def serialize_camera(c: Camera) -> dict:
+    return {
+        "id": c.id,
+        "node_id": c.node_id,
+        "pos_x": c.pos_x,
+        "pos_y": c.pos_y,
+        "pos_z": c.pos_z,
+        "pan": c.pan,
+        "tilt": c.tilt,
+        "fov_horizontal": c.fov_horizontal,
+        "fov_vertical": c.fov_vertical,
+        "coverage_x_min": c.coverage_x_min,
+        "coverage_x_max": c.coverage_x_max,
+        "coverage_y_min": c.coverage_y_min,
+        "coverage_y_max": c.coverage_y_max,
+    }
+
+def serialize_emergency_route(route: EmergencyRoute) -> dict:
+    return {
+        "id": route.id,
+        "name": route.name,
+        "description": route.description,
+        "exit_id": route.exit_id,
+        "node_ids": route.node_ids,
+    }
+
 # ================== MAP ENDPOINTS ==================
 
 @app.get("/map")
 def get_map(db: Annotated[Session, Depends(get_db)]):
-    nodes = db.query(Node).all()
-    edges = db.query(Edge).all()
-    closures = db.query(Closure).all()
-    return {
-        "nodes": [serialize_node(n) for n in nodes],
-        "edges": [serialize_edge(e) for e in edges],
-        "closures": [serialize_closure(c) for c in closures]
-    }
+    cache_key = _cache_key("map")
+
+    def _build():
+        nodes = db.query(Node).order_by(Node.id).all()
+        edges = db.query(Edge).order_by(Edge.id).all()
+        closures = db.query(Closure).order_by(Closure.id).all()
+        return {
+            "nodes": [serialize_node(n) for n in nodes],
+            "edges": [serialize_edge(e) for e in edges],
+            "closures": [serialize_closure(c) for c in closures]
+        }
+
+    return _cached_read(cache_key, _build)
 
 def _get_node_group_and_data(node: Node) -> tuple[str, dict]:
     """
@@ -166,35 +253,40 @@ def get_map_visualization(
     db: Annotated[Session, Depends(get_db)],
     level: Optional[int] = None
 ):
-    query = db.query(Node)
-    if level is not None:
-        query = query.filter(Node.level == level)
-    nodes = query.all()
+    cache_key = _cache_key("map_visualization", level=level)
 
-    grouped_nodes = {
-        "navigation": [], "gates": [], "pois": [], "seats": [], "stairs": [], "departments": [],
-    }
+    def _build():
+        query = db.query(Node)
+        if level is not None:
+            query = query.filter(Node.level == level)
+        nodes = query.order_by(Node.id).all()
 
-    for node in nodes:
-        group, data = _get_node_group_and_data(node)
-        grouped_nodes[group].append(data)
-
-    edges = _get_edges_for_level(db, level)
-
-    return {
-        "level": level if level is not None else "all",
-        "nodes": grouped_nodes,
-        "edges": [serialize_edge(e) for e in edges],
-        "stats": {
-            "navigation": len(grouped_nodes["navigation"]),
-            "gates": len(grouped_nodes["gates"]),
-            "pois": len(grouped_nodes["pois"]),
-            "seats": len(grouped_nodes["seats"]),
-            "stairs": len(grouped_nodes["stairs"]),
-            "departments": len(grouped_nodes["departments"]),
-            "total": len(nodes)
+        grouped_nodes = {
+            "navigation": [], "gates": [], "pois": [], "seats": [], "stairs": [], "departments": [],
         }
-    }
+
+        for node in nodes:
+            group, data = _get_node_group_and_data(node)
+            grouped_nodes[group].append(data)
+
+        edges = _get_edges_for_level(db, level)
+
+        return {
+            "level": level if level is not None else "all",
+            "nodes": grouped_nodes,
+            "edges": [serialize_edge(e) for e in edges],
+            "stats": {
+                "navigation": len(grouped_nodes["navigation"]),
+                "gates": len(grouped_nodes["gates"]),
+                "pois": len(grouped_nodes["pois"]),
+                "seats": len(grouped_nodes["seats"]),
+                "stairs": len(grouped_nodes["stairs"]),
+                "departments": len(grouped_nodes["departments"]),
+                "total": len(nodes)
+            }
+        }
+
+    return _cached_read(cache_key, _build)
 
 @app.get("/seats/{seat_id}", response_model=NodeResponse, responses={404: {"description": ERR_SEAT_NOT_FOUND}})
 def get_seat(
@@ -209,8 +301,23 @@ def get_seat(
 # ================== NODES ==================
 
 @app.get("/nodes", response_model=List[NodeResponse])
-def get_nodes(db: Annotated[Session, Depends(get_db)]):
-    return db.query(Node).all()
+def get_nodes(
+    response: Response,
+    db: Annotated[Session, Depends(get_db)],
+    limit: Annotated[int, Query(ge=1, le=5000)] = 1000,
+    offset: Annotated[int, Query(ge=0)] = 0,
+):
+    cache_key = _cache_key("nodes", limit=limit, offset=offset)
+
+    def _build():
+        query = db.query(Node).order_by(Node.id)
+        total = query.order_by(None).count()
+        items = [serialize_node(node) for node in query.limit(limit).offset(offset).all()]
+        return {"total": total, "items": items}
+
+    payload = _cached_read(cache_key, _build)
+    _set_pagination_headers(response, payload["total"], limit, offset)
+    return payload["items"]
 
 @app.get("/nodes/{node_id}", response_model=NodeResponse, responses={404: {"description": ERR_NODE_NOT_FOUND}})
 def get_node(
@@ -229,7 +336,7 @@ def get_node(
 def create_node(
     data: NodeCreate,
     db: Annotated[Session, Depends(get_db)],
-    _: str = Depends(get_api_key)
+    _: Annotated[str, Depends(get_api_key)]
 ):
     existing = db.query(Node).filter(Node.id == data.id).first()
     if existing:
@@ -253,7 +360,7 @@ def update_node(
     node_id: Annotated[str, Path(description="The ID of the node")],
     data: NodeUpdate,
     db: Annotated[Session, Depends(get_db)],
-    _: str = Depends(get_api_key)
+    _: Annotated[str, Depends(get_api_key)]
 ):
     node = db.query(Node).filter(Node.id == node_id).first()
     if not node:
@@ -277,7 +384,7 @@ def update_node(
 def delete_node(
     node_id: Annotated[str, Path(description="The ID of the node")],
     db: Annotated[Session, Depends(get_db)],
-    _: str = Depends(get_api_key)
+    _: Annotated[str, Depends(get_api_key)]
 ):
     node = db.query(Node).filter(Node.id == node_id).first()
     if not node:
@@ -296,8 +403,23 @@ def delete_node(
 # ================== EDGES ==================
 
 @app.get("/edges", response_model=List[EdgeResponse])
-def get_edges(db: Annotated[Session, Depends(get_db)]):
-    return db.query(Edge).all()
+def get_edges(
+    response: Response,
+    db: Annotated[Session, Depends(get_db)],
+    limit: Annotated[int, Query(ge=1, le=5000)] = 1000,
+    offset: Annotated[int, Query(ge=0)] = 0,
+):
+    cache_key = _cache_key("edges", limit=limit, offset=offset)
+
+    def _build():
+        query = db.query(Edge).order_by(Edge.id)
+        total = query.order_by(None).count()
+        items = [serialize_edge(edge) for edge in query.limit(limit).offset(offset).all()]
+        return {"total": total, "items": items}
+
+    payload = _cached_read(cache_key, _build)
+    _set_pagination_headers(response, payload["total"], limit, offset)
+    return payload["items"]
 
 @app.get("/edges/{edge_id}", response_model=EdgeResponse, responses={404: {"description": ERR_EDGE_NOT_FOUND}})
 def get_edge(
@@ -316,7 +438,7 @@ def get_edge(
 def create_edge(
     data: EdgeCreate,
     db: Annotated[Session, Depends(get_db)],
-    _: str = Depends(get_api_key)
+    _: Annotated[str, Depends(get_api_key)]
 ):
     existing = db.query(Edge).filter(Edge.id == data.id).first()
     if existing:
@@ -346,7 +468,7 @@ def update_edge(
     edge_id: Annotated[str, Path(description="The ID of the edge")],
     data: EdgeUpdate,
     db: Annotated[Session, Depends(get_db)],
-    _: str = Depends(get_api_key)
+    _: Annotated[str, Depends(get_api_key)]
 ):
     edge = db.query(Edge).filter(Edge.id == edge_id).first()
     if not edge:
@@ -371,7 +493,7 @@ def update_edge(
 def delete_edge(
     edge_id: Annotated[str, Path(description="The ID of the edge")],
     db: Annotated[Session, Depends(get_db)],
-    _: str = Depends(get_api_key)
+    _: Annotated[str, Depends(get_api_key)]
 ):
     edge = db.query(Edge).filter(Edge.id == edge_id).first()
     if not edge:
@@ -388,8 +510,23 @@ def delete_edge(
 # ================== CLOSURES ==================
 
 @app.get("/closures", response_model=List[ClosureResponse])
-def get_closures(db: Annotated[Session, Depends(get_db)]):
-    return db.query(Closure).all()
+def get_closures(
+    response: Response,
+    db: Annotated[Session, Depends(get_db)],
+    limit: Annotated[int, Query(ge=1, le=5000)] = 1000,
+    offset: Annotated[int, Query(ge=0)] = 0,
+):
+    cache_key = _cache_key("closures", limit=limit, offset=offset)
+
+    def _build():
+        query = db.query(Closure).order_by(Closure.id)
+        total = query.order_by(None).count()
+        items = [serialize_closure(closure) for closure in query.limit(limit).offset(offset).all()]
+        return {"total": total, "items": items}
+
+    payload = _cached_read(cache_key, _build)
+    _set_pagination_headers(response, payload["total"], limit, offset)
+    return payload["items"]
 
 @app.get("/closures/{closure_id}", response_model=ClosureResponse, responses={404: {"description": ERR_CLOSURE_NOT_FOUND}})
 def get_closure(
@@ -408,7 +545,7 @@ def get_closure(
 def add_closure(
     data: ClosureCreate,
     db: Annotated[Session, Depends(get_db)],
-    _: str = Depends(get_api_key)
+    _: Annotated[str, Depends(get_api_key)]
 ):
     existing = db.query(Closure).filter(Closure.id == data.id).first()
     if existing:
@@ -441,7 +578,7 @@ def add_closure(
 def delete_closure(
     closure_id: Annotated[str, Path(description="The ID of the closure")],
     db: Annotated[Session, Depends(get_db)],
-    _: str = Depends(get_api_key)
+    _: Annotated[str, Depends(get_api_key)]
 ):
     closure = db.query(Closure).filter(Closure.id == closure_id).first()
     if not closure:
@@ -467,31 +604,42 @@ def get_grid_config():
 
 @app.get("/maps/grid/tiles")
 def get_all_tiles(
+    response: Response,
     db: Annotated[Session, Depends(get_db)],
-    level: Optional[int] = None
+    level: Optional[int] = None,
+    limit: Annotated[int, Query(ge=1, le=5000)] = 1000,
+    offset: Annotated[int, Query(ge=0)] = 0,
 ):
-    query = db.query(Tile)
-    if level is not None:
-        query = query.filter(Tile.level == level)
-    tiles = query.all()
-    result = []
-    for tile in tiles:
-        node_count = len([nid for nid in tile.node_id.split(',') if nid]) if tile.node_id else 0
-        poi_count = len([pid for pid in tile.poi_id.split(',') if pid]) if tile.poi_id else 0
-        seat_count = len([sid for sid in tile.seat_id.split(',') if sid]) if tile.seat_id else 0
-        gate_count = len([gid for gid in tile.gate_id.split(',') if gid]) if tile.gate_id else 0
-        result.append({
-            "id": tile.id, "grid_x": tile.grid_x, "grid_y": tile.grid_y, "level": tile.level,
-            "bounds": {"min_x": tile.min_x, "max_x": tile.max_x, "min_y": tile.min_y, "max_y": tile.max_y},
-            "walkable": tile.walkable,
-            "entity_counts": {"nodes": node_count, "pois": poi_count, "seats": seat_count, "gates": gate_count, "total": node_count + poi_count + seat_count + gate_count}
-        })
-    return {"tiles": result, "total_tiles": len(result)}
+    cache_key = _cache_key("grid_tiles", level=level, limit=limit, offset=offset)
+
+    def _build():
+        query = db.query(Tile)
+        if level is not None:
+            query = query.filter(Tile.level == level)
+        total = query.order_by(None).count()
+        tiles = query.order_by(Tile.id).limit(limit).offset(offset).all()
+        result = []
+        for tile in tiles:
+            node_count = len([nid for nid in tile.node_id.split(',') if nid]) if tile.node_id else 0
+            poi_count = len([pid for pid in tile.poi_id.split(',') if pid]) if tile.poi_id else 0
+            seat_count = len([sid for sid in tile.seat_id.split(',') if sid]) if tile.seat_id else 0
+            gate_count = len([gid for gid in tile.gate_id.split(',') if gid]) if tile.gate_id else 0
+            result.append({
+                "id": tile.id, "grid_x": tile.grid_x, "grid_y": tile.grid_y, "level": tile.level,
+                "bounds": {"min_x": tile.min_x, "max_x": tile.max_x, "min_y": tile.min_y, "max_y": tile.max_y},
+                "walkable": tile.walkable,
+                "entity_counts": {"nodes": node_count, "pois": poi_count, "seats": seat_count, "gates": gate_count, "total": node_count + poi_count + seat_count + gate_count}
+            })
+        return {"total": total, "tiles": result}
+
+    payload = _cached_read(cache_key, _build)
+    _set_pagination_headers(response, payload["total"], limit, offset)
+    return {"tiles": payload["tiles"], "total_tiles": len(payload["tiles"])}
 
 @app.post("/maps/grid/rebuild", responses={
     500: {"description": "Grid rebuild failed due to database error"}
 })
-def rebuild_grid(db: Annotated[Session, Depends(get_db)], _: str = Depends(get_api_key)):
+def rebuild_grid(db: Annotated[Session, Depends(get_db)], _: Annotated[str, Depends(get_api_key)]):
     try:
         tile_count = grid_manager.rebuild_grid(db)
         return {"status": "success", "message": f"Grid rebuilt with {tile_count} tiles.", "tiles_created": tile_count}
@@ -502,7 +650,7 @@ def rebuild_grid(db: Annotated[Session, Depends(get_db)], _: str = Depends(get_a
 def get_nodes_from_tiles(
     tile_ids: List[str],
     db: Annotated[Session, Depends(get_db)],
-    _: str = Depends(get_api_key)
+    _: Annotated[str, Depends(get_api_key)]
 ):
     if not tile_ids:
         return {"node_ids": [], "tile_count": 0}
@@ -519,23 +667,43 @@ def get_nodes_from_tiles(
 
 @app.get("/maps/grid/stats")
 def get_grid_stats(db: Annotated[Session, Depends(get_db)]):
-    tiles = db.query(Tile).all()
-    total_nodes = sum(len([i for i in str(tile.node_id).split(',') if i]) for tile in tiles if tile.node_id)
-    total_pois = sum(len([i for i in str(tile.poi_id).split(',') if i]) for tile in tiles if tile.poi_id)
-    total_seats = sum(len([i for i in str(tile.seat_id).split(',') if i]) for tile in tiles if tile.seat_id)
-    total_gates = sum(len([i for i in str(tile.gate_id).split(',') if i]) for tile in tiles if tile.gate_id)
-    return {
-        "total_tiles": len(tiles),
-        "entities_indexed": {"nodes": total_nodes, "pois": total_pois, "seats": total_seats, "gates": total_gates, "total": total_nodes + total_pois + total_seats + total_gates},
-        "configuration": {"cell_size": grid_manager.cell_size, "origin_x": grid_manager.origin_x, "origin_y": grid_manager.origin_y}
-    }
+    cache_key = _cache_key("grid_stats")
+
+    def _build():
+        tiles = db.query(Tile).all()
+        total_nodes = sum(len([i for i in str(tile.node_id).split(',') if i]) for tile in tiles if tile.node_id)
+        total_pois = sum(len([i for i in str(tile.poi_id).split(',') if i]) for tile in tiles if tile.poi_id)
+        total_seats = sum(len([i for i in str(tile.seat_id).split(',') if i]) for tile in tiles if tile.seat_id)
+        total_gates = sum(len([i for i in str(tile.gate_id).split(',') if i]) for tile in tiles if tile.gate_id)
+        return {
+            "total_tiles": len(tiles),
+            "entities_indexed": {"nodes": total_nodes, "pois": total_pois, "seats": total_seats, "gates": total_gates, "total": total_nodes + total_pois + total_seats + total_gates},
+            "configuration": {"cell_size": grid_manager.cell_size, "origin_x": grid_manager.origin_x, "origin_y": grid_manager.origin_y}
+        }
+
+    return _cached_read(cache_key, _build)
 
 # ================== POIs ==================
 
 @app.get("/pois", response_model=List[NodeResponse])
-def get_pois(db: Annotated[Session, Depends(get_db)]):
-    poi_types = ['poi', 'restroom', 'wc', 'entrance', 'food', 'shop', 'bar', 'emergency_exit', 'first_aid', 'information']
-    return db.query(Node).filter(Node.type.in_(poi_types)).all()
+def get_pois(
+    response: Response,
+    db: Annotated[Session, Depends(get_db)],
+    limit: Annotated[int, Query(ge=1, le=5000)] = 1000,
+    offset: Annotated[int, Query(ge=0)] = 0,
+):
+    poi_types = ['poi', 'restroom', 'wc', 'entrance', 'food', 'shop', 'bar', 'emergency_exit', 'first_aid', 'information', 'merchandise', 'departments', 'department', 'departamento']
+    cache_key = _cache_key("pois", limit=limit, offset=offset)
+
+    def _build():
+        query = db.query(Node).filter(Node.type.in_(poi_types)).order_by(Node.id)
+        total = query.order_by(None).count()
+        items = [serialize_node(poi) for poi in query.limit(limit).offset(offset).all()]
+        return {"total": total, "items": items}
+
+    payload = _cached_read(cache_key, _build)
+    _set_pagination_headers(response, payload["total"], limit, offset)
+    return payload["items"]
 
 # ================== OSM POIs (Dynamic) ==================
 _osm_poi_cache: dict = {"data": None, "timestamp": 0}
@@ -617,17 +785,10 @@ def _fetch_osm_data():
 
     return osm_data, entrance_nodes
 
-def _create_poi_from_element(el, entrance_nodes, walkable_nodes):
-    """Process one OSM element, return POI dict or None."""
-    tags = el.get("tags", {})
-    name = tags.get("name") or tags.get("alt_name") or tags.get("short_name")
-    if not name:
-        return None
-
-    # Get coordinates
+def _get_coordinates(el, entrance_nodes):
     if el["type"] == "node":
-        lon, lat = el["lon"], el["lat"]
-    elif el["type"] == "way" and "center" in el:
+        return el["lon"], el["lat"]
+    if el["type"] == "way" and "center" in el:
         center_lon, center_lat = el["center"]["lon"], el["center"]["lat"]
         lon, lat = center_lon, center_lat
         best_dist = float("inf")
@@ -636,10 +797,10 @@ def _create_poi_from_element(el, entrance_nodes, walkable_nodes):
             if d < 50 and d < best_dist:
                 best_dist = d
                 lon, lat = ent["lon"], ent["lat"]
-    else:
-        return None
+        return lon, lat
+    return None, None
 
-    # Find nearest walkable node
+def _find_nearest_walkable(lon, lat, walkable_nodes):
     nearest_id = None
     min_dist = float("inf")
     for wn in walkable_nodes:
@@ -647,6 +808,20 @@ def _create_poi_from_element(el, entrance_nodes, walkable_nodes):
         if d < min_dist:
             min_dist = d
             nearest_id = wn.id
+    return nearest_id, min_dist
+
+def _create_poi_from_element(el, entrance_nodes, walkable_nodes):
+    """Process one OSM element, return POI dict or None."""
+    tags = el.get("tags", {})
+    name = tags.get("name") or tags.get("alt_name") or tags.get("short_name")
+    if not name:
+        return None
+
+    lon, lat = _get_coordinates(el, entrance_nodes)
+    if lon is None:
+        return None
+
+    nearest_id, min_dist = _find_nearest_walkable(lon, lat, walkable_nodes)
     if nearest_id is None or min_dist > 100:
         return None
 
@@ -712,7 +887,7 @@ def update_poi(
     poi_id: Annotated[str, Path(description="The ID of the POI")],
     data: NodeUpdate,
     db: Annotated[Session, Depends(get_db)],
-    _: str = Depends(get_api_key)
+    _: Annotated[str, Depends(get_api_key)]
 ):
     poi = db.query(Node).filter(Node.id == poi_id).first()
     if not poi:
@@ -755,7 +930,7 @@ class POICreate(PydanticBaseModel):
 def create_poi(
     data: POICreate,
     db: Annotated[Session, Depends(get_db)],
-    _: str = Depends(get_api_key)
+    _: Annotated[str, Depends(get_api_key)]
 ):
     import uuid
     poi_id = f"CUSTOM-{uuid.uuid4().hex[:8]}"
@@ -777,7 +952,7 @@ def create_poi(
 def delete_poi(
     poi_id: Annotated[str, Path(description="The ID of the POI")],
     db: Annotated[Session, Depends(get_db)],
-    _: str = Depends(get_api_key)
+    _: Annotated[str, Depends(get_api_key)]
 ):
     poi = db.query(Node).filter(Node.id == poi_id).first()
     if not poi:
@@ -815,7 +990,7 @@ def update_seat(
     seat_id: Annotated[str, Path(description="The ID of the seat")],
     data: NodeUpdate,
     db: Annotated[Session, Depends(get_db)],
-    _: str = Depends(get_api_key)
+    _: Annotated[str, Depends(get_api_key)]
 ):
     seat = db.query(Node).filter(Node.id == seat_id).first()
     if not seat:
@@ -863,7 +1038,7 @@ def update_gate(
     gate_id: Annotated[str, Path(description="The ID of the gate")],
     data: NodeUpdate,
     db: Annotated[Session, Depends(get_db)],
-    _: str = Depends(get_api_key)
+    _: Annotated[str, Depends(get_api_key)]
 ):
     gate = db.query(Node).filter(Node.id == gate_id).first()
     if not gate:
@@ -951,31 +1126,43 @@ def get_map_geojson(
     include_edges: Annotated[bool, Query(description="Include edges as LineStrings")] = True,
     include_seats: Annotated[bool, Query(description="Include seat nodes (warning: many!)")] = False
 ):
-    query = db.query(Node)
-    if level is not None:
-        query = query.filter(Node.level == level)
-    if types:
-        type_list = [t.strip() for t in types.split(',')]
-        query = query.filter(Node.type.in_(type_list))
-    if not include_seats:
-        query = query.filter(Node.type != 'seat')
-    nodes = query.all()
+    cache_key = _cache_key(
+        "map_geojson",
+        level=level,
+        types=types,
+        include_edges=include_edges,
+        include_seats=include_seats,
+    )
 
-    features, _ = _build_geojson_features(db, nodes, include_edges, level)
-    bounds = _calculate_bounds(nodes)
+    def _build():
+        query = db.query(Node)
+        if level is not None:
+            query = query.filter(Node.level == level)
+        if types:
+            type_list = [t.strip() for t in types.split(',')]
+            query = query.filter(Node.type.in_(type_list))
+        if not include_seats:
+            query = query.filter(Node.type != 'seat')
+        nodes = query.all()
 
-    result = {
-        "type": "FeatureCollection",
-        "features": features,
-        "metadata": {
-            "level": level if level is not None else "all",
-            "total_nodes": len([f for f in features if f["geometry"]["type"] == "Point"]),
-            "total_edges": len([f for f in features if f["geometry"]["type"] == "LineString"]),
-            "bounds": bounds
+        features, _ = _build_geojson_features(db, nodes, include_edges, level)
+        bounds = _calculate_bounds(nodes)
+
+        result = {
+            "type": "FeatureCollection",
+            "features": features,
+            "metadata": {
+                "level": level if level is not None else "all",
+                "total_nodes": len([f for f in features if f["geometry"]["type"] == "Point"]),
+                "total_edges": len([f for f in features if f["geometry"]["type"] == "LineString"]),
+                "bounds": bounds
+            }
         }
-    }
-    etag = hashlib.md5(f"{len(features)}:{level}:{types}".encode()).hexdigest()[:16]
-    return JSONResponse(content=result, headers={"ETag": f'"{etag}"', "Cache-Control": "public, max-age=300"})
+        etag = hashlib.md5(f"{len(features)}:{level}:{types}:{include_edges}:{include_seats}".encode()).hexdigest()[:16]
+        return {"result": result, "etag": etag}
+
+    payload = _cached_read(cache_key, _build)
+    return JSONResponse(content=payload["result"], headers={"ETag": f'"{payload["etag"]}"', "Cache-Control": "public, max-age=300"})
 
 @app.get("/map/geojson/level/{level}")
 def get_level_geojson(
@@ -986,13 +1173,18 @@ def get_level_geojson(
 
 @app.get("/map/bounds")
 def get_map_bounds(db: Annotated[Session, Depends(get_db)]):
-    result = db.query(func.min(Node.x).label('min_x'), func.max(Node.x).label('max_x'), func.min(Node.y).label('min_y'), func.max(Node.y).label('max_y')).first()
-    levels = [row[0] for row in db.query(Node.level).distinct().order_by(Node.level).all()]
-    return {
-        "bounds": {"min_x": result.min_x, "max_x": result.max_x, "min_y": result.min_y, "max_y": result.max_y},
-        "center": {"x": (result.min_x + result.max_x) / 2, "y": (result.min_y + result.max_y) / 2},
-        "levels": levels
-    }
+    cache_key = _cache_key("map_bounds")
+
+    def _build():
+        result = db.query(func.min(Node.x).label('min_x'), func.max(Node.x).label('max_x'), func.min(Node.y).label('min_y'), func.max(Node.y).label('max_y')).first()
+        levels = [row[0] for row in db.query(Node.level).distinct().order_by(Node.level).all()]
+        return {
+            "bounds": {"min_x": result.min_x, "max_x": result.max_x, "min_y": result.min_y, "max_y": result.max_y},
+            "center": {"x": (result.min_x + result.max_x) / 2, "y": (result.min_y + result.max_y) / 2},
+            "levels": levels
+        }
+
+    return _cached_read(cache_key, _build)
 
 @app.get("/map/geojson/pois")
 def get_pois_geojson(
@@ -1004,8 +1196,23 @@ def get_pois_geojson(
 
 # ================== EMERGENCY ROUTES ==================
 @app.get("/emergency-routes", response_model=List[EmergencyRouteResponse])
-def list_emergency_routes(db: Annotated[Session, Depends(get_db)]):
-    return db.query(EmergencyRoute).all()
+def list_emergency_routes(
+    response: Response,
+    db: Annotated[Session, Depends(get_db)],
+    limit: Annotated[int, Query(ge=1, le=5000)] = 1000,
+    offset: Annotated[int, Query(ge=0)] = 0,
+):
+    cache_key = _cache_key("emergency_routes", limit=limit, offset=offset)
+
+    def _build():
+        query = db.query(EmergencyRoute).order_by(EmergencyRoute.id)
+        total = query.order_by(None).count()
+        items = [serialize_emergency_route(route) for route in query.limit(limit).offset(offset).all()]
+        return {"total": total, "items": items}
+
+    payload = _cached_read(cache_key, _build)
+    _set_pagination_headers(response, payload["total"], limit, offset)
+    return payload["items"]
 
 @app.get("/emergency-routes/nearest")
 def get_nearest_emergency_route(
@@ -1087,8 +1294,23 @@ def get_emergency_route_geojson(
 
 # ================== CAMERAS ==================
 @app.get("/cameras", response_model=List[CameraResponse])
-def get_cameras(db: Annotated[Session, Depends(get_db)]):
-    return db.query(Camera).all()
+def get_cameras(
+    response: Response,
+    db: Annotated[Session, Depends(get_db)],
+    limit: Annotated[int, Query(ge=1, le=5000)] = 1000,
+    offset: Annotated[int, Query(ge=0)] = 0,
+):
+    cache_key = _cache_key("cameras", limit=limit, offset=offset)
+
+    def _build():
+        query = db.query(Camera).order_by(Camera.id)
+        total = query.order_by(None).count()
+        items = [serialize_camera(camera) for camera in query.limit(limit).offset(offset).all()]
+        return {"total": total, "items": items}
+
+    payload = _cached_read(cache_key, _build)
+    _set_pagination_headers(response, payload["total"], limit, offset)
+    return payload["items"]
 
 @app.get("/cameras/{camera_id}", response_model=CameraResponse, responses={404: {"description": ERR_CAMERA_NOT_FOUND}})
 def get_camera(
@@ -1107,7 +1329,7 @@ def get_camera(
 def create_camera(
     data: CameraCreate,
     db: Annotated[Session, Depends(get_db)],
-    _: str = Depends(get_api_key)
+    _: Annotated[str, Depends(get_api_key)]
 ):
     if db.query(Camera).filter(Camera.id == data.id).first():
         raise HTTPException(status_code=400, detail="Camera already exists")
@@ -1132,7 +1354,7 @@ def update_camera(
     camera_id: Annotated[str, Path(description="The ID of the camera")],
     data: CameraUpdate,
     db: Annotated[Session, Depends(get_db)],
-    _: str = Depends(get_api_key)
+    _: Annotated[str, Depends(get_api_key)]
 ):
     camera = db.query(Camera).filter(Camera.id == camera_id).first()
     if not camera:
@@ -1154,7 +1376,7 @@ def update_camera(
 def delete_camera(
     camera_id: Annotated[str, Path(description="The ID of the camera")],
     db: Annotated[Session, Depends(get_db)],
-    _: str = Depends(get_api_key)
+    _: Annotated[str, Depends(get_api_key)]
 ):
     camera = db.query(Camera).filter(Camera.id == camera_id).first()
     if not camera:
@@ -1176,7 +1398,7 @@ def health_check():
 @app.post("/reset", responses={
     500: {"description": "Reset failed due to database error"}
 })
-def reset_data(db: Annotated[Session, Depends(get_db)], _: str = Depends(get_api_key)):
+def reset_data(db: Annotated[Session, Depends(get_db)], _: Annotated[str, Depends(get_api_key)]):
     from load_data_db import clear_all_data, load_sample_data
     try:
         print("Resetting database...")
@@ -1260,7 +1482,7 @@ def _insert_batch_closures(db: Session, closures_data: list, results: dict):
 def create_batch(
     data: BatchCreate,
     db: Annotated[Session, Depends(get_db)],
-    _: str = Depends(get_api_key)
+    _: Annotated[str, Depends(get_api_key)]
 ):
     results = {
         "nodes": {"created": [], "errors": []},
@@ -1309,16 +1531,30 @@ def create_batch(
 def sync_map(
     data: BatchCreate,
     db: Annotated[Session, Depends(get_db)],
-    _: str = Depends(get_api_key)
+    _: Annotated[str, Depends(get_api_key)]
 ):
     try:
+        # Preserve existing cameras before wiping the DB
+        existing_cameras = db.query(Camera).all()
+        camera_dumps = [
+            {c.key: getattr(cam, c.key) for c in cam.__mapper__.columns}
+            for cam in existing_cameras
+        ]
+
         db.query(Camera).delete()
         db.query(Closure).delete()
         db.query(Edge).delete()
         db.query(Node).delete()
         db.query(Tile).delete()
-        for node_data in data.nodes:
+
+        # Insert nodes without door_id first to avoid FK violations
+        nodes_without_door = [n for n in data.nodes if not n.door_id]
+        nodes_with_door = [n for n in data.nodes if n.door_id]
+        for node_data in nodes_without_door:
             db.add(Node(**node_data.model_dump()))
+        for node_data in nodes_with_door:
+            db.add(Node(**node_data.model_dump()))
+
         for edge_data in data.edges:
             db.add(Edge(**edge_data.model_dump()))
         for closure_data in data.closures:
@@ -1326,6 +1562,14 @@ def sync_map(
         for camera_data in data.cameras:
             db.add(Camera(**camera_data.model_dump()))
         db.commit()
+
+        # Reinsert cameras whose linked node still exists after sync
+        new_node_ids = {n.id for n in data.nodes}
+        for cam_data in camera_dumps:
+            if cam_data.get("node_id") in new_node_ids:
+                db.add(Camera(**cam_data))
+        db.commit()
+
         grid_manager = GridManager(cell_size=5.0, origin_x=0.0, origin_y=0.0)
         grid_manager.rebuild_grid(db)
     except Exception as e:
