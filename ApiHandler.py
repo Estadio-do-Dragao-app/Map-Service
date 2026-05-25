@@ -534,7 +534,7 @@ def get_grid_stats(db: Annotated[Session, Depends(get_db)]):
 
 @app.get("/pois", response_model=List[NodeResponse])
 def get_pois(db: Annotated[Session, Depends(get_db)]):
-    poi_types = ['poi', 'restroom', 'wc', 'entrance', 'food', 'shop', 'bar', 'emergency_exit', 'first_aid', 'information', 'merchandise']
+    poi_types = ['poi', 'restroom', 'wc', 'entrance', 'food', 'shop', 'bar', 'emergency_exit', 'first_aid', 'information']
     return db.query(Node).filter(Node.type.in_(poi_types)).all()
 
 # ================== OSM POIs (Dynamic) ==================
@@ -999,7 +999,7 @@ def get_pois_geojson(
     db: Annotated[Session, Depends(get_db)],
     level: Annotated[Optional[int], Query(description="Filter by floor level")] = None
 ):
-    poi_types = ['gate', 'restroom', 'food', 'bar', 'stairs', 'ramp', 'emergency_exit', 'first_aid', 'information', 'merchandise', 'departments']
+    poi_types = ['gate', 'restroom', 'food', 'bar', 'stairs', 'ramp', 'emergency_exit', 'first_aid', 'information', 'departments']
     return get_map_geojson(db=db, level=level, types=','.join(poi_types), include_edges=False, include_seats=False)
 
 # ================== EMERGENCY ROUTES ==================

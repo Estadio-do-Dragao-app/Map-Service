@@ -28,8 +28,8 @@ const AVEIRO_CENTER = [
 
 const NODE_TYPE_OPTIONS = [
   'corridor', 'row_aisle', 'seat', 'gate', 'stairs', 'ramp',
-  'restroom', 'food', 'bar', 'merchandise', 'first_aid',
-  'emergency_exit', 'information', 'vip_box', 'camera', 'normal',
+  'restroom', 'food', 'bar', 'first_aid',
+  'emergency_exit', 'information', 'camera', 'normal',
   'departments', 'queue',
 ];
 
