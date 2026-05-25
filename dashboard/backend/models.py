@@ -5,7 +5,7 @@ NODE_TYPES = [
     "corridor", "row_aisle", "seat", "gate", "stairs", "ramp",
     "restroom", "food", "bar", "merchandise", "first_aid",
     "emergency_exit", "information", "vip_box", "camera", "normal",
-    "departments", "queue",
+    "departments", "department", "departamento", "queue",
 ]
 
 # ================== NODE SCHEMAS ==================

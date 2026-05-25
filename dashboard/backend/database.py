@@ -27,7 +27,7 @@ def _build_safe_url(path: str) -> str:
     return url
 
 
-async def call_map_service(method: str, path: str, json: dict | None = None) -> dict:
+async def call_map_service(method: str, path: str, json: dict | None = None, params: dict | None = None) -> dict:
     """
     Faz uma chamada HTTP ao Map-Service principal.
 
@@ -35,6 +35,7 @@ async def call_map_service(method: str, path: str, json: dict | None = None) -> 
         method: Método HTTP ("GET", "POST", "PUT", "DELETE")
         path:   Caminho da API, ex: "/nodes" ou "/nodes/N1"
         json:   Corpo do pedido (para POST/PUT)
+        params: Parâmetros query (para GET)
 
     Returns:
         dict com a resposta do serviço
@@ -44,10 +45,10 @@ async def call_map_service(method: str, path: str, json: dict | None = None) -> 
         httpx.ConnectError: se o serviço não estiver acessível
     """
     url = _build_safe_url(path)
-    timeout = 60.0 if "/batch" in path else 10.0
+    timeout = 120.0 if ("/batch" in path or "/map/sync" in path) else 30.0
     headers = {"X-API-Key": API_KEY}
     async with httpx.AsyncClient(timeout=timeout) as client:
-        response = await client.request(method, url, json=json, headers=headers)
+        response = await client.request(method, url, json=json, params=params, headers=headers)
         response.raise_for_status()
         # DELETE pode não ter corpo
         if response.status_code == 204 or not response.content:

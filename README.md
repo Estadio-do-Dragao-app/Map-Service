@@ -53,3 +53,4 @@ docker-compose down -v
 # View logs
 docker-compose logs -f postgres
 ```
+psh
