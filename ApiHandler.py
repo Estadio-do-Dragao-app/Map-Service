@@ -156,7 +156,8 @@ def _get_node_group_and_data(node: Node) -> tuple[str, dict]:
 
 def _get_edges_for_level(db: Session, level: Optional[int]) -> list:
     if level is not None:
-        return db.query(Edge).join(Node, Edge.from_id == Node.id).filter(Node.level == level).all()
+        ids = [r[0] for r in db.query(Node.id).filter(Node.level == level).all()]
+        return db.query(Edge).filter((Edge.from_id.in_(ids)) | (Edge.to_id.in_(ids))).all()
     return db.query(Edge).all()
 
 
@@ -912,7 +913,7 @@ def _create_edge_features(db: Session, nodes: list, node_map: dict, level: Optio
     edge_query = db.query(Edge)
     if level is not None:
         level_node_ids = [n.id for n in nodes]
-        edge_query = edge_query.filter(Edge.from_id.in_(level_node_ids))
+        edge_query = edge_query.filter((Edge.from_id.in_(level_node_ids)) | (Edge.to_id.in_(level_node_ids)))
     for e in edge_query.all():
         from_node = node_map.get(e.from_id)
         to_node = node_map.get(e.to_id)
@@ -1221,6 +1222,24 @@ def _insert_batch_edges(db: Session, edges_data: list, existing_nodes: set, resu
         except Exception as e:
             results["edges"]["errors"].append({"id": getattr(edge_data, 'id', 'unknown'), "error": str(e)})
 
+def _insert_batch_cameras(db: Session, cameras_data: list, existing_nodes: set, results: dict):
+    existing_cameras = {r[0] for r in db.query(Camera.id).all()}
+    for camera_data in cameras_data:
+        try:
+            if camera_data.id in existing_cameras:
+                results["cameras"]["errors"].append({"id": camera_data.id, "error": "Camera already exists"})
+                continue
+            if camera_data.node_id not in existing_nodes:
+                results["cameras"]["errors"].append({"id": camera_data.id, "error": f"node_id '{camera_data.node_id}' does not exist"})
+                continue
+            camera = Camera(**camera_data.model_dump())
+            db.add(camera)
+            results["cameras"]["created"].append(camera_data.id)
+            existing_cameras.add(camera_data.id)
+        except Exception as e:
+            results["cameras"]["errors"].append({"id": getattr(camera_data, 'id', 'unknown'), "error": str(e)})
+
+
 def _insert_batch_closures(db: Session, closures_data: list, results: dict):
     existing_closures = {r[0] for r in db.query(Closure.id).all()}
     for closure_data in closures_data:
@@ -1247,6 +1266,7 @@ def create_batch(
         "nodes": {"created": [], "errors": []},
         "edges": {"created": [], "errors": []},
         "closures": {"created": [], "errors": []},
+        "cameras": {"created": [], "errors": []},
     }
     existing_nodes = {r[0] for r in db.query(Node.id).all()}
 
@@ -1271,7 +1291,14 @@ def create_batch(
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Database error committing closures: {str(e)}")
 
-    if results["nodes"]["created"] or results["edges"]["created"] or results["closures"]["created"]:
+    _insert_batch_cameras(db, data.cameras, existing_nodes, results)
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error committing cameras: {str(e)}")
+
+    if results["nodes"]["created"] or results["edges"]["created"] or results["closures"]["created"] or results["cameras"]["created"]:
         notify_routing_refresh()
     return results
 
@@ -1296,6 +1323,8 @@ def sync_map(
             db.add(Edge(**edge_data.model_dump()))
         for closure_data in data.closures:
             db.add(Closure(**closure_data.model_dump()))
+        for camera_data in data.cameras:
+            db.add(Camera(**camera_data.model_dump()))
         db.commit()
         grid_manager = GridManager(cell_size=5.0, origin_x=0.0, origin_y=0.0)
         grid_manager.rebuild_grid(db)

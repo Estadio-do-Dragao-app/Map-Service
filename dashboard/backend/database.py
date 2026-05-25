@@ -22,7 +22,7 @@ def _build_safe_url(path: str) -> str:
     return url
 
 
-async def call_map_service(method: str, path: str, json: dict | None = None) -> dict:
+async def call_map_service(method: str, path: str, json: dict | None = None) -> dict | list:
     """
     Faz uma chamada HTTP ao Map-Service principal.
 

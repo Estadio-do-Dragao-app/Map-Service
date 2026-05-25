@@ -102,6 +102,7 @@ class BatchCreate(BaseModel):
     nodes: List[NodeCreate] = []
     edges: List[EdgeCreate] = []
     closures: List[ClosureCreate] = []
+    cameras: List[CameraCreate] = []
 
 
 class BatchDelete(BaseModel):

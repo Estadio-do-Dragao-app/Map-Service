@@ -446,6 +446,7 @@ class BatchCreate(BaseModel):
     nodes: list[NodeCreate] = []
     edges: list[EdgeCreate] = []
     closures: list[ClosureCreate] = []
+    cameras: list[CameraCreate] = []
 
 # ================== Camera Schemas ==================
 
