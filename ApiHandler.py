@@ -41,7 +41,11 @@ def notify_routing_refresh():
     """Trigger a silent background refresh in the routing service after a map change."""
     def _send():
         try:
-            httpx.post("https://routing-service:8002/api/refresh_map", timeout=2.0)
+            httpx.post(
+                "http://routing-service:8002/api/refresh_map",
+                headers={"X-API-Key": API_KEY},
+                timeout=10.0,
+            )
             print("[WEBHOOK] Notified routing service of map change")
         except Exception as e:
             print(f"[WEBHOOK] Failed to notify routing service: {e}")

@@ -5,6 +5,7 @@ import pytest
 import json
 from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
+import ApiHandler as api_handler
 from models import Node, Edge, Closure, EmergencyRoute, Camera, Tile
 
 
@@ -30,6 +31,30 @@ class TestMapEndpoints:
         data = response.json()
         assert len(data["nodes"]) == 2
         assert len(data["edges"]) == 1
+
+
+class TestRoutingRefreshWebhook:
+    def test_notify_routing_refresh_uses_http_and_api_key(self):
+        calls = {}
+
+        class ImmediateThread:
+            def __init__(self, target):
+                self.target = target
+
+            def start(self):
+                self.target()
+
+        def fake_post(url, headers=None, timeout=None):
+            calls["url"] = url
+            calls["headers"] = headers
+            calls["timeout"] = timeout
+
+        with patch.object(api_handler.threading, "Thread", ImmediateThread), patch.object(api_handler.httpx, "post", side_effect=fake_post):
+            api_handler.notify_routing_refresh()
+
+        assert calls["url"] == "http://routing-service:8002/api/refresh_map"
+        assert calls["headers"] == {"X-API-Key": api_handler.API_KEY}
+        assert calls["timeout"] == 10.0
 
 
 # ==================== NODES ====================
