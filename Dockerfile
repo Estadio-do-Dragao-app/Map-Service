@@ -7,8 +7,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends bash curl dos2u
     rm -rf /var/lib/apt/lists/* && \
     useradd -m -u 1000 appuser
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir --only-binary :all: -r requirements.txt
+COPY requirements.lock.txt .
+RUN pip install --no-cache-dir --only-binary :all: -r requirements.lock.txt
 
 # Copy only necessary files instead of entire directory
 COPY *.py ./

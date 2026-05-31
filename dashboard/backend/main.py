@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Optional
 import httpx
 import asyncio
+import re
 
 from models import (
     EdgeUpdate, NodeCreate, NodeResponse,
@@ -14,6 +15,14 @@ from models import (
 from database import call_map_service, check_map_service_health
 
 ERR_MAP_UNREACHABLE = "Map-Service não está acessível"
+SAFE_PATH_SEGMENT_RE = re.compile(r"^[A-Za-z0-9_-]+$")
+
+
+def build_item_path(resource: str, resource_id: str, field_name: str) -> str:
+    """Build a proxy path after validating the dynamic identifier."""
+    if not isinstance(resource_id, str) or not SAFE_PATH_SEGMENT_RE.fullmatch(resource_id):
+        raise HTTPException(status_code=400, detail=f"Invalid {field_name}")
+    return f"/{resource}/{resource_id}"
 
 app = FastAPI(
     title="Dashboard Backend — Map-Service",
@@ -84,7 +93,7 @@ async def get_nodes():
 async def get_node(node_id: str):
     """Obtém um node pelo ID."""
     try:
-        return await call_map_service("GET", f"/nodes/{node_id}")
+        return await call_map_service("GET", build_item_path("nodes", node_id, "node_id"))
     except httpx.ConnectError:
         raise HTTPException(status_code=503, detail=ERR_MAP_UNREACHABLE)
     except httpx.HTTPStatusError as e:
@@ -113,7 +122,7 @@ async def create_node(data: NodeCreate):
 async def delete_node(node_id: str):
     """Apaga um node e todas as suas edges associadas."""
     try:
-        return await call_map_service("DELETE", f"/nodes/{node_id}")
+        return await call_map_service("DELETE", build_item_path("nodes", node_id, "node_id"))
     except httpx.ConnectError:
         raise HTTPException(status_code=503, detail=ERR_MAP_UNREACHABLE)
     except httpx.HTTPStatusError as e:
@@ -127,7 +136,7 @@ async def update_node(node_id: str, data: NodeUpdate):
     if data.type is not None and data.type not in NODE_TYPES:
         raise HTTPException(status_code=400, detail=f"Invalid node type: {data.type}")
     try:
-        return await call_map_service("PUT", f"/nodes/{node_id}", json=data.model_dump(exclude_none=True))
+        return await call_map_service("PUT", build_item_path("nodes", node_id, "node_id"), json=data.model_dump(exclude_none=True))
     except httpx.ConnectError:
         raise HTTPException(status_code=503, detail=ERR_MAP_UNREACHABLE)
     except httpx.HTTPStatusError as e:
@@ -150,7 +159,7 @@ async def get_edges():
 async def get_edge(edge_id: str):
     """Obtém uma edge pelo ID."""
     try:
-        return await call_map_service("GET", f"/edges/{edge_id}")
+        return await call_map_service("GET", build_item_path("edges", edge_id, "edge_id"))
     except httpx.ConnectError:
         raise HTTPException(status_code=503, detail=ERR_MAP_UNREACHABLE)
     except httpx.HTTPStatusError as e:
@@ -177,7 +186,7 @@ async def create_edge(data: EdgeCreate):
 async def delete_edge(edge_id: str):
     """Apaga uma edge pelo ID."""
     try:
-        return await call_map_service("DELETE", f"/edges/{edge_id}")
+        return await call_map_service("DELETE", build_item_path("edges", edge_id, "edge_id"))
     except httpx.ConnectError:
         raise HTTPException(status_code=503, detail=ERR_MAP_UNREACHABLE)
     except httpx.HTTPStatusError as e:
@@ -189,7 +198,7 @@ async def update_edge(edge_id: str, data: EdgeUpdate):
     Atualiza uma edge existente.
     """
     try:
-        return await call_map_service("PUT", f"/edges/{edge_id}", json=data.model_dump())
+        return await call_map_service("PUT", build_item_path("edges", edge_id, "edge_id"), json=data.model_dump())
     except httpx.ConnectError:
         raise HTTPException(status_code=503, detail=ERR_MAP_UNREACHABLE)
     except httpx.HTTPStatusError as e:
@@ -227,7 +236,7 @@ async def create_closure(data: ClosureCreate):
 async def delete_closure(closure_id: str):
     """Remove um encerramento temporário."""
     try:
-        return await call_map_service("DELETE", f"/closures/{closure_id}")
+        return await call_map_service("DELETE", build_item_path("closures", closure_id, "closure_id"))
     except httpx.ConnectError:
         raise HTTPException(status_code=503, detail=ERR_MAP_UNREACHABLE)
     except httpx.HTTPStatusError as e:
@@ -275,14 +284,14 @@ async def delete_batch(data: BatchDelete):
 
     async def del_edge(edge_id: str):
         try:
-            await call_map_service("DELETE", f"/edges/{edge_id}")
+            await call_map_service("DELETE", build_item_path("edges", edge_id, "edge_id"))
             results["edges"]["deleted"].append(edge_id)
         except Exception as e:
             results["edges"]["errors"].append({"id": edge_id, "error": str(e)})
 
     async def del_node(node_id: str):
         try:
-            await call_map_service("DELETE", f"/nodes/{node_id}")
+            await call_map_service("DELETE", build_item_path("nodes", node_id, "node_id"))
             results["nodes"]["deleted"].append(node_id)
         except Exception as e:
             results["nodes"]["errors"].append({"id": node_id, "error": str(e)})
@@ -312,7 +321,7 @@ async def get_cameras():
 async def get_camera(camera_id: str):
     """Obtém uma câmara pelo ID."""
     try:
-        return await call_map_service("GET", f"/cameras/{camera_id}")
+        return await call_map_service("GET", build_item_path("cameras", camera_id, "camera_id"))
     except httpx.ConnectError:
         raise HTTPException(status_code=503, detail=ERR_MAP_UNREACHABLE)
     except httpx.HTTPStatusError as e:
@@ -334,7 +343,7 @@ async def create_camera(data: CameraCreate):
 async def update_camera(camera_id: str, data: CameraUpdate):
     """Atualiza os dados de calibração de uma câmara."""
     try:
-        return await call_map_service("PUT", f"/cameras/{camera_id}", json=data.model_dump(exclude_none=True))
+        return await call_map_service("PUT", build_item_path("cameras", camera_id, "camera_id"), json=data.model_dump(exclude_none=True))
     except httpx.ConnectError:
         raise HTTPException(status_code=503, detail=ERR_MAP_UNREACHABLE)
     except httpx.HTTPStatusError as e:
@@ -345,7 +354,7 @@ async def update_camera(camera_id: str, data: CameraUpdate):
 async def delete_camera(camera_id: str):
     """Apaga uma câmara pelo ID."""
     try:
-        return await call_map_service("DELETE", f"/cameras/{camera_id}")
+        return await call_map_service("DELETE", build_item_path("cameras", camera_id, "camera_id"))
     except httpx.ConnectError:
         raise HTTPException(status_code=503, detail=ERR_MAP_UNREACHABLE)
     except httpx.HTTPStatusError as e:

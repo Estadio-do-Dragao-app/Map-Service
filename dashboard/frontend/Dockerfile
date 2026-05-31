@@ -7,8 +7,11 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --ignore-scripts
 
-# Copy the rest of the application code
-COPY . .
+# Copy only the files needed to build the frontend
+COPY index.html ./
+COPY vite.config.js ./
+COPY public ./public
+COPY src ./src
 
 # Build the application
 RUN npm run build
