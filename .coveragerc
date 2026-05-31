@@ -11,6 +11,7 @@ omit =
     *.pyc
     conftest.py
     setup.py
+    dashboard/*
 
 [report]
 exclude_lines =

@@ -3,8 +3,8 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Install dependencies first (layer cache optimization)
-COPY requirements.txt .
-RUN pip install --no-cache-dir --only-binary :all: -r requirements.txt \
+COPY requirements.lock.txt .
+RUN pip install --no-cache-dir --only-binary :all: -r requirements.lock.txt \
     && useradd -m -u 1000 appuser
 
 # Copy only necessary application files (avoid sensitive data leakage)

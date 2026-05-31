@@ -19,6 +19,14 @@ import '../styles/MapComponent.css';
 
 // Dashboard backend URL (override with VITE_DASHBOARD_API_BASE if needed)
 const API_BASE = import.meta.env.VITE_DASHBOARD_API_BASE || '/api';
+const SAFE_ID_SEGMENT_RE = /^[A-Za-z0-9_-]+$/;
+
+function buildItemUrl(resource, resourceId, fieldName) {
+  if (typeof resourceId !== 'string' || !SAFE_ID_SEGMENT_RE.test(resourceId)) {
+    throw new Error(`Invalid ${fieldName}`);
+  }
+  return `${API_BASE}/${resource}/${encodeURIComponent(resourceId)}`;
+}
 
 const AVEIRO_CENTER = [
   (40.628 + 40.635) / 2,
@@ -446,7 +454,7 @@ export function MapComponent() {
   const updateNode = async () => {
     if (!editingNode || !draggedPosition) return;
     try {
-      const response = await fetch(`${API_BASE}/nodes/${editingNode}`, {
+      const response = await fetch(buildItemUrl('nodes', editingNode, 'node id'), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -504,7 +512,7 @@ export function MapComponent() {
           : null,
       };
       if (cam && draggedPosition) {
-        await fetch(`${API_BASE}/nodes/${cam.node_id}`, {
+        await fetch(buildItemUrl('nodes', cam.node_id, 'node id'), {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ x: draggedPosition.lng, y: draggedPosition.lat }),
@@ -512,7 +520,7 @@ export function MapComponent() {
         payload.pos_x = draggedPosition.lng;
         payload.pos_y = draggedPosition.lat;
       }
-      const response = await fetch(`${API_BASE}/cameras/${editingCamera}`, {
+      const response = await fetch(buildItemUrl('cameras', editingCamera, 'camera id'), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -868,7 +876,7 @@ export function MapComponent() {
       });
 
       if (!camRes.ok) {
-        await fetch(`${API_BASE}/nodes/${nodeId}`, { method: 'DELETE' });
+        await fetch(buildItemUrl('nodes', nodeId, 'node id'), { method: 'DELETE' });
         const errData = await camRes.json().catch(() => ({}));
         throw new Error(errData.detail || 'Failed to create camera record');
       }
