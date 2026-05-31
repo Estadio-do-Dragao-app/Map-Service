@@ -35,8 +35,8 @@ const AVEIRO_CENTER = [
 
 const NODE_TYPE_OPTIONS = [
   'corridor', 'row_aisle', 'seat', 'gate', 'stairs', 'ramp',
-  'restroom', 'food', 'bar', 'merchandise', 'first_aid',
-  'emergency_exit', 'information', 'vip_box', 'camera', 'normal',
+  'restroom', 'food', 'bar', 'first_aid',
+  'emergency_exit', 'information', 'camera', 'normal',
   'departments', 'queue',
 ];
 
@@ -400,6 +400,7 @@ export function MapComponent() {
       setNodes(await nodesRes.json());
       setEdges(await edgesRes.json());
       if (camerasRes.ok) setCameras(await camerasRes.json());
+      else { console.error('Failed to fetch cameras'); setError('Não foi possível carregar câmaras'); }
     } catch (err) {
       setError(err.message);
       console.error('Error fetching data:', err);
@@ -459,6 +460,8 @@ export function MapComponent() {
         body: JSON.stringify({
           ...editFormData,
           x: draggedPosition.lng, y: draggedPosition.lat,
+          block: editFormData.block || null,
+          description: editFormData.description || null,
           door_id: editFormData.door_id || null,
         }),
       });
@@ -535,7 +538,8 @@ export function MapComponent() {
   const deleteNode = async (nodeId) => {
     if (!globalThis.confirm('Are you sure you want to delete this node? Connected edges will also be deleted.')) return;
     try {
-      await fetch(buildItemUrl('nodes', nodeId, 'node id'), { method: 'DELETE' });
+      const res = await fetch(`${API_BASE}/nodes/${nodeId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete node');
       await fetchData();
       setSelectedNode(null);
       setNewNodeIds(prev => { const s = new Set(prev); s.delete(nodeId); return s; });
@@ -546,7 +550,8 @@ export function MapComponent() {
   const deleteEdge = async (edgeId) => {
     if (!globalThis.confirm('Are you sure you want to delete this edge?')) return;
     try {
-      await fetch(buildItemUrl('edges', edgeId, 'edge id'), { method: 'DELETE' });
+      const res = await fetch(`${API_BASE}/edges/${edgeId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete edge');
       await fetchData();
     } catch (err) { setError(err.message); }
   };
@@ -726,6 +731,7 @@ export function MapComponent() {
           nodes: data.nodes || [],
           edges: mappedEdges,
           closures: data.closures || [],
+          cameras: data.cameras || [],
         }),
       });
 
@@ -782,6 +788,7 @@ export function MapComponent() {
           nodes: nodes,
           edges: mappedEdges,
           closures: validClosures,
+          cameras: cameras,
         }),
       });
 

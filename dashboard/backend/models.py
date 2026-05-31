@@ -92,20 +92,6 @@ class ClosureCreate(BaseModel):
 class ClosureResponse(ClosureCreate):
     pass
 
-
-# ================== BATCH SCHEMAS ==================
-
-class BatchCreate(BaseModel):
-    nodes: List[NodeCreate] = []
-    edges: List[EdgeCreate] = []
-    closures: List[ClosureCreate] = []
-
-
-class BatchDelete(BaseModel):
-    node_ids: List[str] = []
-    edge_ids: List[str] = []
-
-
 # ================== CAMERA SCHEMAS ==================
 
 class CameraCreate(BaseModel):
@@ -157,3 +143,17 @@ class CameraResponse(BaseModel):
     coverage_y_min: Optional[float] = None
     coverage_y_max: Optional[float] = None
     coverage_polygon: Optional[list] = None
+
+
+# ================== BATCH SCHEMAS ==================
+
+class BatchCreate(BaseModel):
+    nodes: List[NodeCreate] = []
+    edges: List[EdgeCreate] = []
+    closures: List[ClosureCreate] = []
+    cameras: List[CameraCreate] = []
+
+
+class BatchDelete(BaseModel):
+    node_ids: List[str] = []
+    edge_ids: List[str] = []

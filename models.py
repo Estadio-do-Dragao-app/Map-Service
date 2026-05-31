@@ -22,11 +22,9 @@ NODE_TYPES = [
     "restroom",       # WC/Bathroom facilities
     "food",           # Food court/restaurant
     "bar",            # Bar/drinks area
-    "merchandise",    # Store/merchandise shop
     "first_aid",      # Medical/first aid station
     "emergency_exit", # Emergency exit point
     "information",    # Information desk
-    "vip_box",        # VIP box/corporate area
     "camera",         # Surveillance camera
     "normal",         # Generic navigation node
     "departments",    # University department / campus building
@@ -474,10 +472,6 @@ class EmergencyRouteResponse(BaseModel):
     class Config:
         from_attributes = True
 
-class BatchCreate(BaseModel):
-    nodes: list[NodeCreate] = []
-    edges: list[EdgeCreate] = []
-    closures: list[ClosureCreate] = []
 
 # ================== Camera Schemas ==================
 
@@ -529,3 +523,8 @@ class CameraResponse(BaseModel):
 
     class Config:
         from_attributes = True
+class BatchCreate(BaseModel):
+    nodes: list[NodeCreate] = []
+    edges: list[EdgeCreate] = []
+    closures: list[ClosureCreate] = []
+    cameras: list[CameraCreate] = []
