@@ -4,7 +4,7 @@ WORKDIR /app
 
 # Install dependencies first (layer cache optimization)
 COPY requirements.lock.txt .
-RUN pip install --no-cache-dir --only-binary :all: -r requirements.lock.txt \
+RUN pip install --no-cache-dir --only-binary :all: --no-deps --require-hashes -r requirements.lock.txt \
     && useradd -m -u 1000 appuser
 
 # Copy only necessary application files (avoid sensitive data leakage)
