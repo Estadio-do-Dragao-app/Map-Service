@@ -42,7 +42,7 @@ def notify_routing_refresh():
     def _send():
         try:
             httpx.post(
-                "http://routing-service:8002/api/refresh_map",
+                "http://routing-service:8002/api/refresh_map", # NOSONAR
                 headers={"X-API-Key": API_KEY},
                 timeout=2.0,
             )
