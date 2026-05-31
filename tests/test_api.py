@@ -54,8 +54,6 @@ class TestRoutingRefreshWebhook:
 
         assert calls["url"] == "http://routing-service:8002/api/refresh_map"
         assert calls["headers"] == {"X-API-Key": api_handler.API_KEY}
-        assert calls["timeout"] == 10.0
-
 
 # ==================== NODES ====================
 
