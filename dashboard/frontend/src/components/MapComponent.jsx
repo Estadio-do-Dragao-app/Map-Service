@@ -10,16 +10,23 @@ import {
   faFileExport,
   faFileImport,
   faVideo,
-  faCameraRotate,
   faCloudArrowUp,
+  faCameraRotate,
 } from '@fortawesome/free-solid-svg-icons';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import '../styles/MapComponent.css';
 
 // Dashboard backend URL (override with VITE_DASHBOARD_API_BASE if needed)
-const API_BASE =
-  import.meta.env.VITE_DASHBOARD_API_BASE || '/api';
+const API_BASE = import.meta.env.VITE_DASHBOARD_API_BASE || '/api';
+const SAFE_ID_SEGMENT_RE = /^[A-Za-z0-9_-]+$/;
+
+function buildItemUrl(resource, resourceId, fieldName) {
+  if (typeof resourceId !== 'string' || !SAFE_ID_SEGMENT_RE.test(resourceId)) {
+    throw new Error(`Invalid ${fieldName}`);
+  }
+  return `${API_BASE}/${resource}/${encodeURIComponent(resourceId)}`;
+}
 
 const AVEIRO_CENTER = [
   (40.628 + 40.635) / 2,
@@ -28,10 +35,290 @@ const AVEIRO_CENTER = [
 
 const NODE_TYPE_OPTIONS = [
   'corridor', 'row_aisle', 'seat', 'gate', 'stairs', 'ramp',
-  'restroom', 'food', 'bar', 'merchandise', 'first_aid',
-  'emergency_exit', 'information', 'vip_box', 'camera', 'normal',
+  'restroom', 'food', 'bar', 'first_aid',
+  'emergency_exit', 'information', 'camera', 'normal',
   'departments', 'queue',
 ];
+
+function getNodePopupHTML(node, isNewNode) {
+  return `
+    <strong>${node.name || 'Unnamed'}</strong><br/>
+    ID: ${node.id}<br/>
+    Tipo: ${node.type || 'normal'}<br/>
+    ${node.description ? `Desc: ${node.description}<br/>` : ''}
+    Lat: ${node.y.toFixed(6)}<br/>
+    Lng: ${node.x.toFixed(6)}<br/>
+    ${isNewNode ? '<em>New</em>' : ''}
+  `;
+}
+
+function getFillColorAndRadius(isSelectingDoor, isInDelete, isListSelected, isPartOfEdgeSel, isEdgeSelected, isQueue, showQueues, baseColor) {
+  if (isSelectingDoor) return { fillColor: '#9c27b0', radius: 9 };
+  if (isInDelete) return { fillColor: '#ffa500', radius: 10 };
+  if (isListSelected) return { fillColor: '#ff6b6b', radius: 14 };
+  if (isPartOfEdgeSel) return { fillColor: '#ff6b6b', radius: 12 };
+  if (isEdgeSelected) return { fillColor: '#ffc107', radius: 10 };
+  if (isQueue && showQueues) return { fillColor: '#e3b341', radius: 9 };
+  return { fillColor: baseColor, radius: 7 };
+}
+
+function getMarkerKind(node, cameras, editingCamera, draggedPosition, editingNode, isCamera, isPoi) {
+  if ((node.id === editingNode || (isCamera && cameras.find(c => c.id === editingCamera)?.node_id === node.id)) && draggedPosition) {
+    return 'edit';
+  }
+  if (isCamera) return 'camera';
+  if (isPoi) return 'poi';
+  return 'circle';
+}
+
+function createNewMarker(kind, node, {
+  draggedPosition, cameras, isInDelete, isListSelected, isPartOfEdgeSel, isEdgeSelected,
+  radius, fillColor, matchesSearch, isNewNode, mapCurrent, setDraggedPosition
+}) {
+  if (kind === 'edit') {
+    const editMarker = L.marker([draggedPosition.lat, draggedPosition.lng], {
+      draggable: true,
+      icon: L.divIcon({
+        className: 'editing-marker',
+        html: '<div style="background-color:#ff6b6b;width:24px;height:24px;border-radius:50%;border:3px solid white;box-shadow:0 0 10px rgba(255,107,107,0.5);"></div>',
+        iconSize: [24, 24], iconAnchor: [12, 12],
+      }),
+    }).addTo(mapCurrent);
+    editMarker.on('drag',    (e) => { const p = e.target.getLatLng(); setDraggedPosition({ lat: p.lat, lng: p.lng }); });
+    editMarker.on('dragend', (e) => { const p = e.target.getLatLng(); setDraggedPosition({ lat: p.lat, lng: p.lng }); });
+    editMarker.bindPopup(`<strong>Editing: ${node.name || node.id}</strong><br/>Drag to move`);
+    return editMarker;
+  }
+
+  if (kind === 'camera') {
+    const camData = cameras.find(c => c.node_id === node.id);
+    let bg = '#bc8cff';
+    if (isInDelete) {
+      bg = '#ffa500';
+    } else if (isListSelected) {
+      bg = '#ff6b6b';
+    }
+    const camMarker = L.marker([node.y, node.x], {
+      icon: L.divIcon({
+        className: 'camera-marker',
+        html: `<div class="camera-marker-inner" style="background:${bg}"><svg viewBox="0 0 24 24" fill="white" width="14" height="14"><path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4z"/></svg></div>`,
+        iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -16],
+      }),
+    }).addTo(mapCurrent);
+    camMarker.bindPopup(`
+      <strong>${node.name || node.id}</strong><br/>
+      ${camData ? `H: ${camData.pos_z}m · Pan: ${camData.pan}° · Tilt: ${camData.tilt}°<br/>FOV: ${camData.fov_horizontal}°×${camData.fov_vertical}°` : ''}
+    `);
+    return camMarker;
+  }
+
+  if (kind === 'poi') {
+    let poiStateClass = '';
+    if (isInDelete) {
+      poiStateClass = 'poi-delete';
+    } else if (isListSelected || isPartOfEdgeSel || isEdgeSelected) {
+      poiStateClass = 'poi-selected';
+    }
+    const poiMarker = L.marker([node.y, node.x], {
+      icon: L.divIcon({
+        className: `poi-marker ${poiStateClass}`,
+        html: '<div class="poi-marker-pin"></div><div class="poi-marker-dot"></div>',
+        iconSize: [22, 30],
+        iconAnchor: [11, 30],
+        popupAnchor: [0, -24],
+      }),
+    }).addTo(mapCurrent);
+    poiMarker.bindPopup(getNodePopupHTML(node, isNewNode));
+    return poiMarker;
+  }
+
+  const circleMarker = L.circleMarker([node.y, node.x], {
+    radius, fill: true, fillColor,
+    fillOpacity: matchesSearch ? 0.9 : 0.4,
+    stroke: true, color: fillColor, weight: 2,
+    opacity: 1,
+  }).addTo(mapCurrent);
+  circleMarker.bindPopup(getNodePopupHTML(node, isNewNode));
+  return circleMarker;
+}
+
+function updateExistingMarker(entry, node, {
+  radius, fillColor, matchesSearch, isInDelete, isListSelected, isPartOfEdgeSel, isEdgeSelected, draggedPosition
+}) {
+  if (entry.kind === 'circle') {
+    entry.marker.setLatLng([node.y, node.x]);
+    entry.marker.setRadius(radius);
+    entry.marker.setStyle({
+      fillColor,
+      color: fillColor,
+      opacity: 1,
+      fillOpacity: matchesSearch ? 0.9 : 0.4,
+    });
+  } else if (entry.kind === 'poi') {
+    let poiStateClass = '';
+    if (isInDelete) {
+      poiStateClass = 'poi-delete';
+    } else if (isListSelected || isPartOfEdgeSel || isEdgeSelected) {
+      poiStateClass = 'poi-selected';
+    }
+    entry.marker.setLatLng([node.y, node.x]);
+    entry.marker.setIcon(L.divIcon({
+      className: `poi-marker ${poiStateClass}`,
+      html: '<div class="poi-marker-pin"></div><div class="poi-marker-dot"></div>',
+      iconSize: [22, 30],
+      iconAnchor: [11, 30],
+      popupAnchor: [0, -24],
+    }));
+  } else if (entry.kind === 'edit' && draggedPosition) {
+    entry.marker.setLatLng([draggedPosition.lat, draggedPosition.lng]);
+  }
+}
+
+function setupMarkerClick(marker, node, {
+  creatingEdge, deleteMode, deleteNode, setPointsForEdge, nodes, setError, selectNode
+}) {
+  marker.off('click');
+  marker.on('click', (e) => {
+    L.DomEvent.stopPropagation(e);
+    if (!creatingEdge) marker.openPopup();
+    if (deleteMode) {
+      deleteNode(node.id);
+      return;
+    }
+    if (creatingEdge) {
+      setPointsForEdge((prev) => {
+        const clickedNode = nodes.find(n => n.id === node.id);
+        const clickedType = clickedNode?.type;
+
+        if (clickedType === 'camera') {
+          setError('Camera nodes cannot be connected to any other node.');
+          return prev;
+        }
+
+        if (!prev.from) {
+          return { ...prev, from: node.id };
+        }
+
+        if (!prev.to && node.id !== prev.from) {
+          return { ...prev, to: node.id };
+        }
+
+        return prev;
+      });
+      return;
+    }
+    selectNode(node);
+  });
+}
+
+// Helper to render a single node on the Leaflet map (decoupled to reduce cognitive complexity and nesting)
+function renderNodeOnMap(node, {
+  nodes,
+  edges,
+  cameras,
+  selectedNode,
+  selectedEdgeFromList,
+  pointsForEdge,
+  newNodeIds,
+  nodeSearchQuery,
+  selectedForDelete,
+  selectingDoor,
+  editingNode,
+  editingCamera,
+  draggedPosition,
+  showCameras,
+  showQueues,
+  deleteMode,
+  creatingEdge,
+  rectangleSelectMode,
+  mapCurrent,
+  markersRefCurrent,
+  markerTimersRefCurrent,
+  selectNode,
+  deleteNode,
+  setPointsForEdge,
+  setError,
+  hideNonPoi,
+  fadeInOnZoom,
+  setMarkerVisible,
+  clearMarkerTimer,
+  setDraggedPosition,
+  hiddenByZoom,
+  visibleNodeIds,
+}) {
+  const isCamera = (node.type || '') === 'camera';
+  const isQueue  = (node.type || '') === 'queue';
+  const poiTypes = new Set([
+    'poi', 'restroom', 'food', 'bar', 'merchandise',
+    'first_aid', 'emergency_exit', 'information', 'vip_box', 'camera',
+    'departments',
+  ]);
+  const isPoi = poiTypes.has((node.type || '').toLowerCase());
+
+  if (isCamera && !showCameras) {
+    hiddenByZoom.add(node.id);
+    return;
+  }
+  if (hideNonPoi && !isPoi) {
+    hiddenByZoom.add(node.id);
+    return;
+  }
+  visibleNodeIds.add(node.id);
+
+  const isFromNode       = pointsForEdge.from === node.id;
+  const isToNode         = pointsForEdge.to   === node.id;
+  const isEdgeSelected   = isFromNode || isToNode;
+  const isListSelected   = selectedNode?.id === node.id;
+  const isPartOfEdgeSel  = selectedEdgeFromList &&
+    (edges.find(e => e.id === selectedEdgeFromList)?.from_id === node.id ||
+     edges.find(e => e.id === selectedEdgeFromList)?.to_id   === node.id);
+  const isNewNode        = newNodeIds.has(node.id);
+  const matchesSearch    = nodeSearchQuery === '' ||
+    node.name?.toLowerCase().includes(nodeSearchQuery.toLowerCase());
+  const isInDelete       = selectedForDelete.nodes.some(n => n.id === node.id);
+  const isSelectingDoor  = selectingDoor && editingNode;
+
+  const baseColor = isNewNode ? '#4CAF50' : '#313b84';
+  const { fillColor, radius } = getFillColorAndRadius(
+    isSelectingDoor, isInDelete, isListSelected, isPartOfEdgeSel, isEdgeSelected, isQueue, showQueues, baseColor
+  );
+
+  const markerKind = getMarkerKind(node, cameras, editingCamera, draggedPosition, editingNode, isCamera, isPoi);
+
+  const existingEntry = markersRefCurrent[node.id];
+  let entry = existingEntry;
+
+  if (entry?.kind !== markerKind) {
+    if (entry) entry.marker.remove();
+
+    const marker = createNewMarker(markerKind, node, {
+      draggedPosition, cameras, isInDelete, isListSelected, isPartOfEdgeSel, isEdgeSelected,
+      radius, fillColor, matchesSearch, isNewNode, mapCurrent, setDraggedPosition
+    });
+    entry = { marker, kind: markerKind };
+    markersRefCurrent[node.id] = entry;
+  }
+
+  setupMarkerClick(entry.marker, node, {
+    creatingEdge, deleteMode, deleteNode, setPointsForEdge, nodes, setError, selectNode
+  });
+
+  clearMarkerTimer(node.id);
+
+  updateExistingMarker(entry, node, {
+    radius, fillColor, matchesSearch, isInDelete, isListSelected, isPartOfEdgeSel, isEdgeSelected, draggedPosition
+  });
+
+  if (fadeInOnZoom) {
+    if (entry.kind === 'circle') setMarkerVisible(entry, false, 0);
+    else setMarkerVisible(entry, false);
+    setTimeout(() => {
+      if (entry.kind === 'circle') setMarkerVisible(entry, true, matchesSearch ? 0.9 : 0.4);
+      else setMarkerVisible(entry, true);
+    }, 0);
+  }
+}
+
 
 export function MapComponent() {
   const mapContainer     = useRef(null);
@@ -81,22 +368,20 @@ export function MapComponent() {
   const [showQueues, setShowQueues]         = useState(false);
   const [showCameraForm, setShowCameraForm] = useState(false);
   const [cameraFormData, setCameraFormData] = useState({
-    id: '', pos_z: 10.0, pan: 0.0, tilt: -30.0,
-    fov_horizontal: 70.0, fov_vertical: 55.0,
+    id: '', pos_z: 10, pan: 0, tilt: -30,
+    fov_horizontal: 70, fov_vertical: 55,
     coverage_x_min: '', coverage_x_max: '',
     coverage_y_min: '', coverage_y_max: '',
   });
   const [editingCamera, setEditingCamera]           = useState(null);
   const [editCameraFormData, setEditCameraFormData] = useState({
-    pos_z: 10.0, pan: 0.0, tilt: -30.0,
-    fov_horizontal: 70.0, fov_vertical: 55.0,
+    pos_z: 10, pan: 0, tilt: -30,
+    fov_horizontal: 70, fov_vertical: 55,
     coverage_x_min: '', coverage_x_max: '',
     coverage_y_min: '', coverage_y_max: '',
   });
 
   // ── Coverage polygon state ────────────────────────────────────────────────
-  // polygonPoints: [{lat, lng}, ...] — points the user places on the map
-  // drawingPolygon: true when the user is actively placing polygon points
   const [polygonPoints, setPolygonPoints]   = useState([]);
   const [drawingPolygon, setDrawingPolygon] = useState(false);
   const polygonLayersRef                    = useRef([]);  // Leaflet layers for live preview
@@ -115,6 +400,7 @@ export function MapComponent() {
       setNodes(await nodesRes.json());
       setEdges(await edgesRes.json());
       if (camerasRes.ok) setCameras(await camerasRes.json());
+      else { console.error('Failed to fetch cameras'); setError('Não foi possível carregar câmaras'); }
     } catch (err) {
       setError(err.message);
       console.error('Error fetching data:', err);
@@ -168,12 +454,14 @@ export function MapComponent() {
   const updateNode = async () => {
     if (!editingNode || !draggedPosition) return;
     try {
-      const response = await fetch(`${API_BASE}/nodes/${editingNode}`, {
+      const response = await fetch(buildItemUrl('nodes', editingNode, 'node id'), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...editFormData,
           x: draggedPosition.lng, y: draggedPosition.lat,
+          block: editFormData.block || null,
+          description: editFormData.description || null,
           door_id: editFormData.door_id || null,
         }),
       });
@@ -196,7 +484,6 @@ export function MapComponent() {
       coverage_x_min: cam.coverage_x_min ?? '', coverage_x_max: cam.coverage_x_max ?? '',
       coverage_y_min: cam.coverage_y_min ?? '', coverage_y_max: cam.coverage_y_max ?? '',
     });
-    // Load existing polygon — stored as [{x,y}] where x=lng, y=lat
     if (cam.coverage_polygon && cam.coverage_polygon.length > 0) {
       setPolygonPoints(cam.coverage_polygon.map(p => ({ lat: p.y, lng: p.x })));
     } else {
@@ -216,16 +503,16 @@ export function MapComponent() {
         tilt: editCameraFormData.tilt,
         fov_horizontal: editCameraFormData.fov_horizontal,
         fov_vertical: editCameraFormData.fov_vertical,
-        coverage_x_min: editCameraFormData.coverage_x_min !== '' ? parseFloat(editCameraFormData.coverage_x_min) : null,
-        coverage_x_max: editCameraFormData.coverage_x_max !== '' ? parseFloat(editCameraFormData.coverage_x_max) : null,
-        coverage_y_min: editCameraFormData.coverage_y_min !== '' ? parseFloat(editCameraFormData.coverage_y_min) : null,
-        coverage_y_max: editCameraFormData.coverage_y_max !== '' ? parseFloat(editCameraFormData.coverage_y_max) : null,
+        coverage_x_min: editCameraFormData.coverage_x_min === '' ? null : Number.parseFloat(editCameraFormData.coverage_x_min),
+        coverage_x_max: editCameraFormData.coverage_x_max === '' ? null : Number.parseFloat(editCameraFormData.coverage_x_max),
+        coverage_y_min: editCameraFormData.coverage_y_min === '' ? null : Number.parseFloat(editCameraFormData.coverage_y_min),
+        coverage_y_max: editCameraFormData.coverage_y_max === '' ? null : Number.parseFloat(editCameraFormData.coverage_y_max),
         coverage_polygon: polygonPoints.length >= 3
           ? polygonPoints.map(p => ({ x: p.lng, y: p.lat }))
           : null,
       };
       if (cam && draggedPosition) {
-        await fetch(`${API_BASE}/nodes/${cam.node_id}`, {
+        await fetch(buildItemUrl('nodes', cam.node_id, 'node id'), {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ x: draggedPosition.lng, y: draggedPosition.lat }),
@@ -233,7 +520,7 @@ export function MapComponent() {
         payload.pos_x = draggedPosition.lng;
         payload.pos_y = draggedPosition.lat;
       }
-      const response = await fetch(`${API_BASE}/cameras/${editingCamera}`, {
+      const response = await fetch(buildItemUrl('cameras', editingCamera, 'camera id'), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -246,11 +533,13 @@ export function MapComponent() {
   };
 
   const cancelEditCamera = () => { setEditingCamera(null); setDraggedPosition(null); clearPolygon(); };
+
   // ── Delete node ──────────────────────────────────────────────────────────
   const deleteNode = async (nodeId) => {
-    if (!confirm('Are you sure you want to delete this node? Connected edges will also be deleted.')) return;
+    if (!globalThis.confirm('Are you sure you want to delete this node? Connected edges will also be deleted.')) return;
     try {
-      await fetch(`${API_BASE}/nodes/${nodeId}`, { method: 'DELETE' });
+      const res = await fetch(`${API_BASE}/nodes/${nodeId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete node');
       await fetchData();
       setSelectedNode(null);
       setNewNodeIds(prev => { const s = new Set(prev); s.delete(nodeId); return s; });
@@ -259,19 +548,19 @@ export function MapComponent() {
 
   // ── Delete edge ──────────────────────────────────────────────────────────
   const deleteEdge = async (edgeId) => {
-    if (!confirm('Are you sure you want to delete this edge?')) return;
+    if (!globalThis.confirm('Are you sure you want to delete this edge?')) return;
     try {
-      await fetch(`${API_BASE}/edges/${edgeId}`, { method: 'DELETE' });
+      const res = await fetch(`${API_BASE}/edges/${edgeId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete edge');
       await fetchData();
     } catch (err) { setError(err.message); }
   };
 
   // ── Create node ──────────────────────────────────────────────────────────
   const createNode = async () => {
-    if (!newNodePosition || !formData.name) { alert('Please enter a node name'); return; }
-    // Guard: reject (0,0) or clearly invalid coordinates
+    if (!newNodePosition || !formData.name) { globalThis.alert('Please enter a node name'); return; }
     if (newNodePosition[0] === 0 && newNodePosition[1] === 0) {
-      alert('Invalid node position (0,0). Please click on the map to set a valid location.'); return;
+      globalThis.alert('Invalid node position (0,0). Please click on the map to set a valid location.'); return;
     }
 
     const newId = `node_${Date.now()}`;
@@ -301,12 +590,11 @@ export function MapComponent() {
 
   // ── Create edge ──────────────────────────────────────────────────────────
   const createEdge = async () => {
-    if (!pointsForEdge.from || !pointsForEdge.to) { alert('Please select two nodes'); return; }
+    if (!pointsForEdge.from || !pointsForEdge.to) { globalThis.alert('Please select two nodes'); return; }
 
     const fromNode = nodes.find(n => n.id === pointsForEdge.from);
     const toNode   = nodes.find(n => n.id === pointsForEdge.to);
 
-    // Camera nodes cannot be connected to anything
     if (fromNode?.type === 'camera' || toNode?.type === 'camera') {
       setError('Camera nodes cannot be connected to any other node.');
       return;
@@ -318,7 +606,7 @@ export function MapComponent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: `edge_${Date.now()}`, from_id: pointsForEdge.from,
-          to_id: pointsForEdge.to, weight: 1.0, accessible: true,
+          to_id: pointsForEdge.to, weight: 1, accessible: true,
         }),
       });
       if (!response.ok) throw new Error('Failed to create edge');
@@ -362,20 +650,17 @@ export function MapComponent() {
   };
 
   const drawPolygonPreview = (points) => {
-    // Remove previous preview layers
     polygonLayersRef.current.forEach(l => { if (map.current) map.current.removeLayer(l); });
     polygonLayersRef.current = [];
     if (!map.current || points.length === 0) return;
 
     const color = 'var(--accent-purple, #bc8cff)';
 
-    // Draw vertex dots
     points.forEach((p, i) => {
       const circle = L.circleMarker([p.lat, p.lng], {
         radius: 5, fill: true, fillColor: color, fillOpacity: 0.9,
         stroke: true, color: '#fff', weight: 1.5,
       }).addTo(map.current);
-      // Click on a vertex to remove it
       circle.on('click', (e) => {
         L.DomEvent.stopPropagation(e);
         setPolygonPoints(prev => prev.filter((_, idx) => idx !== i));
@@ -383,14 +668,12 @@ export function MapComponent() {
       polygonLayersRef.current.push(circle);
     });
 
-    // Draw lines between consecutive points
     if (points.length >= 2) {
       const latlngs = points.map(p => [p.lat, p.lng]);
       const line = L.polyline(latlngs, { color, weight: 2, opacity: 0.7, dashArray: '6,4' }).addTo(map.current);
       polygonLayersRef.current.push(line);
     }
 
-    // Draw closing line + filled polygon when >= 3 points
     if (points.length >= 3) {
       const latlngs = points.map(p => [p.lat, p.lng]);
       const poly = L.polygon(latlngs, {
@@ -417,7 +700,7 @@ export function MapComponent() {
       a.download = 'campus_map.json';
       document.body.appendChild(a);
       a.click();
-      document.body.removeChild(a);
+      a.remove();
       URL.revokeObjectURL(url);
     } catch (err) {
       setError(`Export error: ${err.message}`);
@@ -437,8 +720,8 @@ export function MapComponent() {
         id: edge.id,
         from_id: edge.from_id || edge.from,
         to_id: edge.to_id || edge.to,
-        weight: edge.weight !== undefined ? edge.weight : edge.w,
-        accessible: edge.accessible !== undefined ? edge.accessible : true,
+        weight: edge.weight === undefined ? edge.w : edge.weight,
+        accessible: edge.accessible === undefined ? true : edge.accessible,
       }));
 
       const response = await fetch(`${API_BASE}/batch`, {
@@ -448,6 +731,7 @@ export function MapComponent() {
           nodes: data.nodes || [],
           edges: mappedEdges,
           closures: data.closures || [],
+          cameras: data.cameras || [],
         }),
       });
 
@@ -458,7 +742,7 @@ export function MapComponent() {
 
       await fetchData();
       if (fileInputRef.current) fileInputRef.current.value = '';
-      alert('Map imported successfully!');
+      globalThis.alert('Map imported successfully!');
     } catch (err) {
       setError(`Import error: ${err.message}`);
     } finally {
@@ -467,7 +751,7 @@ export function MapComponent() {
   };
 
   const handleUpload = async () => {
-    const isConfirmed = window.confirm("Are you sure you want to upload the current map? This will overwrite all existing map data in the database.");
+    const isConfirmed = globalThis.confirm("Are you sure you want to upload the current map? This will overwrite all existing map data in the database.");
     if (!isConfirmed) return;
 
     try {
@@ -477,11 +761,10 @@ export function MapComponent() {
         id: edge.id,
         from_id: edge.from_id || edge.from,
         to_id: edge.to_id || edge.to,
-        weight: edge.weight !== undefined ? edge.weight : edge.w,
-        accessible: edge.accessible !== undefined ? edge.accessible : true,
+        weight: edge.weight === undefined ? edge.w : edge.weight,
+        accessible: edge.accessible === undefined ? true : edge.accessible,
       }));
 
-      // Fetch current closures to preserve them (only keep valid ones)
       let currentClosures = [];
       try {
         const closuresRes = await fetch(`${API_BASE}/closures`);
@@ -505,6 +788,7 @@ export function MapComponent() {
           nodes: nodes,
           edges: mappedEdges,
           closures: validClosures,
+          cameras: cameras,
         }),
       });
 
@@ -514,7 +798,7 @@ export function MapComponent() {
       }
 
       await fetchData();
-      alert('Map uploaded and synced successfully!');
+      globalThis.alert('Map uploaded and synced successfully!');
     } catch (err) {
       setError(`Upload error: ${err.message}`);
     } finally {
@@ -545,8 +829,8 @@ export function MapComponent() {
   };
 
   const createCamera = async () => {
-    if (!newNodePosition) { alert('Click on the map to set the camera position'); return; }
-    if (!cameraFormData.id.trim()) { alert('Camera ID is required'); return; }
+    if (!newNodePosition) { globalThis.alert('Click on the map to set the camera position'); return; }
+    if (!cameraFormData.id.trim()) { globalThis.alert('Camera ID is required'); return; }
 
     const existing = cameras.find(c => c.id === cameraFormData.id.trim());
     if (existing) {
@@ -581,10 +865,10 @@ export function MapComponent() {
           tilt: cameraFormData.tilt,
           fov_horizontal: cameraFormData.fov_horizontal,
           fov_vertical: cameraFormData.fov_vertical,
-          coverage_x_min: cameraFormData.coverage_x_min !== '' ? parseFloat(cameraFormData.coverage_x_min) : null,
-          coverage_x_max: cameraFormData.coverage_x_max !== '' ? parseFloat(cameraFormData.coverage_x_max) : null,
-          coverage_y_min: cameraFormData.coverage_y_min !== '' ? parseFloat(cameraFormData.coverage_y_min) : null,
-          coverage_y_max: cameraFormData.coverage_y_max !== '' ? parseFloat(cameraFormData.coverage_y_max) : null,
+          coverage_x_min: cameraFormData.coverage_x_min === '' ? null : Number.parseFloat(cameraFormData.coverage_x_min),
+          coverage_x_max: cameraFormData.coverage_x_max === '' ? null : Number.parseFloat(cameraFormData.coverage_x_max),
+          coverage_y_min: cameraFormData.coverage_y_min === '' ? null : Number.parseFloat(cameraFormData.coverage_y_min),
+          coverage_y_max: cameraFormData.coverage_y_max === '' ? null : Number.parseFloat(cameraFormData.coverage_y_max),
           coverage_polygon: polygonPoints.length >= 3
             ? polygonPoints.map(p => ({ x: p.lng, y: p.lat }))
             : null,
@@ -592,7 +876,7 @@ export function MapComponent() {
       });
 
       if (!camRes.ok) {
-        await fetch(`${API_BASE}/nodes/${nodeId}`, { method: 'DELETE' });
+        await fetch(buildItemUrl('nodes', nodeId, 'node id'), { method: 'DELETE' });
         const errData = await camRes.json().catch(() => ({}));
         throw new Error(errData.detail || 'Failed to create camera record');
       }
@@ -600,7 +884,7 @@ export function MapComponent() {
       setNewNodeIds(prev => new Set([...prev, nodeId]));
       await fetchData();
       setToolMode('select');
-      setCameraFormData({ id: '', pos_z: 10.0, pan: 0.0, tilt: -30.0, fov_horizontal: 70.0, fov_vertical: 55.0, coverage_x_min: '', coverage_x_max: '', coverage_y_min: '', coverage_y_max: '' });
+      setCameraFormData({ id: '', pos_z: 10, pan: 0, tilt: -30, fov_horizontal: 70, fov_vertical: 55, coverage_x_min: '', coverage_x_max: '', coverage_y_min: '', coverage_y_max: '' });
       clearPolygon();
     } catch (err) { setError(err.message); }
   };
@@ -664,7 +948,6 @@ export function MapComponent() {
     edgeLines.current = {};
 
     // ── Camera coverage polygons ───────────────────────────────────────────
-    // Clear previous coverage polygons and redraw for all visible cameras
     cameraCoverageLayersRef.current.forEach(l => l.remove());
     cameraCoverageLayersRef.current = [];
     if (showCameras) {
@@ -674,7 +957,6 @@ export function MapComponent() {
         if (!camNode) return;
         const isSelected = selectedNode?.id === camNode.id;
         const isEditing  = editingCamera === cam.id;
-        // Don't draw the saved polygon while editing — the live preview takes over
         if (isEditing) return;
 
         const latlngs = cam.coverage_polygon.map(p => [p.y, p.x]);
@@ -699,11 +981,13 @@ export function MapComponent() {
 
       const isQueueEdge = fromNode.type === 'queue' || toNode.type === 'queue';
 
-      // Show queue edges when queue toggle is on, even if showAllEdges is off
       if (!showAllEdges && !isEdgeSelected && !isInDelete && !isQueueEdge) return;
       if (isQueueEdge && !showQueues && !showAllEdges && !isEdgeSelected && !isInDelete) return;
 
-      let color = '#4CAF50', weight = 3, opacity = 0.7, dashArray = undefined;
+      let color = '#4CAF50';
+      let weight = 3;
+      let opacity = 0.7;
+      let dashArray;
       if (isInDelete)        { color = '#ffa500'; weight = 4; }
       else if (isEdgeSelected){ color = '#ff6b6b'; weight = 4; }
       else if (isQueueEdge && showQueues) {
@@ -726,198 +1010,44 @@ export function MapComponent() {
       edgeLines.current[edge.id] = line;
     });
 
-    // Nodes
+    // Render nodes using extracted renderNodeOnMap helper
     const visibleNodeIds = new Set();
     const hiddenByZoom = new Set();
     nodes.forEach(node => {
-      const isCamera = (node.type || '') === 'camera';
-      const isQueue  = (node.type || '') === 'queue';
-      const poiTypes = new Set([
-        'poi', 'restroom', 'food', 'bar', 'merchandise',
-        'first_aid', 'emergency_exit', 'information', 'vip_box', 'camera',
-        'departments',
-      ]);
-      const isPoi = poiTypes.has((node.type || '').toLowerCase());
-
-      if (isCamera && !showCameras) { hiddenByZoom.add(node.id); return; }
-      if (hideNonPoi && !isPoi) { hiddenByZoom.add(node.id); return; }
-      visibleNodeIds.add(node.id);
-      const isFromNode       = pointsForEdge.from === node.id;
-      const isToNode         = pointsForEdge.to   === node.id;
-      const isEdgeSelected   = isFromNode || isToNode;
-      const isListSelected   = selectedNode?.id === node.id;
-      const isPartOfEdgeSel  = selectedEdgeFromList &&
-        (edges.find(e => e.id === selectedEdgeFromList)?.from_id === node.id ||
-         edges.find(e => e.id === selectedEdgeFromList)?.to_id   === node.id);
-      const isNewNode        = newNodeIds.has(node.id);
-      const matchesSearch    = nodeSearchQuery === '' ||
-        (node.name && node.name.toLowerCase().includes(nodeSearchQuery.toLowerCase()));
-      const isInDelete       = selectedForDelete.nodes.some(n => n.id === node.id);
-      const isSelectingDoor  = selectingDoor && editingNode;
-
-      const baseColor = isNewNode ? '#4CAF50' : '#313b84';
-      let fillColor = baseColor, radius = 7;
-
-      if (isSelectingDoor)              { fillColor = '#9c27b0'; radius = 9; }
-      else if (isInDelete)              { fillColor = '#ffa500'; radius = 10; }
-      else if (isListSelected)          { fillColor = '#ff6b6b'; radius = 14; }
-      else if (isPartOfEdgeSel)         { fillColor = '#ff6b6b'; radius = 12; }
-      else if (isEdgeSelected)          { fillColor = '#ffc107'; radius = 10; }
-      else if (isQueue && showQueues)   { fillColor = '#e3b341'; radius = 9; }
-
-      const markerKind = (node.id === editingNode || (isCamera && cameras.find(c => c.id === editingCamera)?.node_id === node.id)) && draggedPosition
-        ? 'edit'
-        : isCamera ? 'camera'
-        : isPoi ? 'poi'
-        : 'circle';
-      const existingEntry = markersRef.current[node.id];
-      let entry = existingEntry;
-
-      if (!entry || entry.kind !== markerKind) {
-        if (entry) entry.marker.remove();
-
-        if (markerKind === 'edit') {
-          const editMarker = L.marker([draggedPosition.lat, draggedPosition.lng], {
-            draggable: true,
-            icon: L.divIcon({
-              className: 'editing-marker',
-              html: '<div style="background-color:#ff6b6b;width:24px;height:24px;border-radius:50%;border:3px solid white;box-shadow:0 0 10px rgba(255,107,107,0.5);"></div>',
-              iconSize: [24, 24], iconAnchor: [12, 12],
-            }),
-          }).addTo(map.current);
-          editMarker.on('drag',    (e) => { const p = e.target.getLatLng(); setDraggedPosition({ lat: p.lat, lng: p.lng }); });
-          editMarker.on('dragend', (e) => { const p = e.target.getLatLng(); setDraggedPosition({ lat: p.lat, lng: p.lng }); });
-          editMarker.bindPopup(`<strong>Editing: ${node.name || node.id}</strong><br/>Drag to move`);
-          entry = { marker: editMarker, kind: 'edit' };
-        } else if (markerKind === 'camera') {
-          const camData = cameras.find(c => c.node_id === node.id);
-          const bg = isInDelete ? '#ffa500' : isListSelected ? '#ff6b6b' : '#bc8cff';
-          const camMarker = L.marker([node.y, node.x], {
-            icon: L.divIcon({
-              className: 'camera-marker',
-              html: `<div class="camera-marker-inner" style="background:${bg}"><svg viewBox="0 0 24 24" fill="white" width="14" height="14"><path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4z"/></svg></div>`,
-              iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -16],
-            }),
-          }).addTo(map.current);
-          camMarker.bindPopup(`
-            <strong>${node.name || node.id}</strong><br/>
-            ${camData ? `H: ${camData.pos_z}m · Pan: ${camData.pan}° · Tilt: ${camData.tilt}°<br/>FOV: ${camData.fov_horizontal}°×${camData.fov_vertical}°` : ''}
-          `);
-          entry = { marker: camMarker, kind: 'camera' };
-        } else if (markerKind === 'poi') {
-          const poiStateClass = isInDelete
-            ? 'poi-delete'
-            : (isListSelected || isPartOfEdgeSel || isEdgeSelected ? 'poi-selected' : '');
-          const poiMarker = L.marker([node.y, node.x], {
-            icon: L.divIcon({
-              className: `poi-marker ${poiStateClass}`,
-              html: '<div class="poi-marker-pin"></div><div class="poi-marker-dot"></div>',
-              iconSize: [22, 30],
-              iconAnchor: [11, 30],
-              popupAnchor: [0, -24],
-            }),
-          }).addTo(map.current);
-          poiMarker.bindPopup(`
-            <strong>${node.name || 'Unnamed'}</strong><br/>
-            ID: ${node.id}<br/>
-            Tipo: ${node.type || 'normal'}<br/>
-            ${node.description ? `Desc: ${node.description}<br/>` : ''}
-            Lat: ${node.y.toFixed(6)}<br/>
-            Lng: ${node.x.toFixed(6)}<br/>
-            ${isNewNode ? '<em>New</em>' : ''}
-          `);
-          entry = { marker: poiMarker, kind: 'poi' };
-        } else {
-          const circleMarker = L.circleMarker([node.y, node.x], {
-            radius, fill: true, fillColor,
-            fillOpacity: matchesSearch ? 0.9 : 0.4,
-            stroke: true, color: fillColor, weight: 2,
-            opacity: 1,
-          }).addTo(map.current);
-          circleMarker.bindPopup(`
-            <strong>${node.name || 'Unnamed'}</strong><br/>
-            ID: ${node.id}<br/>
-            Tipo: ${node.type || 'normal'}<br/>
-            ${node.description ? `Desc: ${node.description}<br/>` : ''}
-            Lat: ${node.y.toFixed(6)}<br/>
-            Lng: ${node.x.toFixed(6)}<br/>
-            ${isNewNode ? '<em>New</em>' : ''}
-          `);
-          entry = { marker: circleMarker, kind: 'circle' };
-        }
-
-        markersRef.current[node.id] = entry;
-      }
-
-      entry.marker.off('click');
-      entry.marker.on('click', (e) => {
-        L.DomEvent.stopPropagation(e);
-        if (!creatingEdge) entry.marker.openPopup();
-        if (deleteMode) {
-          deleteNode(node.id);
-          return;
-        }
-        if (creatingEdge) {
-          setPointsForEdge((prev) => {
-            const clickedNode = nodes.find(n => n.id === node.id);
-            const clickedType = clickedNode?.type;
-
-            // Camera nodes can never be part of an edge
-            if (clickedType === 'camera') {
-              setError('Camera nodes cannot be connected to any other node.');
-              return prev;
-            }
-
-            if (!prev.from) {
-              return { ...prev, from: node.id };
-            }
-
-            if (!prev.to && node.id !== prev.from) {
-              return { ...prev, to: node.id };
-            }
-
-            return prev;
-          });
-          return;
-        }
-        selectNode(node);
+      renderNodeOnMap(node, {
+        nodes,
+        edges,
+        cameras,
+        selectedNode,
+        selectedEdgeFromList,
+        pointsForEdge,
+        newNodeIds,
+        nodeSearchQuery,
+        selectedForDelete,
+        selectingDoor,
+        editingNode,
+        editingCamera,
+        draggedPosition,
+        showCameras,
+        showQueues,
+        deleteMode,
+        creatingEdge,
+        rectangleSelectMode,
+        mapCurrent: map.current,
+        markersRefCurrent: markersRef.current,
+        markerTimersRefCurrent: markerTimersRef.current,
+        selectNode,
+        deleteNode,
+        setPointsForEdge,
+        setError,
+        hideNonPoi,
+        fadeInOnZoom,
+        setMarkerVisible,
+        clearMarkerTimer,
+        setDraggedPosition,
+        hiddenByZoom,
+        visibleNodeIds,
       });
-
-      clearMarkerTimer(node.id);
-
-      if (entry.kind === 'circle') {
-        entry.marker.setLatLng([node.y, node.x]);
-        entry.marker.setRadius(radius);
-        entry.marker.setStyle({
-          fillColor,
-          color: fillColor,
-          opacity: 1,
-          fillOpacity: matchesSearch ? 0.9 : 0.4,
-        });
-      } else if (entry.kind === 'poi') {
-        const poiStateClass = isInDelete
-          ? 'poi-delete'
-          : (isListSelected || isPartOfEdgeSel || isEdgeSelected ? 'poi-selected' : '');
-        entry.marker.setLatLng([node.y, node.x]);
-        entry.marker.setIcon(L.divIcon({
-          className: `poi-marker ${poiStateClass}`,
-          html: '<div class="poi-marker-pin"></div><div class="poi-marker-dot"></div>',
-          iconSize: [22, 30],
-          iconAnchor: [11, 30],
-          popupAnchor: [0, -24],
-        }));
-      } else if (entry.kind === 'edit' && draggedPosition) {
-        entry.marker.setLatLng([draggedPosition.lat, draggedPosition.lng]);
-      }
-
-      if (fadeInOnZoom) {
-        if (entry.kind === 'circle') setMarkerVisible(entry, false, 0);
-        else setMarkerVisible(entry, false);
-        setTimeout(() => {
-          if (entry.kind === 'circle') setMarkerVisible(entry, true, matchesSearch ? 0.9 : 0.4);
-          else setMarkerVisible(entry, true);
-        }, 0);
-      }
     });
 
     Object.entries(markersRef.current).forEach(([nodeId, entry]) => {
@@ -931,7 +1061,6 @@ export function MapComponent() {
         const node = nodes.find(n => n.id === nodeId);
         const isCamera = (node?.type || '') === 'camera';
         if (isCamera) {
-          // Camera toggled off — remove immediately
           clearMarkerTimer(nodeId);
           entry.marker.remove();
           delete markersRef.current[nodeId];
@@ -949,7 +1078,6 @@ export function MapComponent() {
 
     prevHideNonPoiRef.current = hideNonPoi;
 
-    // Temp marker
     if (tempNodeMarkerRef.current) { map.current.removeLayer(tempNodeMarkerRef.current); tempNodeMarkerRef.current = null; }
     if (newNodePosition) {
       const marker = L.circleMarker(newNodePosition, {
@@ -986,8 +1114,8 @@ export function MapComponent() {
     const handleZoom = () => setMapZoom(map.current.getZoom());
     map.current.on('zoomend', handleZoom);
 
-    // Left-click drag or middle-click drag to pan
-    let isPanning = false, panStart = null;
+    let isPanning = false;
+    let panStart = null;
     const container = map.current.getContainer();
 
     container.addEventListener('mousedown', (e) => {
@@ -1029,7 +1157,6 @@ export function MapComponent() {
   useEffect(() => {
     if (!map.current) return;
     const handleMapClick = (e) => {
-      // ── Polygon drawing mode (camera coverage area) ──────────────────────
       if (drawingPolygon) {
         setPolygonPoints(prev => [...prev, { lat: e.latlng.lat, lng: e.latlng.lng }]);
         return;
@@ -1081,7 +1208,7 @@ export function MapComponent() {
 
   // ── Filtered lists ────────────────────────────────────────────────────────
   const filteredNodes = nodes.filter(node =>
-    nodeSearchQuery === '' || (node.name && node.name.toLowerCase().includes(nodeSearchQuery.toLowerCase()))
+    nodeSearchQuery === '' || node.name?.toLowerCase().includes(nodeSearchQuery.toLowerCase())
   );
 
   const filteredEdges = edges.filter(edge => {
@@ -1089,8 +1216,8 @@ export function MapComponent() {
     const toNode   = nodes.find(n => n.id === edge.to_id);
     const q = edgeSearchQuery.toLowerCase();
     return !q || edge.id.toLowerCase().includes(q) ||
-      (fromNode?.name && fromNode.name.toLowerCase().includes(q)) ||
-      (toNode?.name   && toNode.name.toLowerCase().includes(q)) ||
+      fromNode?.name?.toLowerCase().includes(q) ||
+      toNode?.name?.toLowerCase().includes(q) ||
       edge.from_id.toLowerCase().includes(q) || edge.to_id.toLowerCase().includes(q);
   });
 
@@ -1111,7 +1238,7 @@ export function MapComponent() {
           <button
             className="tool-button"
             title="Import"
-            onClick={() => fileInputRef.current && fileInputRef.current.click()}>
+            onClick={() => fileInputRef.current?.click()}>
             <FontAwesomeIcon icon={faFileImport} />
             <span>Import</span>
           </button>
@@ -1213,19 +1340,15 @@ export function MapComponent() {
       </div>
 
       <div className="map-sidebar">
-
-        {/* Header */}
         <div className="sidebar-header">
           <h2>Map Editor</h2>
           <div className="subtitle">{nodes.length} nodes · {edges.length} edges · drag to pan</div>
         </div>
 
         <div className="sidebar-body">
-
           {error   && <div className="error-message">{error}</div>}
           {loading && <div className="loading">Loading...</div>}
 
-          {/* Mode banners */}
           {creatingEdge && (
             <div className="mode-banner edge">Edge mode — click two nodes to connect</div>
           )}
@@ -1252,44 +1375,58 @@ export function MapComponent() {
             <div className="control-section">
               <h3>Add Camera</h3>
               <div className="form-group">
-                <label>Camera ID</label>
-                <input type="text" value={cameraFormData.id}
-                  onChange={(e) => setCameraFormData({ ...cameraFormData, id: e.target.value })}
-                  placeholder="e.g. CAM_001" autoFocus />
+                <label>
+                  <span>Camera ID</span>
+                  <input type="text" value={cameraFormData.id}
+                    onChange={(e) => setCameraFormData({ ...cameraFormData, id: e.target.value })}
+                    placeholder="e.g. CAM_001" autoFocus />
+                </label>
               </div>
               <div className="form-group">
-                <label>Height (m)</label>
-                <input type="number" step="0.5" value={cameraFormData.pos_z}
-                  onChange={(e) => setCameraFormData({ ...cameraFormData, pos_z: parseFloat(e.target.value) })} />
+                <label>
+                  <span>Height (m)</span>
+                  <input type="number" step="0.5" value={cameraFormData.pos_z}
+                    onChange={(e) => setCameraFormData({ ...cameraFormData, pos_z: Number.parseFloat(e.target.value) })} />
+                </label>
               </div>
               <div className="form-group">
-                <label>Pan (°)</label>
-                <input type="number" step="1" value={cameraFormData.pan}
-                  onChange={(e) => setCameraFormData({ ...cameraFormData, pan: parseFloat(e.target.value) })} />
+                <label>
+                  <span>Pan (°)</span>
+                  <input type="number" step="1" value={cameraFormData.pan}
+                    onChange={(e) => setCameraFormData({ ...cameraFormData, pan: Number.parseFloat(e.target.value) })} />
+                </label>
               </div>
               <div className="form-group">
-                <label>Tilt (°)</label>
-                <input type="number" step="1" value={cameraFormData.tilt}
-                  onChange={(e) => setCameraFormData({ ...cameraFormData, tilt: parseFloat(e.target.value) })} />
+                <label>
+                  <span>Tilt (°)</span>
+                  <input type="number" step="1" value={cameraFormData.tilt}
+                    onChange={(e) => setCameraFormData({ ...cameraFormData, tilt: Number.parseFloat(e.target.value) })} />
+                </label>
               </div>
               <div className="form-group">
-                <label>FOV Horizontal (°)</label>
-                <input type="number" step="1" value={cameraFormData.fov_horizontal}
-                  onChange={(e) => setCameraFormData({ ...cameraFormData, fov_horizontal: parseFloat(e.target.value) })} />
+                <label>
+                  <span>FOV Horizontal (°)</span>
+                  <input type="number" step="1" value={cameraFormData.fov_horizontal}
+                    onChange={(e) => setCameraFormData({ ...cameraFormData, fov_horizontal: Number.parseFloat(e.target.value) })} />
+                </label>
               </div>
               <div className="form-group">
-                <label>FOV Vertical (°)</label>
-                <input type="number" step="1" value={cameraFormData.fov_vertical}
-                  onChange={(e) => setCameraFormData({ ...cameraFormData, fov_vertical: parseFloat(e.target.value) })} />
+                <label>
+                  <span>FOV Vertical (°)</span>
+                  <input type="number" step="1" value={cameraFormData.fov_vertical}
+                    onChange={(e) => setCameraFormData({ ...cameraFormData, fov_vertical: Number.parseFloat(e.target.value) })} />
+                </label>
               </div>
               <div className="form-group">
-                <label>Coverage Polygon</label>
-                <button
-                  className={`btn-secondary ${drawingPolygon ? 'btn-active' : ''}`}
-                  style={{ borderColor: drawingPolygon ? 'var(--accent-purple)' : undefined, color: drawingPolygon ? 'var(--accent-purple)' : undefined, marginBottom: '6px' }}
-                  onClick={() => setDrawingPolygon(v => !v)}>
-                  {drawingPolygon ? 'Stop drawing' : 'Draw on map'}
-                </button>
+                <label>
+                  <span>Coverage Polygon</span>
+                  <button
+                    className={`btn-secondary ${drawingPolygon ? 'btn-active' : ''}`}
+                    style={{ borderColor: drawingPolygon ? 'var(--accent-purple)' : undefined, color: drawingPolygon ? 'var(--accent-purple)' : undefined, marginBottom: '6px' }}
+                    onClick={() => setDrawingPolygon(v => !v)}>
+                    {drawingPolygon ? 'Stop drawing' : 'Draw on map'}
+                  </button>
+                </label>
                 {polygonPoints.length > 0 && (
                   <button className="btn-secondary" style={{ marginBottom: '6px' }} onClick={clearPolygon}>
                     Clear polygon ({polygonPoints.length} pts)
@@ -1298,7 +1435,7 @@ export function MapComponent() {
                 {drawingPolygon && (
                   <p className="hint" style={{ borderColor: 'var(--accent-purple)' }}>
                     Click on the map to place vertices · click a vertex to remove it<br/>
-                    {polygonPoints.length} point{polygonPoints.length !== 1 ? 's' : ''} placed{polygonPoints.length >= 3 ? ' ✓' : ' — need ≥3'}
+                    {polygonPoints.length} point{polygonPoints.length === 1 ? '' : 's'} placed{polygonPoints.length >= 3 ? ' ✓' : ' — need ≥3'}
                   </p>
                 )}
                 {!drawingPolygon && polygonPoints.length >= 3 && (
@@ -1325,22 +1462,19 @@ export function MapComponent() {
                 {cameras.map((cam) => {
                   const camNode = nodes.find(n => n.id === cam.node_id);
                   return (
-                    <li key={cam.id}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => {
-                        if (camNode) { selectNode(camNode); map.current?.setView([camNode.y, camNode.x], map.current.getZoom()); }
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
+                    <li key={cam.id}>
+                      <button
+                        type="button"
+                        className="items-list-btn"
+                        onClick={() => {
                           if (camNode) { selectNode(camNode); map.current?.setView([camNode.y, camNode.x], map.current.getZoom()); }
-                        }
-                      }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <FontAwesomeIcon icon={faVideo} style={{ color: 'var(--accent-purple)', fontSize: '11px' }} />
-                        <strong>{cam.id}</strong>
-                      </div>
-                      <small>H:{cam.pos_z}m · pan:{cam.pan}° · tilt:{cam.tilt}° · FOV:{cam.fov_horizontal}×{cam.fov_vertical}°</small>
+                        }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <FontAwesomeIcon icon={faVideo} style={{ color: 'var(--accent-purple)', fontSize: '11px' }} />
+                          <strong>{cam.id}</strong>
+                        </div>
+                        <small>H:{cam.pos_z}m · pan:{cam.pan}° · tilt:{cam.tilt}° · FOV:{cam.fov_horizontal}×{cam.fov_vertical}°</small>
+                      </button>
                     </li>
                   );
                 })}
@@ -1352,25 +1486,31 @@ export function MapComponent() {
             <div className="control-section">
               <h3>Add Node</h3>
               <div className="form-group">
-                <label>Name</label>
-                <input type="text" value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Node name" autoFocus />
+                <label>
+                  <span>Name</span>
+                  <input type="text" value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="Node name" autoFocus />
+                </label>
               </div>
               <div className="form-group">
-                <label>Type</label>
-                <select value={formData.type} onChange={(e) => setFormData({ ...formData, type: e.target.value })}>
-                  {NODE_TYPE_OPTIONS.map((type) => (
-                    <option key={type} value={type}>{type}</option>
-                  ))}
-                </select>
+                <label>
+                  <span>Type</span>
+                  <select value={formData.type} onChange={(e) => setFormData({ ...formData, type: e.target.value })}>
+                    {NODE_TYPE_OPTIONS.map((type) => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
+                  </select>
+                </label>
               </div>
               <div className="form-group">
-                <label>Door Node (optional)</label>
-                <select value={formData.door_id || ''} onChange={(e) => setFormData({ ...formData, door_id: e.target.value || null })}>
-                  <option value="">None</option>
-                  {nodes.map(node => <option key={node.id} value={node.id}>{node.name || node.id}</option>)}
-                </select>
+                <label>
+                  <span>Door Node (optional)</span>
+                  <select value={formData.door_id || ''} onChange={(e) => setFormData({ ...formData, door_id: e.target.value || null })}>
+                    <option value="">None</option>
+                    {nodes.map(node => <option key={node.id} value={node.id}>{node.name || node.id}</option>)}
+                  </select>
+                </label>
               </div>
               <p className="hint">
                 {newNodePosition
@@ -1429,7 +1569,6 @@ export function MapComponent() {
             </div>
           )}
 
-          {/* ── Node Details ──────────────────────────────────────────── */}
           {selectedNode && !editingNode && !editingCamera && (
             <div className="control-section">
               <h3>{selectedNode.type === 'camera' ? 'Camera Details' : 'Node Details'}</h3>
@@ -1452,8 +1591,10 @@ export function MapComponent() {
                         : '—'],
                     ].map(([label, val]) => (
                       <div className="form-group" key={label}>
-                        <label>{label}</label>
-                        <div>{val}</div>
+                        <label>
+                          <span>{label}</span>
+                          <div>{val}</div>
+                        </label>
                       </div>
                     ))}
                     <div className="button-group" style={{ gap: '4px', marginTop: '8px' }}>
@@ -1488,8 +1629,10 @@ export function MapComponent() {
                     ['Coordinates',  `${selectedNode.y.toFixed(6)}, ${selectedNode.x.toFixed(6)}`],
                   ].map(([label, val]) => (
                     <div className="form-group" key={label}>
-                      <label>{label}</label>
-                      <div>{val}</div>
+                      <label>
+                        <span>{label}</span>
+                        <div>{val}</div>
+                      </label>
                     </div>
                   ))}
                   <div className="button-group" style={{ gap: '4px', marginTop: '8px' }}>
@@ -1505,47 +1648,60 @@ export function MapComponent() {
             </div>
           )}
 
-          {/* ── Edit Camera ───────────────────────────────────────────── */}
           {editingCamera && (
             <div className="control-section">
               <h3>Edit Camera</h3>
               <div className="form-group">
-                <label>Camera ID</label>
-                <div style={{ fontWeight: 600, color: 'var(--accent-purple)' }}>{editingCamera}</div>
+                <label>
+                  <span>Camera ID</span>
+                  <div style={{ fontWeight: 600, color: 'var(--accent-purple)' }}>{editingCamera}</div>
+                </label>
               </div>
               <div className="form-group">
-                <label>Height (m)</label>
-                <input type="number" step="0.5" value={editCameraFormData.pos_z}
-                  onChange={(e) => setEditCameraFormData({ ...editCameraFormData, pos_z: parseFloat(e.target.value) })} />
+                <label>
+                  <span>Height (m)</span>
+                  <input type="number" step="0.5" value={editCameraFormData.pos_z}
+                    onChange={(e) => setEditCameraFormData({ ...editCameraFormData, pos_z: Number.parseFloat(e.target.value) })} />
+                </label>
               </div>
               <div className="form-group">
-                <label>Pan (°)</label>
-                <input type="number" step="1" value={editCameraFormData.pan}
-                  onChange={(e) => setEditCameraFormData({ ...editCameraFormData, pan: parseFloat(e.target.value) })} />
+                <label>
+                  <span>Pan (°)</span>
+                  <input type="number" step="1" value={editCameraFormData.pan}
+                    onChange={(e) => setEditCameraFormData({ ...editCameraFormData, pan: Number.parseFloat(e.target.value) })} />
+                </label>
               </div>
               <div className="form-group">
-                <label>Tilt (°)</label>
-                <input type="number" step="1" value={editCameraFormData.tilt}
-                  onChange={(e) => setEditCameraFormData({ ...editCameraFormData, tilt: parseFloat(e.target.value) })} />
+                <label>
+                  <span>Tilt (°)</span>
+                  <input type="number" step="1" value={editCameraFormData.tilt}
+                    onChange={(e) => setEditCameraFormData({ ...editCameraFormData, tilt: Number.parseFloat(e.target.value) })} />
+                </label>
               </div>
               <div className="form-group">
-                <label>FOV Horizontal (°)</label>
-                <input type="number" step="1" value={editCameraFormData.fov_horizontal}
-                  onChange={(e) => setEditCameraFormData({ ...editCameraFormData, fov_horizontal: parseFloat(e.target.value) })} />
+                <label>
+                  <span>FOV Horizontal (°)</span>
+                  <input type="number" step="1" value={editCameraFormData.fov_horizontal}
+                    onChange={(e) => setEditCameraFormData({ ...editCameraFormData, fov_horizontal: Number.parseFloat(e.target.value) })} />
+                </label>
               </div>
               <div className="form-group">
-                <label>FOV Vertical (°)</label>
-                <input type="number" step="1" value={editCameraFormData.fov_vertical}
-                  onChange={(e) => setEditCameraFormData({ ...editCameraFormData, fov_vertical: parseFloat(e.target.value) })} />
+                <label>
+                  <span>FOV Vertical (°)</span>
+                  <input type="number" step="1" value={editCameraFormData.fov_vertical}
+                    onChange={(e) => setEditCameraFormData({ ...editCameraFormData, fov_vertical: Number.parseFloat(e.target.value) })} />
+                </label>
               </div>
               <div className="form-group">
-                <label>Coverage Polygon</label>
-                <button
-                  className={`btn-secondary ${drawingPolygon ? 'btn-active' : ''}`}
-                  style={{ borderColor: drawingPolygon ? 'var(--accent-purple)' : undefined, color: drawingPolygon ? 'var(--accent-purple)' : undefined, marginBottom: '6px' }}
-                  onClick={() => setDrawingPolygon(v => !v)}>
-                  {drawingPolygon ? 'Stop drawing' : 'Draw on map'}
-                </button>
+                <label>
+                  <span>Coverage Polygon</span>
+                  <button
+                    className={`btn-secondary ${drawingPolygon ? 'btn-active' : ''}`}
+                    style={{ borderColor: drawingPolygon ? 'var(--accent-purple)' : undefined, color: drawingPolygon ? 'var(--accent-purple)' : undefined, marginBottom: '6px' }}
+                    onClick={() => setDrawingPolygon(v => !v)}>
+                    {drawingPolygon ? 'Stop drawing' : 'Draw on map'}
+                  </button>
+                </label>
                 {polygonPoints.length > 0 && (
                   <button className="btn-secondary" style={{ marginBottom: '6px' }} onClick={clearPolygon}>
                     Clear polygon ({polygonPoints.length} pts)
@@ -1554,7 +1710,7 @@ export function MapComponent() {
                 {drawingPolygon && (
                   <p className="hint" style={{ borderColor: 'var(--accent-purple)' }}>
                     Click on the map to place vertices · click a vertex to remove it<br/>
-                    {polygonPoints.length} point{polygonPoints.length !== 1 ? 's' : ''} placed{polygonPoints.length >= 3 ? ' ✓' : ' — need ≥3'}
+                    {polygonPoints.length} point{polygonPoints.length === 1 ? '' : 's'} placed{polygonPoints.length >= 3 ? ' ✓' : ' — need ≥3'}
                   </p>
                 )}
                 {!drawingPolygon && polygonPoints.length >= 3 && (
@@ -1562,15 +1718,17 @@ export function MapComponent() {
                 )}
               </div>
               <div className="form-group">
-                <label>Coordinates</label>
-                <div style={{ display: 'flex', gap: '5px' }}>
-                  <input type="number" step="any" placeholder="Lat"
-                    value={draggedPosition?.lat.toFixed(6) || ''}
-                    onChange={(e) => setDraggedPosition({ ...draggedPosition, lat: parseFloat(e.target.value) })} />
-                  <input type="number" step="any" placeholder="Lng"
-                    value={draggedPosition?.lng.toFixed(6) || ''}
-                    onChange={(e) => setDraggedPosition({ ...draggedPosition, lng: parseFloat(e.target.value) })} />
-                </div>
+                <label>
+                  <span>Coordinates</span>
+                  <div style={{ display: 'flex', gap: '5px' }}>
+                    <input type="number" step="any" placeholder="Lat"
+                      value={draggedPosition?.lat.toFixed(6) || ''}
+                      onChange={(e) => setDraggedPosition({ ...draggedPosition, lat: Number.parseFloat(e.target.value) })} />
+                    <input type="number" step="any" placeholder="Lng"
+                      value={draggedPosition?.lng.toFixed(6) || ''}
+                      onChange={(e) => setDraggedPosition({ ...draggedPosition, lng: Number.parseFloat(e.target.value) })} />
+                  </div>
+                </label>
                 <p className="hint">Drag the red marker to reposition</p>
               </div>
               <div className="button-group">
@@ -1582,38 +1740,43 @@ export function MapComponent() {
             </div>
           )}
 
-          {/* ── Edit Node ─────────────────────────────────────────────── */}
           {editingNode && (
             <div className="control-section">
               <h3>Edit Node</h3>
               <div className="form-group">
-                <label>Name</label>
-                <input type="text" value={editFormData.name}
-                  onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })} />
+                <label>
+                  <span>Name</span>
+                  <input type="text" value={editFormData.name}
+                    onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })} />
+                </label>
               </div>
               <div className="form-group">
-                <label>Type</label>
-                <select value={editFormData.type} onChange={(e) => setEditFormData({ ...editFormData, type: e.target.value })}>
-                  {NODE_TYPE_OPTIONS.map((type) => (
-                    <option key={type} value={type}>{type}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Door Node</label>
-                <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-                  <select value={editFormData.door_id || ''}
-                    onChange={(e) => setEditFormData({ ...editFormData, door_id: e.target.value || null })}
-                    style={{ flex: 1 }}>
-                    <option value="">None</option>
-                    {nodes.map(node => <option key={node.id} value={node.id}>{node.name || node.id}</option>)}
+                <label>
+                  <span>Type</span>
+                  <select value={editFormData.type} onChange={(e) => setEditFormData({ ...editFormData, type: e.target.value })}>
+                    {NODE_TYPE_OPTIONS.map((type) => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
                   </select>
-                  <button className={`btn-secondary ${selectingDoor ? 'btn-active' : ''}`}
-                    onClick={() => setSelectingDoor(!selectingDoor)}
-                    style={{ borderColor: selectingDoor ? '#bc8cff' : undefined, color: selectingDoor ? '#bc8cff' : undefined, minWidth: '90px', width: 'auto' }}>
-                    {selectingDoor ? 'Selecting' : 'Select'}
-                  </button>
-                </div>
+                </label>
+              </div>
+              <div className="form-group">
+                <label>
+                  <span>Door Node</span>
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                    <select value={editFormData.door_id || ''}
+                      onChange={(e) => setEditFormData({ ...editFormData, door_id: e.target.value || null })}
+                      style={{ flex: 1 }}>
+                      <option value="">None</option>
+                      {nodes.map(node => <option key={node.id} value={node.id}>{node.name || node.id}</option>)}
+                    </select>
+                    <button className={`btn-secondary ${selectingDoor ? 'btn-active' : ''}`}
+                      onClick={() => setSelectingDoor(!selectingDoor)}
+                      style={{ borderColor: selectingDoor ? '#bc8cff' : undefined, color: selectingDoor ? '#bc8cff' : undefined, minWidth: '90px', width: 'auto' }}>
+                      {selectingDoor ? 'Selecting' : 'Select'}
+                    </button>
+                  </div>
+                </label>
                 {selectingDoor && (
                   <p className="hint" style={{ borderColor: '#bc8cff' }}>Click a node on the map to set as door</p>
                 )}
@@ -1622,50 +1785,66 @@ export function MapComponent() {
                 )}
               </div>
               <div className="form-group">
-                <label>Level</label>
-                <input type="number" value={editFormData.level}
-                  onChange={(e) => setEditFormData({ ...editFormData, level: parseInt(e.target.value) || 0 })} />
+                <label>
+                  <span>Level</span>
+                  <input type="number" value={editFormData.level}
+                    onChange={(e) => setEditFormData({ ...editFormData, level: Number.parseInt(e.target.value) || 0 })} />
+                </label>
               </div>
               <div className="form-group">
-                <label>Description</label>
-                <input type="text" value={editFormData.description}
-                  onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })} />
+                <label>
+                  <span>Description</span>
+                  <input type="text" value={editFormData.description}
+                    onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })} />
+                </label>
               </div>
               <div className="form-group">
-                <label>Num. Servers</label>
-                <input type="number" value={editFormData.num_servers ?? ''}
-                  onChange={(e) => setEditFormData({ ...editFormData, num_servers: e.target.value ? parseInt(e.target.value) : null })} />
+                <label>
+                  <span>Num. Servers</span>
+                  <input type="number" value={editFormData.num_servers ?? ''}
+                    onChange={(e) => setEditFormData({ ...editFormData, num_servers: e.target.value ? Number.parseInt(e.target.value) : null })} />
+                </label>
               </div>
               <div className="form-group">
-                <label>Service Rate</label>
-                <input type="number" step="0.1" value={editFormData.service_rate ?? ''}
-                  onChange={(e) => setEditFormData({ ...editFormData, service_rate: e.target.value ? parseFloat(e.target.value) : null })} />
+                <label>
+                  <span>Service Rate</span>
+                  <input type="number" step="0.1" value={editFormData.service_rate ?? ''}
+                    onChange={(e) => setEditFormData({ ...editFormData, service_rate: e.target.value ? Number.parseFloat(e.target.value) : null })} />
+                </label>
               </div>
               <div className="form-group">
-                <label>Block</label>
-                <input type="text" value={editFormData.block}
-                  onChange={(e) => setEditFormData({ ...editFormData, block: e.target.value })} />
+                <label>
+                  <span>Block</span>
+                  <input type="text" value={editFormData.block}
+                    onChange={(e) => setEditFormData({ ...editFormData, block: e.target.value })} />
+                </label>
               </div>
               <div className="form-group">
-                <label>Row</label>
-                <input type="number" value={editFormData.row ?? ''}
-                  onChange={(e) => setEditFormData({ ...editFormData, row: e.target.value ? parseInt(e.target.value) : null })} />
+                <label>
+                  <span>Row</span>
+                  <input type="number" value={editFormData.row ?? ''}
+                    onChange={(e) => setEditFormData({ ...editFormData, row: e.target.value ? Number.parseInt(e.target.value) : null })} />
+                </label>
               </div>
               <div className="form-group">
-                <label>Number</label>
-                <input type="number" value={editFormData.number ?? ''}
-                  onChange={(e) => setEditFormData({ ...editFormData, number: e.target.value ? parseInt(e.target.value) : null })} />
+                <label>
+                  <span>Number</span>
+                  <input type="number" value={editFormData.number ?? ''}
+                    onChange={(e) => setEditFormData({ ...editFormData, number: e.target.value ? Number.parseInt(e.target.value) : null })} />
+                </label>
               </div>
               <div className="form-group">
-                <label>Coordinates</label>
-                <div style={{ display: 'flex', gap: '5px' }}>
-                  <input type="number" step="any" placeholder="Lat"
-                    value={draggedPosition?.lat.toFixed(6) || ''}
-                    onChange={(e) => setDraggedPosition({ ...draggedPosition, lat: parseFloat(e.target.value) })} />
-                  <input type="number" step="any" placeholder="Lng"
-                    value={draggedPosition?.lng.toFixed(6) || ''}
-                    onChange={(e) => setDraggedPosition({ ...draggedPosition, lng: parseFloat(e.target.value) })} />
-                </div>
+                <label>
+                  <span>Coordinates</span>
+                  <div style={{ display: 'flex', gap: '5px' }}>
+                    <input type="number" step="any" placeholder="Lat"
+                      value={draggedPosition?.lat.toFixed(6) || ''}
+                      onChange={(e) => setDraggedPosition({ ...draggedPosition, lat: Number.parseFloat(e.target.value) })} />
+                    <input type="number" step="any" placeholder="Lng"
+                      value={draggedPosition?.lng.toFixed(6) || ''}
+                      onChange={(e) => setDraggedPosition({ ...draggedPosition, lng: Number.parseFloat(e.target.value) })} />
+                  </div>
+                </label>
                 <p className="hint">Drag the red marker to reposition</p>
               </div>
               <div className="button-group">
@@ -1675,7 +1854,6 @@ export function MapComponent() {
             </div>
           )}
 
-          {/* ── Nodes List ────────────────────────────────────────────── */}
           <div className="control-section">
             <h3>Nodes ({filteredNodes.length}/{nodes.length})</h3>
             <div className="form-group">
@@ -1688,32 +1866,36 @@ export function MapComponent() {
                 const isNewNode  = newNodeIds.has(node.id);
                 const isSelected = selectedNode?.id === node.id;
                 const isEdgePt   = pointsForEdge.from === node.id || pointsForEdge.to === node.id;
+                
+                let btnClass = "items-list-btn";
+                if (isEdgePt) btnClass += " selected";
+                if (isNewNode) btnClass += " new-node";
+                if (isSelected) btnClass += " list-selected";
+
                 return (
-                  <li key={node.id}
-                    className={`${isEdgePt ? 'selected' : ''} ${isNewNode ? 'new-node' : ''} ${isSelected ? 'list-selected' : ''}`}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => selectNode(node)}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') selectNode(node); }}
-                    style={{ cursor: 'pointer' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <strong>{node.name || 'Unnamed'}</strong>
-                      {isNewNode && <span className="badge">NEW</span>}
-                      <span className="node-type-pill" data-type={node.type || 'normal'}>
-                        {node.type || 'normal'}
-                      </span>
-                    </div>
-                    {node.description
-                      ? <small style={{ fontStyle: 'italic' }}>{node.description}</small>
-                      : <small>{node.y.toFixed(4)}, {node.x.toFixed(4)}</small>
-                    }
+                  <li key={node.id}>
+                    <button
+                      type="button"
+                      className={btnClass}
+                      onClick={() => selectNode(node)}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <strong>{node.name || 'Unnamed'}</strong>
+                        {isNewNode && <span className="badge">NEW</span>}
+                        <span className="node-type-pill" data-type={node.type || 'normal'}>
+                          {node.type || 'normal'}
+                        </span>
+                      </div>
+                      {node.description
+                        ? <small style={{ fontStyle: 'italic' }}>{node.description}</small>
+                        : <small>{node.y.toFixed(4)}, {node.x.toFixed(4)}</small>
+                      }
+                    </button>
                   </li>
                 );
               })}
             </ul>
           </div>
 
-          {/* ── Edges List ────────────────────────────────────────────── */}
           <div className="control-section">
             <h3>Edges ({filteredEdges.length}/{edges.length})</h3>
             <div className="form-group">
@@ -1727,25 +1909,23 @@ export function MapComponent() {
                 const toNode   = nodes.find(n => n.id === edge.to_id);
                 const isSel    = selectedEdgeFromList === edge.id;
                 return (
-                  <li key={edge.id}
-                    className={`edge-row ${isSel ? 'list-selected' : ''}`}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => selectEdge(edge.id)}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') selectEdge(edge.id); }}
-                    style={{ cursor: 'pointer' }}>
-                    <small style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {fromNode?.name || edge.from_id} → {toNode?.name || edge.to_id}
-                    </small>
-                    <button className="edge-delete-btn"
-                      onClick={(e) => { e.stopPropagation(); deleteEdge(edge.id); }}
-                      title="Delete edge">×</button>
+                  <li key={edge.id}>
+                    <button
+                      type="button"
+                      className={`items-list-btn edge-row ${isSel ? 'list-selected' : ''}`}
+                      onClick={() => selectEdge(edge.id)}>
+                      <small style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {fromNode?.name || edge.from_id} → {toNode?.name || edge.to_id}
+                      </small>
+                      <button className="edge-delete-btn"
+                        onClick={(e) => { e.stopPropagation(); deleteEdge(edge.id); }}
+                        title="Delete edge">×</button>
+                    </button>
                   </li>
                 );
               })}
             </ul>
           </div>
-
         </div>
       </div>
     </div>
