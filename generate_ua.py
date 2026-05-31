@@ -6,11 +6,6 @@ import urllib.parse
 
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 
-# FIX 1: Split into two separate queries:
-#   - One for walkable ways (paths/footways)
-#   - One for POIs (amenity, building named nodes/ways)
-# The original single query only fetched highway ways, completely missing POI nodes.
-
 WAYS_QUERY = """
 [out:json];
 (
@@ -21,8 +16,6 @@ out body;
 out skel qt;
 """
 
-# FIX 2: Fetch POIs from OSM directly instead of hardcoding coordinates.
-# Targets named amenities and buildings within the campus bounding box.
 POIS_QUERY = """
 [out:json];
 (
@@ -56,13 +49,10 @@ def overpass_fetch(query: str) -> dict:
         return json.loads(resp.read().decode("utf-8"))
 
 
-def process_ways(osm_data: dict) -> tuple[dict, list]:
-    """Build nodes_map and edges list from OSM way data."""
-    nodes_map: dict[str, dict] = {}
-    edges: list[dict] = []
-
-    for el in osm_data["elements"]:
-        if el["type"] == "node":
+def _extract_nodes(elements: list) -> dict:
+    nodes_map = {}
+    for el in elements:
+        if el.get("type") == "node":
             nodes_map[str(el["id"])] = {
                 "id": str(el["id"]),
                 "x": el["lon"],
@@ -71,11 +61,29 @@ def process_ways(osm_data: dict) -> tuple[dict, list]:
                 "type": "normal",
                 "name": f"Node_{el['id']}",
             }
+    return nodes_map
 
+
+def _add_edge_pair(edges: list, u_id: str, v_id: str, dist: float, edge_counter: int) -> int:
+    weight = round(max(0.1, dist), 2)
+    for src, dst in [(u_id, v_id), (v_id, u_id)]:
+        edges.append({
+            "id": f"EDGE-OSM-{edge_counter}",
+            "from_id": src,
+            "to_id": dst,
+            "weight": weight,
+            "accessible": True,
+        })
+        edge_counter += 1
+    return edge_counter
+
+
+def _extract_edges(elements: list, nodes_map: dict) -> list:
+    edges = []
     edge_counter = 1
-    for el in osm_data["elements"]:
-        if el["type"] == "way":
-            way_nodes = el["nodes"]
+    for el in elements:
+        if el.get("type") == "way":
+            way_nodes = el.get("nodes", [])
             for i in range(len(way_nodes) - 1):
                 u_id = str(way_nodes[i])
                 v_id = str(way_nodes[i + 1])
@@ -83,86 +91,70 @@ def process_ways(osm_data: dict) -> tuple[dict, list]:
                     continue
                 n1, n2 = nodes_map[u_id], nodes_map[v_id]
                 dist = haversine(n1["x"], n1["y"], n2["x"], n2["y"])
-                for src, dst in [(u_id, v_id), (v_id, u_id)]:
-                    edges.append({
-                        "id": f"EDGE-OSM-{edge_counter}",
-                        "from_id": src,
-                        "to_id": dst,
-                        "weight": round(max(0.1, dist), 2),
-                        "accessible": True,
-                    })
-                    edge_counter += 1
+                edge_counter = _add_edge_pair(edges, u_id, v_id, dist, edge_counter)
+    return edges
 
+
+def process_ways(osm_data: dict) -> tuple[dict, list]:
+    """Build nodes_map and edges list from OSM way data."""
+    nodes_map = _extract_nodes(osm_data.get("elements", []))
+    edges = _extract_edges(osm_data.get("elements", []), nodes_map)
     return nodes_map, edges
 
 
-def _poi_type(tags: dict, name: str = None) -> str | None:
-    """Map OSM tags to a simple internal POI type.
-    Returns None for POIs that should be skipped (irrelevant clutter)."""
-    amenity = tags.get("amenity", "")
-    building = tags.get("building", "")
-    shop = tags.get("shop", "")
-    tourism = tags.get("tourism", "")
-
-    # ── Skip irrelevant amenities (map clutter) ──
-    if amenity in (
+def _is_ignored_amenity(amenity: str) -> bool:
+    return amenity in (
         "waste_basket", "waste_disposal", "recycling",
         "vending_machine", "bench", "telephone",
         "waiting_room", "fountain", "drinking_water",
-    ):
-        return None  # Will be skipped in process_pois
+    )
 
-    # ── ATMs ──
+
+def _check_direct_mappings(amenity: str, building: str, shop: str, tourism: str) -> str | None:
     if amenity == "atm":
         return "atm"
-
-    # ── Parking (all types) ──
     if amenity in ("parking", "bicycle_parking", "motorcycle_parking", "parking_entrance"):
         return "parking"
-
-    # ── Reception desks → information ──
     if amenity == "reception_desk":
         return "information"
-
-    # ── Food & drink (BEFORE building check — e.g. Cantina has both fast_food + building=university) ──
     if amenity in ("restaurant", "fast_food", "food_court", "canteen"):
         return "food"
     if amenity == "cafe":
         return "cafe"
     if amenity in ("bar", "pub"):
         return "bar"
-
-    # ── Services ──
-    if amenity in ("toilets",):
+    if amenity == "toilets":
         return "wc"
-    if amenity in ("library",):
+    if amenity == "library":
         return "library"
     if amenity in ("pharmacy", "hospital", "clinic"):
         return "first_aid"
-
-    # ── Departamentos & campus buildings ──
-    if building in ("university", "college", "school", "sports_centre"):
+    if building in ("university", "college", "school", "sports_centre") or amenity in ("college", "school"):
         return "departments"
-    if amenity in ("college", "school"):
-        return "departments"
+    if shop:
+        return "shop"
+    if tourism:
+        return "poi"
+    if amenity == "university":
+        return "poi"
+    return None
 
-    # ── Dormitories → skip (not navigable POIs) ──
+
+def _poi_type(tags: dict) -> str | None:
+    """Map OSM tags to a simple internal POI type.
+    Returns None for POIs that should be skipped."""
+    amenity = tags.get("amenity", "")
+    if _is_ignored_amenity(amenity):
+        return None
+
+    building = tags.get("building", "")
     if building == "dormitory":
         return None
 
-    # ── Shopping ──
-    if shop:
-        return "shop"
+    direct_type = _check_direct_mappings(amenity, building, tags.get("shop", ""), tags.get("tourism", ""))
+    if direct_type is not None:
+        return direct_type
 
-    # ── Tourism ──
-    if tourism:
-        return "poi"
-
-    # ── University campus as generic POI ──
-    if amenity in ("university",):
-        return "poi"
-
-    # ── Default: keep as generic poi ──
     return "poi"
 
 
@@ -170,7 +162,7 @@ def _add_poi_to_graph(poi_id: str, name: str, lon: float, lat: float, tags: dict
     nearest_id = None
     min_dist = float("inf")
     for nid, node in nodes_map.items():
-        if node["type"] != "normal":
+        if node.get("type") != "normal":
             continue
         d = haversine(lon, lat, node["x"], node["y"])
         if d < min_dist:
@@ -179,7 +171,7 @@ def _add_poi_to_graph(poi_id: str, name: str, lon: float, lat: float, tags: dict
 
     if nearest_id is None or min_dist > connect_radius_m:
         print(f"  [SKIP] '{name}' — nearest node {min_dist:.0f}m away (limit {connect_radius_m}m)")
-        return False, True # Added=False, TooFar=True
+        return False, True
 
     poi_type = _poi_type(tags)
     if poi_type is None:
@@ -209,49 +201,52 @@ def _add_poi_to_graph(poi_id: str, name: str, lon: float, lat: float, tags: dict
     return True, False
 
 
+def _extract_poi_name(tags: dict) -> str | None:
+    name = (
+        tags.get("name")
+        or tags.get("alt_name")
+        or tags.get("short_name")
+        or tags.get("operator")
+        or tags.get("brand")
+    )
+    if not name:
+        amenity = tags.get("amenity", "")
+        if amenity:
+            name = amenity.replace("_", " ").title()
+    return name
+
+
+def _extract_poi_coordinates(element: dict) -> tuple[float, float] | None:
+    if element.get("type") == "node":
+        return element.get("lon"), element.get("lat")
+    if element.get("type") == "way" and "center" in element:
+        return element["center"].get("lon"), element["center"].get("lat")
+    return None
+
 
 def process_pois(poi_data: dict, nodes_map: dict, edges: list, connect_radius_m: float = 100.0):
     """
-    FIX 3: Extract POIs from OSM response (both node and way center),
+    Extract POIs from OSM response (both node and way center),
     add them to nodes_map, and connect each to its nearest walkable node.
-    The connect_radius_m is raised to 100 m (was 50 m) to avoid silent drops
-    for POIs that are slightly off the pedestrian network.
     """
     added = 0
     skipped_no_name = 0
     skipped_too_far = 0
 
-    for el in poi_data["elements"]:
+    for el in poi_data.get("elements", []):
         tags = el.get("tags", {})
-        # FIX: Fallback to short_name, operator, brand, or amenity tag for unnamed POIs (e.g. ATMs)
-        name = (
-            tags.get("name")
-            or tags.get("alt_name")
-            or tags.get("short_name")
-            or tags.get("operator")
-            or tags.get("brand")
-        )
-        if not name:
-            # Last resort: use amenity/shop tag as name (e.g. "atm" → "ATM")
-            amenity = tags.get("amenity", "")
-            if amenity:
-                name = amenity.replace("_", " ").title()
-
+        name = _extract_poi_name(tags)
         if not name:
             skipped_no_name += 1
             continue
 
-        # FIX 4: For ways, OSM returns a "center" lat/lon when using "out center;"
-        if el["type"] == "node":
-            lon, lat = el["lon"], el["lat"]
-        elif el["type"] == "way" and "center" in el:
-            lon, lat = el["center"]["lon"], el["center"]["lat"]
-        else:
+        coords = _extract_poi_coordinates(el)
+        if not coords:
             continue
 
+        lon, lat = coords
         poi_id = f"POI-{el['id']}"
 
-        # Skip if already added (duplicate OSM id)
         if poi_id in nodes_map:
             continue
 
@@ -270,11 +265,11 @@ def main():
     try:
         print("1/3  Fetching walkable ways from OSM...")
         ways_data = overpass_fetch(WAYS_QUERY)
-        print(f"     Got {len(ways_data['elements'])} elements.")
+        print(f"     Got {len(ways_data.get('elements', []))} elements.")
 
         print("2/3  Fetching POIs from OSM...")
         poi_data = overpass_fetch(POIS_QUERY)
-        print(f"     Got {len(poi_data['elements'])} POI elements.")
+        print(f"     Got {len(poi_data.get('elements', []))} POI elements.")
 
         print("3/3  Building graph...")
         nodes_map, edges = process_ways(ways_data)

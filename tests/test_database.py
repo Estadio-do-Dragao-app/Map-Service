@@ -9,17 +9,47 @@ from models import Base, Node
 class TestDatabaseInit:
     """Test database initialization."""
     
-    def test_init_db_creates_tables(self, test_engine):
+    def test_init_db_creates_tables(self, test_engine, monkeypatch):
         """Test that init_db creates all necessary tables."""
+        import database
+        monkeypatch.setattr(database, "engine", test_engine)
+        
         # Drop all tables first
         Base.metadata.drop_all(bind=test_engine)
         
-        # Create tables
-        Base.metadata.create_all(bind=test_engine)
+        # Call init_db
+        database.init_db()
         
         # Check that tables exist
         inspector = test_engine.dialect.get_table_names(test_engine.connect())
-        assert 'nodes' in inspector or len(Base.metadata.tables) > 0
+        assert 'nodes' in inspector
+
+    def test_init_db_missing_columns(self, test_engine, monkeypatch):
+        """Test that init_db adds missing columns."""
+        import database
+        from sqlalchemy import text, inspect
+        monkeypatch.setattr(database, "engine", test_engine)
+        
+        # Drop all tables first
+        Base.metadata.drop_all(bind=test_engine)
+        
+        # Pre-create 'nodes' table with only bare minimum columns
+        with test_engine.begin() as conn:
+            conn.execute(text("CREATE TABLE nodes (id VARCHAR PRIMARY KEY, x FLOAT, y FLOAT)"))
+            
+        # Verify 'description' column is missing initially
+        inspector = inspect(test_engine)
+        existing = [c['name'] for c in inspector.get_columns('nodes')]
+        assert 'description' not in existing
+        
+        # Run init_db to trigger column migration
+        database.init_db()
+        
+        # Verify 'description' column was added
+        inspector = inspect(test_engine)
+        existing_after = [c['name'] for c in inspector.get_columns('nodes')]
+        assert 'description' in existing_after
+
     
     def test_database_connection(self, test_db):
         """Test that database connection works."""
