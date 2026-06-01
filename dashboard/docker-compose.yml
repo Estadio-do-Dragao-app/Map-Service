@@ -9,12 +9,12 @@ services:
     ports:
       - "8015:8000"   # Host 8015 -> container 8000 (evita conflito com outros servicos)
     environment:
-      MAP_SERVICE_URL: http://host.docker.internal:8000
+      MAP_SERVICE_URL: http://mapservice:8000
       # Must match the API_KEY used by the Map-Service, otherwise calls are rejected (401)
       API_KEY: ${API_KEY:-dragao_secret_key_2026}
-    # Para Linux, é necessário adicionar isto para que host.docker.internal funcione:
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    networks:
+      - default
+      - map-service_map-network
     restart: unless-stopped
 
   dashboard-frontend:
@@ -31,3 +31,7 @@ services:
     depends_on:
       - dashboard-backend
     restart: unless-stopped
+
+networks:
+  map-service_map-network:
+    external: true

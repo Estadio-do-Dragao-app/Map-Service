@@ -381,6 +381,14 @@ export function MapComponent() {
     coverage_y_min: '', coverage_y_max: '',
   });
 
+  // ── Modal state ───────────────────────────────────────────────────────────
+  const [modal, setModal] = useState(null);
+  // { message: string, type: 'alert' | 'confirm', onConfirm?: () => void }
+
+  const showAlert   = (message) => setModal({ type: 'alert', message });
+  const showConfirm = (message, onConfirm) => setModal({ type: 'confirm', message, onConfirm });
+  const closeModal  = () => setModal(null);
+
   // ── Coverage polygon state ────────────────────────────────────────────────
   const [polygonPoints, setPolygonPoints]   = useState([]);
   const [drawingPolygon, setDrawingPolygon] = useState(false);
@@ -532,32 +540,34 @@ export function MapComponent() {
   const cancelEditCamera = () => { setEditingCamera(null); setDraggedPosition(null); clearPolygon(); };
 
   // ── Delete node ──────────────────────────────────────────────────────────
-  const deleteNode = async (nodeId) => {
-    if (!globalThis.confirm('Are you sure you want to delete this node? Connected edges will also be deleted.')) return;
-    try {
-      const res = await fetch(`${API_BASE}/nodes/${nodeId}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Failed to delete node');
-      await fetchData();
-      setSelectedNode(null);
-      setNewNodeIds(prev => { const s = new Set(prev); s.delete(nodeId); return s; });
-    } catch (err) { setError(err.message); }
+  const deleteNode = (nodeId) => {
+    showConfirm('Are you sure you want to delete this node? Connected edges will also be deleted.', async () => {
+      try {
+        const res = await fetch(`${API_BASE}/nodes/${nodeId}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('Failed to delete node');
+        await fetchData();
+        setSelectedNode(null);
+        setNewNodeIds(prev => { const s = new Set(prev); s.delete(nodeId); return s; });
+      } catch (err) { setError(err.message); }
+    });
   };
 
   // ── Delete edge ──────────────────────────────────────────────────────────
-  const deleteEdge = async (edgeId) => {
-    if (!globalThis.confirm('Are you sure you want to delete this edge?')) return;
-    try {
-      const res = await fetch(`${API_BASE}/edges/${edgeId}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Failed to delete edge');
-      await fetchData();
-    } catch (err) { setError(err.message); }
+  const deleteEdge = (edgeId) => {
+    showConfirm('Are you sure you want to delete this edge?', async () => {
+      try {
+        const res = await fetch(`${API_BASE}/edges/${edgeId}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('Failed to delete edge');
+        await fetchData();
+      } catch (err) { setError(err.message); }
+    });
   };
 
   // ── Create node ──────────────────────────────────────────────────────────
   const createNode = async () => {
-    if (!newNodePosition || !formData.name) { globalThis.alert('Please enter a node name'); return; }
+    if (!newNodePosition || !formData.name) { showAlert('Please enter a node name'); return; }
     if (newNodePosition[0] === 0 && newNodePosition[1] === 0) {
-      globalThis.alert('Invalid node position (0,0). Please click on the map to set a valid location.'); return;
+      showAlert('Invalid node position (0,0). Please click on the map to set a valid location.'); return;
     }
 
     const newId = `node_${Date.now()}`;
@@ -587,7 +597,7 @@ export function MapComponent() {
 
   // ── Create edge ──────────────────────────────────────────────────────────
   const createEdge = async () => {
-    if (!pointsForEdge.from || !pointsForEdge.to) { globalThis.alert('Please select two nodes'); return; }
+    if (!pointsForEdge.from || !pointsForEdge.to) { showAlert('Please select two nodes'); return; }
 
     const fromNode = nodes.find(n => n.id === pointsForEdge.from);
     const toNode   = nodes.find(n => n.id === pointsForEdge.to);
@@ -752,7 +762,7 @@ export function MapComponent() {
           setError(`Import completed with errors: ${previewErr.join(', ')}. Check console for details.`);
           console.error('Import partial result:', resultBody);
         } else {
-          globalThis.alert(`Import successful: ${nodeCreated} nodes, ${edgeCreated} edges created.`);
+          showAlert(`Import successful: ${nodeCreated} nodes, ${edgeCreated} edges created.`);
         }
       }
 
@@ -765,10 +775,8 @@ export function MapComponent() {
     }
   };
 
-  const handleUpload = async () => {
-    const isConfirmed = globalThis.confirm("Are you sure you want to upload the current map? This will overwrite all existing map data in the database.");
-    if (!isConfirmed) return;
-
+  const handleUpload = () => {
+    showConfirm("Are you sure you want to upload the current map? This will overwrite all existing map data in the database.", async () => {
     try {
       setLoading(true);
 
@@ -813,12 +821,13 @@ export function MapComponent() {
       }
 
       await fetchData();
-      globalThis.alert('Map uploaded and synced successfully!');
+      showAlert('Map uploaded and synced successfully!');
     } catch (err) {
       setError(`Upload error: ${err.message}`);
     } finally {
       setLoading(false);
     }
+    });
   };
 
   const setToolMode = (mode) => {
@@ -844,8 +853,8 @@ export function MapComponent() {
   };
 
   const createCamera = async () => {
-    if (!newNodePosition) { globalThis.alert('Click on the map to set the camera position'); return; }
-    if (!cameraFormData.id.trim()) { globalThis.alert('Camera ID is required'); return; }
+    if (!newNodePosition) { showAlert('Click on the map to set the camera position'); return; }
+    if (!cameraFormData.id.trim()) { showAlert('Camera ID is required'); return; }
 
     const existing = cameras.find(c => c.id === cameraFormData.id.trim());
     if (existing) {
@@ -1318,8 +1327,8 @@ export function MapComponent() {
           </button>
         </div>
 
-        <div className="edge-filter" style={{ flexDirection: 'column', gap: '8px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div className="edge-filter">
+          <div className="edge-filter-row">
             <button
               className={`edge-filter-button ${showAllEdges ? 'active' : ''}`}
               onClick={() => setShowAllEdges(!showAllEdges)}>
@@ -1329,7 +1338,7 @@ export function MapComponent() {
               {showAllEdges ? 'Hide All edges' : 'Show All edges'}
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div className="edge-filter-row">
             <button
               className={`edge-filter-button ${showCameras ? 'active' : ''}`}
               onClick={() => setShowCameras(!showCameras)}
@@ -1340,7 +1349,7 @@ export function MapComponent() {
               {showCameras ? 'Hide cameras' : 'Show cameras'}
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div className="edge-filter-row">
             <button
               className={`edge-filter-button ${showQueues ? 'active' : ''}`}
               onClick={() => setShowQueues(!showQueues)}
@@ -1943,6 +1952,24 @@ export function MapComponent() {
           </div>
         </div>
       </div>
+
+      {modal && (
+        <div className="modal-overlay" onClick={closeModal}>
+          <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+            <p className="modal-message">{modal.message}</p>
+            <div className="modal-actions">
+              {modal.type === 'confirm' ? (
+                <>
+                  <button className="btn-secondary" onClick={closeModal}>Cancel</button>
+                  <button className="btn-primary btn-delete" onClick={() => { closeModal(); modal.onConfirm?.(); }}>Confirm</button>
+                </>
+              ) : (
+                <button className="btn-primary" onClick={closeModal}>OK</button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
