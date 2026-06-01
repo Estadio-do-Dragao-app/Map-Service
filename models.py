@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Float, Integer, Boolean, ForeignKey, JSON
+from sqlalchemy import Column, String, Float, Integer, Boolean, ForeignKey, JSON, Index
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from pydantic import BaseModel
@@ -22,14 +22,14 @@ NODE_TYPES = [
     "restroom",       # WC/Bathroom facilities
     "food",           # Food court/restaurant
     "bar",            # Bar/drinks area
-    "merchandise",    # Store/merchandise shop
     "first_aid",      # Medical/first aid station
     "emergency_exit", # Emergency exit point
     "information",    # Information desk
-    "vip_box",        # VIP box/corporate area
     "camera",         # Surveillance camera
     "normal",         # Generic navigation node
     "departments",    # University department / campus building
+    "department",     # University department (variant)
+    "departamento",   # University department (Portuguese variant)
     "queue",          # Queue/waiting-line node (only connects to other queue nodes)
 ]
 
@@ -103,6 +103,13 @@ class Node(Base):
     
     # Door reference (for building nodes): points to the actual entry point node
     door_id = Column(String, ForeignKey(NODES_TABLE_ID), nullable=True)
+
+    __table_args__ = (
+        Index("idx_nodes_type", "type"),
+        Index("idx_nodes_level", "level"),
+        Index("idx_nodes_type_level", "type", "level"),
+        Index("idx_nodes_door_id", "door_id"),
+    )
     
     # Relationships
     edges_from = relationship("Edge", foreign_keys="Edge.from_id", back_populates="from_node", cascade=CASCADE_ALL_DELETE_ORPHAN)
@@ -149,6 +156,12 @@ class Edge(Base):
     #   - Ramps between levels: True
     #   - Seat access from aisle: True
     accessible = Column(Boolean, default=True)
+
+    __table_args__ = (
+        Index("idx_edges_from_id", "from_id"),
+        Index("idx_edges_to_id", "to_id"),
+        Index("idx_edges_from_to", "from_id", "to_id"),
+    )
     
     # Relationships
     from_node = relationship("Node", foreign_keys=[from_id], back_populates="edges_from")
@@ -178,6 +191,12 @@ class Closure(Base):
     # Relationships
     edge = relationship("Edge", back_populates="closures")
     node = relationship("Node", back_populates="closures")
+
+    __table_args__ = (
+        Index("idx_closures_node_id", "node_id"),
+        Index("idx_closures_edge_id", "edge_id"),
+        Index("idx_closures_reason", "reason"),
+    )
 
 
 class EmergencyRoute(Base):
@@ -228,6 +247,13 @@ class Tile(Base):
     seat_id = Column(String, nullable=True)
     gate_id = Column(String, nullable=True)
 
+    __table_args__ = (
+        Index("idx_tiles_level", "level"),
+        Index("idx_tiles_poi_id", "poi_id"),
+        Index("idx_tiles_seat_id", "seat_id"),
+        Index("idx_tiles_gate_id", "gate_id"),
+    )
+
 
 class Camera(Base):
     """
@@ -258,6 +284,10 @@ class Camera(Base):
     coverage_x_max = Column(Float, nullable=True)
     coverage_y_min = Column(Float, nullable=True)
     coverage_y_max = Column(Float, nullable=True)
+
+    __table_args__ = (
+        Index("idx_cameras_node_id", "node_id"),
+    )
 
     # Free-form polygon coverage area on the map
     # List of {x, y} map-coordinate dicts (at least 3 points = triangle)
@@ -442,10 +472,6 @@ class EmergencyRouteResponse(BaseModel):
     class Config:
         from_attributes = True
 
-class BatchCreate(BaseModel):
-    nodes: list[NodeCreate] = []
-    edges: list[EdgeCreate] = []
-    closures: list[ClosureCreate] = []
 
 class BatchDelete(BaseModel):
     node_ids: list[str] = []
@@ -501,3 +527,8 @@ class CameraResponse(BaseModel):
 
     class Config:
         from_attributes = True
+class BatchCreate(BaseModel):
+    nodes: list[NodeCreate] = []
+    edges: list[EdgeCreate] = []
+    closures: list[ClosureCreate] = []
+    cameras: list[CameraCreate] = []
