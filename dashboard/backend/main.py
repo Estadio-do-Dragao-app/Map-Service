@@ -2,7 +2,6 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Optional
 import httpx
-import asyncio
 
 from models import (
     EdgeUpdate, NodeCreate, NodeResponse,
@@ -264,32 +263,13 @@ async def sync_map(data: BatchCreate):
 
 @app.post("/batch/delete", status_code=200, tags=["batch"])
 async def delete_batch(data: BatchDelete):
-    """Apaga múltiplos nodes e/ou edges em paralelo. Edges primeiro, depois nodes."""
-    results = {
-        "edges": {"deleted": [], "errors": []},
-        "nodes": {"deleted": [], "errors": []},
-    }
-
-    async def del_edge(edge_id: str):
-        try:
-            await call_map_service("DELETE", f"/edges/{edge_id}")
-            results["edges"]["deleted"].append(edge_id)
-        except Exception as e:
-            results["edges"]["errors"].append({"id": edge_id, "error": str(e)})
-
-    async def del_node(node_id: str):
-        try:
-            await call_map_service("DELETE", f"/nodes/{node_id}")
-            results["nodes"]["deleted"].append(node_id)
-        except Exception as e:
-            results["nodes"]["errors"].append({"id": node_id, "error": str(e)})
-
-    if data.edge_ids:
-        await asyncio.gather(*[del_edge(eid) for eid in data.edge_ids])
-    if data.node_ids:
-        await asyncio.gather(*[del_node(nid) for nid in data.node_ids])
-
-    return results
+    """Apaga múltiplos nodes e/ou edges num único pedido ao Map-Service."""
+    try:
+        return await call_map_service("POST", "/batch/delete", json=data.model_dump())
+    except httpx.ConnectError:
+        raise HTTPException(status_code=503, detail="Map-Service não está acessível")
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=e.response.status_code, detail=e.response.text)
 
 
 # ================== CAMERAS ==================

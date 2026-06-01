@@ -447,6 +447,10 @@ class BatchCreate(BaseModel):
     edges: list[EdgeCreate] = []
     closures: list[ClosureCreate] = []
 
+class BatchDelete(BaseModel):
+    node_ids: list[str] = []
+    edge_ids: list[str] = []
+
 # ================== Camera Schemas ==================
 
 class CameraCreate(BaseModel):
