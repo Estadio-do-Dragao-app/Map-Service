@@ -8,10 +8,23 @@ services:
     container_name: dashboard-backend
     ports:
       - "8015:8000"   # Host 8015 -> container 8000 (evita conflito com outros servicos)
+    env_file:
+      - ../../.env
     environment:
       MAP_SERVICE_URL: http://host.docker.internal:8000
-      API_KEY: ${API_KEY}
+      
     # Para Linux, é necessário adicionar isto para que host.docker.internal funcione:
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  dashboard-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: dashboard-frontend
+    depends_on:
+      - dashboard-backend
+    ports:
+      - "8080:8080"
     restart: unless-stopped
