@@ -473,6 +473,10 @@ class EmergencyRouteResponse(BaseModel):
         from_attributes = True
 
 
+class BatchDelete(BaseModel):
+    node_ids: list[str] = []
+    edge_ids: list[str] = []
+
 # ================== Camera Schemas ==================
 
 class CameraCreate(BaseModel):

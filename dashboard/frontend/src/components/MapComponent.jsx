@@ -578,7 +578,8 @@ export function MapComponent() {
       });
       if (!response.ok) throw new Error('Failed to create node');
       await fetchData();
-      setShowNodeForm(false); setNewNodePosition(null);
+      // keep node form open so user can create multiple nodes in a row
+      setNewNodePosition(null);
       setFormData({ name: '', type: 'normal', door_id: null });
       setNewNodeIds(prev => new Set([...prev, newId]));
       if (tempNodeMarkerRef.current) {
@@ -611,7 +612,8 @@ export function MapComponent() {
       });
       if (!response.ok) throw new Error('Failed to create edge');
       await fetchData();
-      setPointsForEdge({ from: null, to: null }); setCreatingEdge(false);
+      // keep edge creation mode active so user can create multiple edges sequentially
+      setPointsForEdge({ from: null, to: null });
     } catch (err) { setError(err.message); }
   };
 
@@ -714,7 +716,17 @@ export function MapComponent() {
     try {
       setLoading(true);
       const text = await file.text();
-      const data = JSON.parse(text);
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (parseErr) {
+        const preview = (text || '').slice(0, 200).replace(/\n/g, ' ');
+        const msg = `Import failed: file '${file.name}' is not valid JSON. Preview: ${preview}`;
+        console.error(msg, parseErr);
+        setError(msg);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
 
       const mappedEdges = (data.edges || []).map(edge => ({
         id: edge.id,
@@ -736,7 +748,7 @@ export function MapComponent() {
       });
 
       if (!response.ok) {
-        const errData = await response.json();
+        const errData = await response.json().catch(() => ({}));
         throw new Error(errData.detail || 'Failed to import map');
       }
 
@@ -883,8 +895,9 @@ export function MapComponent() {
 
       setNewNodeIds(prev => new Set([...prev, nodeId]));
       await fetchData();
-      setToolMode('select');
-      setCameraFormData({ id: '', pos_z: 10, pan: 0, tilt: -30, fov_horizontal: 70, fov_vertical: 55, coverage_x_min: '', coverage_x_max: '', coverage_y_min: '', coverage_y_max: '' });
+      // keep camera form open for creating additional cameras
+      setNewNodePosition(null);
+      setCameraFormData({ id: '', pos_z: 10.0, pan: 0.0, tilt: -30.0, fov_horizontal: 70.0, fov_vertical: 55.0, coverage_x_min: '', coverage_x_max: '', coverage_y_min: '', coverage_y_max: '' });
       clearPolygon();
     } catch (err) { setError(err.message); }
   };

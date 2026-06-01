@@ -4,7 +4,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from sqlalchemy import func, event
+from sqlalchemy import func, or_
 from typing import List, Optional, Annotated
 from database import get_db, init_db
 from models import (
@@ -14,6 +14,7 @@ from models import (
     ClosureCreate, ClosureResponse,
     TileCreate, TileUpdate, TileResponse,
     EmergencyRouteResponse, BatchCreate,
+    BatchDelete,
     CameraCreate, CameraUpdate, CameraResponse,
 )
 from grid_name import GridManager
@@ -1577,3 +1578,38 @@ def sync_map(
         raise HTTPException(status_code=500, detail=f"Database error during sync: {str(e)}")
     notify_routing_refresh()
     return {"status": "success", "message": "Map synchronized successfully"}
+
+@app.post("/batch/delete", status_code=200, responses={
+    500: {"description": "Database error during bulk delete"}
+})
+def delete_batch(
+    data: BatchDelete,
+    db: Annotated[Session, Depends(get_db)],
+    _: str = Depends(get_api_key)
+):
+    """Delete multiple nodes and/or edges in a single transaction."""
+    try:
+        deleted_edges = []
+        deleted_nodes = []
+
+        if data.edge_ids:
+            deleted_edges = [row[0] for row in db.query(Edge.id).filter(Edge.id.in_(data.edge_ids)).all()]
+            if deleted_edges:
+                db.query(Closure).filter(Closure.edge_id.in_(deleted_edges)).delete(synchronize_session=False)
+                db.query(Edge).filter(Edge.id.in_(deleted_edges)).delete(synchronize_session=False)
+
+        if data.node_ids:
+            deleted_nodes = [row[0] for row in db.query(Node.id).filter(Node.id.in_(data.node_ids)).all()]
+            if deleted_nodes:
+                db.query(Edge).filter(or_(Edge.from_id.in_(deleted_nodes), Edge.to_id.in_(deleted_nodes))).delete(synchronize_session=False)
+                db.query(Closure).filter(Closure.node_id.in_(deleted_nodes)).delete(synchronize_session=False)
+                db.query(Node).filter(Node.id.in_(deleted_nodes)).delete(synchronize_session=False)
+
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error during bulk delete: {str(e)}")
+
+    if deleted_edges or deleted_nodes:
+        notify_routing_refresh()
+    return {"status": "success", "deleted": {"edges": deleted_edges, "nodes": deleted_nodes}}
