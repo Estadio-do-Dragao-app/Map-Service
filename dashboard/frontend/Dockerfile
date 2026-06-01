@@ -13,6 +13,11 @@ COPY vite.config.js ./
 COPY public ./public
 COPY src ./src
 
+# Vite reads VITE_* vars from the environment at build time and inlines them into
+# the bundle. Default '/api' routes the browser through nginx to dashboard-backend.
+ARG VITE_DASHBOARD_API_BASE=/api
+ENV VITE_DASHBOARD_API_BASE=${VITE_DASHBOARD_API_BASE}
+
 # Build the application
 RUN npm run build
 

@@ -13,7 +13,7 @@ from models import (
     EdgeCreate, EdgeUpdate, EdgeResponse,
     ClosureCreate, ClosureResponse,
     TileCreate, TileUpdate, TileResponse,
-    EmergencyRouteResponse, BatchCreate,
+    EmergencyRouteResponse, BatchCreate, BatchDelete,
     CameraCreate, CameraUpdate, CameraResponse,
 )
 from grid_name import GridManager
@@ -1521,6 +1521,63 @@ def create_batch(
         raise HTTPException(status_code=500, detail=f"Database error committing cameras: {str(e)}")
 
     if results["nodes"]["created"] or results["edges"]["created"] or results["closures"]["created"] or results["cameras"]["created"]:
+        notify_routing_refresh()
+    return results
+
+# ================== BATCH DELETE ==================
+@app.post("/batch/delete", status_code=200, responses={
+    500: {"description": "Database error during batch delete operation"}
+})
+def delete_batch(
+    data: BatchDelete,
+    db: Annotated[Session, Depends(get_db)],
+    _: Annotated[str, Depends(get_api_key)]
+):
+    """Apaga múltiplos edges e nodes numa única transação.
+
+    Edges primeiro, depois nodes (incluindo edges e closures dependentes
+    de cada node). Tudo num único commit para evitar N pedidos individuais.
+    """
+    results = {
+        "edges": {"deleted": [], "errors": []},
+        "nodes": {"deleted": [], "errors": []},
+    }
+
+    if data.edge_ids:
+        existing_edges = {r[0] for r in db.query(Edge.id).filter(Edge.id.in_(data.edge_ids)).all()}
+        for edge_id in data.edge_ids:
+            if edge_id not in existing_edges:
+                results["edges"]["errors"].append({"id": edge_id, "error": ERR_EDGE_NOT_FOUND})
+
+    if data.node_ids:
+        existing_nodes = {r[0] for r in db.query(Node.id).filter(Node.id.in_(data.node_ids)).all()}
+        for node_id in data.node_ids:
+            if node_id not in existing_nodes:
+                results["nodes"]["errors"].append({"id": node_id, "error": ERR_NODE_NOT_FOUND})
+
+    deletable_edges = [eid for eid in data.edge_ids if not any(e["id"] == eid for e in results["edges"]["errors"])]
+    deletable_nodes = [nid for nid in data.node_ids if not any(n["id"] == nid for n in results["nodes"]["errors"])]
+
+    try:
+        if deletable_edges:
+            db.query(Edge).filter(Edge.id.in_(deletable_edges)).delete(synchronize_session=False)
+            results["edges"]["deleted"] = deletable_edges
+
+        if deletable_nodes:
+            # Remove edges and closures attached to the nodes being deleted
+            db.query(Edge).filter(
+                Edge.from_id.in_(deletable_nodes) | Edge.to_id.in_(deletable_nodes)
+            ).delete(synchronize_session=False)
+            db.query(Closure).filter(Closure.node_id.in_(deletable_nodes)).delete(synchronize_session=False)
+            db.query(Node).filter(Node.id.in_(deletable_nodes)).delete(synchronize_session=False)
+            results["nodes"]["deleted"] = deletable_nodes
+
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+    if results["edges"]["deleted"] or results["nodes"]["deleted"]:
         notify_routing_refresh()
     return results
 
