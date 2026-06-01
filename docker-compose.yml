@@ -31,6 +31,9 @@ services:
     environment:
       DATABASE_URI: postgresql://postgres:postgres@postgres:5432/campus_map
       DEBUG: "false"
+      # Must match the API_KEY used by the dashboard-backend, otherwise its
+      # requests are rejected (401). Defaults to the shared dev key.
+      API_KEY: ${API_KEY}
     ports:
       - "8000:8000"
     networks:
