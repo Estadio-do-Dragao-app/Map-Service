@@ -3,9 +3,6 @@ FROM node:20-alpine AS build
 
 WORKDIR /app
 
-ARG VITE_DASHBOARD_API_BASE=/api
-ENV VITE_DASHBOARD_API_BASE=${VITE_DASHBOARD_API_BASE}
-
 # Copy package files and install dependencies
 COPY package*.json ./
 RUN npm ci --ignore-scripts
