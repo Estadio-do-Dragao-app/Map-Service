@@ -4,7 +4,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, event
 from typing import List, Optional, Annotated
 from database import get_db, init_db
 from models import (
