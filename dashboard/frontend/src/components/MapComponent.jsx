@@ -391,16 +391,13 @@ export function MapComponent() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [nodesRes, edgesRes, camerasRes] = await Promise.all([
-        fetch(`${API_BASE}/nodes`),
-        fetch(`${API_BASE}/edges`),
-        fetch(`${API_BASE}/cameras`),
-      ]);
-      if (!nodesRes.ok || !edgesRes.ok) throw new Error('Failed to fetch data');
-      setNodes(await nodesRes.json());
-      setEdges(await edgesRes.json());
-      if (camerasRes.ok) setCameras(await camerasRes.json());
-      else { console.error('Failed to fetch cameras'); setError('Não foi possível carregar câmaras'); }
+      // Use the combined /map endpoint to avoid per-resource pagination limits
+      const res = await fetch(`${API_BASE}/map`);
+      if (!res.ok) throw new Error('Failed to fetch map data');
+      const data = await res.json();
+      setNodes(data.nodes || []);
+      setEdges(data.edges || []);
+      setCameras(data.cameras || []);
     } catch (err) {
       setError(err.message);
       console.error('Error fetching data:', err);
@@ -747,14 +744,32 @@ export function MapComponent() {
         }),
       });
 
+      // Read result body even on success to detect partial failures
+      const resultBody = await response.json().catch(() => null);
       if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.detail || 'Failed to import map');
+        const errMsg = (resultBody && (resultBody.detail || JSON.stringify(resultBody))) || 'Failed to import map';
+        throw new Error(errMsg);
+      }
+
+      // If resultBody contains per-entity results, summarise and show any errors
+      if (resultBody) {
+        const nodeCreated = resultBody.nodes?.created?.length || 0;
+        const edgeCreated = resultBody.edges?.created?.length || 0;
+        const nodeErrors = resultBody.nodes?.errors?.length || 0;
+        const edgeErrors = resultBody.edges?.errors?.length || 0;
+        if (nodeErrors || edgeErrors) {
+          const previewErr = [];
+          if (resultBody.nodes?.errors && resultBody.nodes.errors.length) previewErr.push(`${resultBody.nodes.errors.length} node errors`);
+          if (resultBody.edges?.errors && resultBody.edges.errors.length) previewErr.push(`${resultBody.edges.errors.length} edge errors`);
+          setError(`Import completed with errors: ${previewErr.join(', ')}. Check console for details.`);
+          console.error('Import partial result:', resultBody);
+        } else {
+          globalThis.alert(`Import successful: ${nodeCreated} nodes, ${edgeCreated} edges created.`);
+        }
       }
 
       await fetchData();
       if (fileInputRef.current) fileInputRef.current.value = '';
-      globalThis.alert('Map imported successfully!');
     } catch (err) {
       setError(`Import error: ${err.message}`);
     } finally {

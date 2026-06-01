@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Optional
+import re
 import httpx
 
 from models import (
@@ -77,10 +78,15 @@ async def export_map():
 # ================== NODES ==================
 
 @app.get("/nodes", response_model=List[NodeResponse], tags=["nodes"], responses={503: {"description": ERR_MAP_UNREACHABLE}})
-async def get_nodes():
-    """Lista todos os nodes do mapa."""
+async def get_nodes(limit: Optional[int] = None, offset: Optional[int] = None):
+    """Lista todos os nodes do mapa. Encaminha `limit` e `offset` para o Map-Service quando presentes."""
     try:
-        return await call_map_service("GET", "/nodes")
+        params = {}
+        if limit is not None:
+            params['limit'] = limit
+        if offset is not None:
+            params['offset'] = offset
+        return await call_map_service("GET", "/nodes", params=params if params else None)
     except httpx.ConnectError:
         raise HTTPException(status_code=503, detail=ERR_MAP_UNREACHABLE)
     except httpx.HTTPStatusError as e:
@@ -143,10 +149,15 @@ async def update_node(node_id: str, data: NodeUpdate):
 # ================== EDGES ==================
 
 @app.get("/edges", response_model=List[EdgeResponse], tags=["edges"], responses={503: {"description": ERR_MAP_UNREACHABLE}})
-async def get_edges():
-    """Lista todas as edges do mapa."""
+async def get_edges(limit: Optional[int] = None, offset: Optional[int] = None):
+    """Lista todas as edges do mapa. Encaminha `limit` e `offset` para o Map-Service quando presentes."""
     try:
-        return await call_map_service("GET", "/edges")
+        params = {}
+        if limit is not None:
+            params['limit'] = limit
+        if offset is not None:
+            params['offset'] = offset
+        return await call_map_service("GET", "/edges", params=params if params else None)
     except httpx.ConnectError:
         raise HTTPException(status_code=503, detail=ERR_MAP_UNREACHABLE)
     except httpx.HTTPStatusError as e:
