@@ -3,12 +3,12 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Install dependencies and create non-root user in one layer
-RUN apt-get update && apt-get install -y --no-install-recommends bash dos2unix curl && \
+RUN apt-get update && apt-get install -y --no-install-recommends bash curl dos2unix && \
     rm -rf /var/lib/apt/lists/* && \
     useradd -m -u 1000 appuser
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir --only-binary :all: -r requirements.txt
+COPY requirements.lock.txt .
+RUN pip install --no-cache-dir --only-binary :all: --no-deps --require-hashes -r requirements.lock.txt
 
 # Copy only necessary files instead of entire directory
 COPY *.py ./
